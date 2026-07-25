@@ -36,6 +36,9 @@ const en = {
   authServerLabel: "QuizQuest server",
   authServerHint: "On the same Wi‑Fi? Enter http://YOUR_PC_IP:4000 (run ipconfig on the PC).",
   authServerPlaceholder: "http://192.168.0.111:4000",
+  authTestServer: "Test connection",
+  authServerOk: "Connected! You can send your code.",
+  authServerFail: "Could not connect. Check the address and that the PC server is running.",
 
   // Onboarding
   obNameTitle: "What should we call you?",
@@ -217,6 +220,9 @@ const ne: Record<TranslationKey, string> = {
   authServerLabel: "QuizQuest सर्भर",
   authServerHint: "एउटै Wi‑Fi? http://YOUR_PC_IP:4000 लेख्नुहोस् (PC मा ipconfig)।",
   authServerPlaceholder: "http://192.168.0.111:4000",
+  authTestServer: "जडान जाँच गर्नुहोस्",
+  authServerOk: "जोडियो! अब कोड पठाउन सक्नुहुन्छ।",
+  authServerFail: "जडान भएन। ठेगाना र PC सर्भर जाँच गर्नुहोस्।",
 
   obNameTitle: "हामीले तपाईंलाई के भनेर बोलाऔँ?",
   obNamePlaceholder: "तपाईंको नाम",

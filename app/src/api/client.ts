@@ -72,6 +72,20 @@ async function request<T>(
   return data as T;
 }
 
+/** Health check — same fetch stack as auth; used on the login screen. */
+export async function pingServer(baseUrl?: string): Promise<{ ok: boolean; detail: string }> {
+  const url = (baseUrl?.trim() || (await getBaseUrl())).replace(/\/$/, "");
+  try {
+    const res = await fetch(`${url}/`, { method: "GET" });
+    const text = await res.text();
+    if (res.ok && text.includes('"ok"')) return { ok: true, detail: url };
+    return { ok: false, detail: `HTTP ${res.status}` };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "network error";
+    return { ok: false, detail: msg };
+  }
+}
+
 // ---- Auth ----
 
 export function requestOtp(phone: string): Promise<RequestOtpResponse> {

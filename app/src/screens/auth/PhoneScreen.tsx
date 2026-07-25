@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ApiError, requestOtp } from "../../api/client";
+import { ApiError, pingServer, requestOtp } from "../../api/client";
 import { getBaseUrl, getBuiltInBaseUrl, setBaseUrl } from "../../api/config";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { AuthStackParamList } from "../../navigation/types";
@@ -19,19 +19,45 @@ import { colors, radius, spacing } from "../../theme";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Phone">;
 
+const LAN_DEFAULT = "http://192.168.0.111:4000";
+
 export function PhoneScreen({ navigation }: Props) {
   const { t } = useI18n();
   const [phone, setPhone] = useState("");
-  const [serverUrl, setServerUrl] = useState("");
+  const [serverUrl, setServerUrl] = useState(LAN_DEFAULT);
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [serverOk, setServerOk] = useState<boolean | null>(null);
 
   const valid = phone.trim().length >= 10;
   const serverValid = /^https?:\/\/.+/.test(serverUrl.trim());
 
   useEffect(() => {
-    getBaseUrl().then(setServerUrl);
+    (async () => {
+      const url = await getBaseUrl();
+      const builtIn = getBuiltInBaseUrl();
+      if (url && !url.includes("localhost") && !url.includes("127.0.0.1")) {
+        setServerUrl(url);
+      } else if (builtIn && !builtIn.includes("localhost")) {
+        setServerUrl(builtIn);
+      }
+    })();
   }, []);
+
+  const onTestServer = async () => {
+    if (!serverValid) return;
+    setTesting(true);
+    setError(null);
+    setServerOk(null);
+    await setBaseUrl(serverUrl);
+    const result = await pingServer(serverUrl);
+    setTesting(false);
+    setServerOk(result.ok);
+    if (!result.ok) {
+      setError(`${t("authServerFail")} (${result.detail})`);
+    }
+  };
 
   const onSubmit = async () => {
     if (!valid) {
@@ -46,12 +72,18 @@ export function PhoneScreen({ navigation }: Props) {
     setLoading(true);
     try {
       await setBaseUrl(serverUrl);
+      const ping = await pingServer(serverUrl);
+      if (!ping.ok) {
+        setError(`${t("authServerFail")} (${ping.detail})`);
+        setLoading(false);
+        return;
+      }
       const res = await requestOtp(phone.trim());
       navigation.navigate("Otp", { phone: phone.trim(), devCode: res.devCode });
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 0
-          ? `${t("errorNetwork")}\n(${getBuiltInBaseUrl()})`
+          ? t("errorNetwork")
           : t("errorFriendly")
       );
     } finally {
@@ -86,13 +118,26 @@ export function PhoneScreen({ navigation }: Props) {
             <TextInput
               style={styles.inputServer}
               value={serverUrl}
-              onChangeText={setServerUrl}
+              onChangeText={(v) => {
+                setServerUrl(v);
+                setServerOk(null);
+              }}
               placeholder={t("authServerPlaceholder")}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
             />
+            <PrimaryButton
+              label={t("authTestServer")}
+              onPress={onTestServer}
+              variant="ghost"
+              loading={testing}
+              disabled={!serverValid || testing}
+            />
+            {serverOk ? (
+              <Text style={styles.serverOk}>{t("authServerOk")}</Text>
+            ) : null}
 
             <Text style={styles.label}>{t("authPhoneLabel")}</Text>
             <TextInput
@@ -184,6 +229,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: colors.text,
+  },
+  serverOk: {
+    color: colors.primary,
+    fontWeight: "700",
+    fontSize: 14,
+    textAlign: "center",
   },
   input: {
     backgroundColor: colors.card,
