@@ -83,6 +83,14 @@ Settings → Secrets and variables → Actions → **Variables**:
 
 The backend itself needs a real host (any Node host works — Railway, Render, a VPS); GitHub can't run the persistent API/Socket.io server.
 
+### Mobile app on the same Wi‑Fi
+
+1. Start the API (must stay running): from repo root run `.\scripts\start-for-mobile.ps1` or `cd server; npm run dev`
+2. On your **phone browser** (same Wi‑Fi, not mobile data), open `http://YOUR_PC_LAN_IP:4000/` — you must see `{"ok":true,...}`. Find your IP with `ipconfig` (IPv4 under Wi‑Fi).
+3. Install the latest `QuizQuest-apk` artifact from GitHub Actions (built with `APP_API_URL`).
+4. If the phone browser cannot load step 2, allow port 4000 in Windows Firewall (Administrator PowerShell):
+   `netsh advfirewall firewall add rule name="QuizQuest API" dir=in action=allow protocol=TCP localport=4000`
+
 ## Production notes
 
 - Swap SQLite for PostgreSQL (schema is portable; see `server/src/db.js`), add Redis for matchmaking/leaderboards at scale.
