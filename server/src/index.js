@@ -1,0 +1,38 @@
+import express from "express";
+import cors from "cors";
+import http from "http";
+import { Server } from "socket.io";
+import db from "./db.js";
+import authRoutes from "./routes/auth.js";
+import studentRoutes from "./routes/student.js";
+import adminRoutes from "./routes/admin.js";
+import { initBattle } from "./battle.js";
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: "20mb" })); // large limit for CSV imports
+
+app.get("/", (req, res) => {
+  const questions = db.prepare("SELECT COUNT(*) c FROM questions").get().c;
+  res.json({ name: "QuizQuest API", ok: true, questions });
+});
+
+app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api", studentRoutes);
+
+app.use((req, res) => res.status(404).json({ error: "Not found" }));
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: "Something went wrong" });
+});
+
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+initBattle(io);
+
+const PORT = process.env.PORT || 4000;
+server.listen(PORT, () => {
+  console.log(`QuizQuest API + battle engine listening on http://localhost:${PORT}`);
+});

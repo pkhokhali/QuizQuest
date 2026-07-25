@@ -1,0 +1,23 @@
+{
+  "name": "quizquest-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "QuizQuest shared backend: REST API + real-time battle engine + question bank generator",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "seed": "node seed/seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}
