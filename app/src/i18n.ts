@@ -33,6 +33,9 @@ const en = {
   authOtpHelper: "Psst — the secret dev code is 123456",
   authVerify: "Let's go!",
   authPhoneInvalid: "That number looks a bit short — try again?",
+  authServerLabel: "QuizQuest server",
+  authServerHint: "On the same Wi‑Fi? Enter http://YOUR_PC_IP:4000 (run ipconfig on the PC).",
+  authServerPlaceholder: "http://192.168.0.111:4000",
 
   // Onboarding
   obNameTitle: "What should we call you?",
@@ -211,6 +214,9 @@ const ne: Record<TranslationKey, string> = {
   authOtpHelper: "सुटुक्क — गोप्य डेभ कोड 123456 हो",
   authVerify: "जाऔँ!",
   authPhoneInvalid: "नम्बर अलि छोटो देखियो — फेरि हेर्नुहोस्?",
+  authServerLabel: "QuizQuest सर्भर",
+  authServerHint: "एउटै Wi‑Fi? http://YOUR_PC_IP:4000 लेख्नुहोस् (PC मा ipconfig)।",
+  authServerPlaceholder: "http://192.168.0.111:4000",
 
   obNameTitle: "हामीले तपाईंलाई के भनेर बोलाऔँ?",
   obNamePlaceholder: "तपाईंको नाम",

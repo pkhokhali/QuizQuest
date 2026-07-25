@@ -1,7 +1,29 @@
-// Base URL for the QuizQuest backend.
-// - CI builds bake this in via the EXPO_PUBLIC_API_URL env var.
-// - "localhost" only works in a simulator/emulator on the same machine.
-//   When running on a physical device, replace with your computer's LAN IP,
-//   e.g. "http://192.168.1.42:4000" (find it with `ipconfig` on Windows).
-export const BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
+
+export const API_BASE_KEY = "qq_api_base";
+
+/** URL compiled into the app at build time (Gradle / Expo). */
+export function getBuiltInBaseUrl(): string {
+  const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
+  const fromExtra = extra?.apiUrl?.trim();
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
+  const url = fromExtra || fromEnv || "http://localhost:4000";
+  return url.replace(/\/$/, "");
+}
+
+/** Saved on the login screen — overrides the baked-in URL (same-Wi‑Fi testing). */
+export async function getBaseUrl(): Promise<string> {
+  const override = await AsyncStorage.getItem(API_BASE_KEY);
+  if (override?.trim()) return override.trim().replace(/\/$/, "");
+  return getBuiltInBaseUrl();
+}
+
+export async function setBaseUrl(url: string): Promise<void> {
+  const trimmed = url.trim().replace(/\/$/, "");
+  if (trimmed) await AsyncStorage.setItem(API_BASE_KEY, trimmed);
+  else await AsyncStorage.removeItem(API_BASE_KEY);
+}
+
+/** @deprecated use getBaseUrl() — kept for imports that only need the default */
+export const BASE_URL = getBuiltInBaseUrl();

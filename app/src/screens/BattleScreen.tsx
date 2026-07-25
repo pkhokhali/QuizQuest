@@ -24,7 +24,7 @@ import {
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Card } from "../components/Card";
 import { PrimaryButton } from "../components/PrimaryButton";
-import { connectBattleSocket } from "../socket/battleSocket";
+import { connectBattleSocket, getBattleSocket } from "../socket/battleSocket";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { colors, radius, spacing } from "../theme";
@@ -82,7 +82,8 @@ export function BattleScreen() {
   // Socket wiring: listen for match start + incoming challenges while on this tab.
   useEffect(() => {
     if (!token) return;
-    const socket = connectBattleSocket(token);
+    let cancelled = false;
+    let socket: ReturnType<typeof getBattleSocket>;
 
     const onWaiting = (e: QueueWaitingEvent) => setQueuePosition(e.position);
     const onIncoming = (e: ChallengeIncomingEvent) => setIncoming(e);
@@ -93,40 +94,48 @@ export function BattleScreen() {
       navigation.navigate("BattleLive", { start: e });
     };
 
-    socket.on("queue:waiting", onWaiting);
-    socket.on("challenge:incoming", onIncoming);
-    socket.on("battle:start", onStart);
+    (async () => {
+      socket = await connectBattleSocket(token);
+      if (cancelled || !socket) return;
+      socket.on("queue:waiting", onWaiting);
+      socket.on("challenge:incoming", onIncoming);
+      socket.on("battle:start", onStart);
+    })();
 
     return () => {
-      socket.off("queue:waiting", onWaiting);
-      socket.off("challenge:incoming", onIncoming);
-      socket.off("battle:start", onStart);
+      cancelled = true;
+      socket?.off("queue:waiting", onWaiting);
+      socket?.off("challenge:incoming", onIncoming);
+      socket?.off("battle:start", onStart);
     };
   }, [token, navigation]);
 
-  const startQueue = () => {
+  const startQueue = async () => {
     if (!token) return;
-    const socket = connectBattleSocket(token);
+    const socket = await connectBattleSocket(token);
     socket.emit("queue:join", {});
     setSearching(true);
     setQueuePosition(null);
   };
 
-  const cancelQueue = () => {
-    connectBattleSocket(token ?? "").emit("queue:leave", {});
+  const cancelQueue = async () => {
+    const socket = await connectBattleSocket(token ?? "");
+    socket.emit("queue:leave", {});
     setSearching(false);
     setQueuePosition(null);
   };
 
-  const sendChallenge = (friendUserId: number) => {
+  const sendChallenge = async (friendUserId: number) => {
     if (!token) return;
-    connectBattleSocket(token).emit("challenge:send", { friendUserId });
+    const socket = await connectBattleSocket(token);
+    socket.emit("challenge:send", { friendUserId });
     setChallengedIds((prev) => [...prev, friendUserId]);
   };
 
-  const acceptChallenge = () => {
+  const acceptChallenge = async () => {
     if (!token || !incoming) return;
-    connectBattleSocket(token).emit("challenge:accept", {
+    const socket = await connectBattleSocket(token);
+    socket.emit("challenge:accept", {
       challengeId: incoming.challengeId,
     });
     setIncoming(null);

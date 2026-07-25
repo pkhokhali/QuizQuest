@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BASE_URL } from "./config";
+import { getBaseUrl } from "./config";
 import {
   AwardsResponse,
   BattleHistoryResponse,
@@ -44,7 +44,8 @@ async function request<T>(
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    const baseUrl = await getBaseUrl();
+    res = await fetch(`${baseUrl}${path}`, {
       method: options.method ?? "GET",
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,

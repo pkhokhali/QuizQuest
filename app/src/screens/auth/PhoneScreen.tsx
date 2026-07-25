@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, requestOtp } from "../../api/client";
+import { getBaseUrl, getBuiltInBaseUrl, setBaseUrl } from "../../api/config";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { AuthStackParamList } from "../../navigation/types";
 import { useI18n } from "../../state/LanguageContext";
@@ -21,26 +22,36 @@ type Props = NativeStackScreenProps<AuthStackParamList, "Phone">;
 export function PhoneScreen({ navigation }: Props) {
   const { t } = useI18n();
   const [phone, setPhone] = useState("");
+  const [serverUrl, setServerUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const valid = phone.trim().length >= 10;
+  const serverValid = /^https?:\/\/.+/.test(serverUrl.trim());
+
+  useEffect(() => {
+    getBaseUrl().then(setServerUrl);
+  }, []);
 
   const onSubmit = async () => {
     if (!valid) {
       setError(t("authPhoneInvalid"));
       return;
     }
+    if (!serverValid) {
+      setError(t("errorNetwork"));
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
+      await setBaseUrl(serverUrl);
       const res = await requestOtp(phone.trim());
       navigation.navigate("Otp", { phone: phone.trim(), devCode: res.devCode });
     } catch (err) {
-      // Network failures (status 0) mean the phone can't reach the baked-in API URL.
       setError(
         err instanceof ApiError && err.status === 0
-          ? t("errorNetwork")
+          ? `${t("errorNetwork")}\n(${getBuiltInBaseUrl()})`
           : t("errorFriendly")
       );
     } finally {
@@ -69,6 +80,20 @@ export function PhoneScreen({ navigation }: Props) {
 
           <View style={styles.form}>
             <Text style={styles.welcome}>{t("authWelcome")}</Text>
+
+            <Text style={styles.label}>{t("authServerLabel")}</Text>
+            <Text style={styles.hint}>{t("authServerHint")}</Text>
+            <TextInput
+              style={styles.inputServer}
+              value={serverUrl}
+              onChangeText={setServerUrl}
+              placeholder={t("authServerPlaceholder")}
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+
             <Text style={styles.label}>{t("authPhoneLabel")}</Text>
             <TextInput
               style={styles.input}
@@ -78,14 +103,13 @@ export function PhoneScreen({ navigation }: Props) {
               placeholderTextColor={colors.textMuted}
               keyboardType="phone-pad"
               maxLength={15}
-              autoFocus
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <PrimaryButton
               label={t("authSendCode")}
               onPress={onSubmit}
               loading={loading}
-              disabled={!valid}
+              disabled={!valid || !serverValid}
             />
           </View>
         </ScrollView>
@@ -145,6 +169,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textMuted,
   },
+  hint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 18,
+    marginTop: -4,
+  },
+  inputServer: {
+    backgroundColor: colors.card,
+    borderRadius: radius.chip,
+    borderWidth: 2,
+    borderColor: colors.border,
+    padding: spacing.md,
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+  },
   input: {
     backgroundColor: colors.card,
     borderRadius: radius.chip,
@@ -160,5 +200,6 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "600",
     fontSize: 14,
+    lineHeight: 20,
   },
 });
