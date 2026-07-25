@@ -32,7 +32,9 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 initBattle(io);
 
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`QuizQuest API + battle engine listening on http://localhost:${PORT}`);
+const PORT = Number(process.env.PORT) || 4000;
+// Bind on all interfaces so phones on the same Wi‑Fi (and Docker hosts) can connect.
+const HOST = process.env.HOST || "0.0.0.0";
+server.listen(PORT, HOST, () => {
+  console.log(`QuizQuest API + battle engine listening on http://${HOST}:${PORT}`);
 });

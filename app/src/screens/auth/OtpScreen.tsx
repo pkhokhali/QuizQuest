@@ -3,13 +3,14 @@ import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { verifyOtp } from "../../api/client";
+import { ApiError, verifyOtp } from "../../api/client";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { AuthStackParamList } from "../../navigation/types";
 import { useAuth } from "../../state/AuthContext";
@@ -33,47 +34,59 @@ export function OtpScreen({ route }: Props) {
       const res = await verifyOtp(phone, code.trim());
       await signIn(res.token, res.user);
       // Navigation switches automatically via auth state.
-    } catch {
-      setError(t("errorFriendly"));
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 0
+          ? t("errorNetwork")
+          : t("errorFriendly")
+      );
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
       >
-        <View style={styles.content}>
-          <Text style={styles.emoji}>🔑</Text>
-          <Text style={styles.title}>{t("authOtpTitle")}</Text>
-          <Text style={styles.subtitle}>{t("authOtpSent", { phone })}</Text>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <Text style={styles.emoji}>🔑</Text>
+            <Text style={styles.title}>{t("authOtpTitle")}</Text>
+            <Text style={styles.subtitle}>{t("authOtpSent", { phone })}</Text>
 
-          <TextInput
-            style={styles.input}
-            value={code}
-            onChangeText={setCode}
-            placeholder="······"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="number-pad"
-            maxLength={6}
-            autoFocus
-          />
+            <TextInput
+              style={styles.input}
+              value={code}
+              onChangeText={setCode}
+              placeholder="······"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
+              maxLength={6}
+              autoFocus
+            />
 
-          <Text style={styles.helper}>
-            {t("authOtpHelper")}
-            {devCode ? ` (${devCode})` : ""}
-          </Text>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            <Text style={styles.helper}>
+              {t("authOtpHelper")}
+              {devCode ? ` (${devCode})` : ""}
+            </Text>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <PrimaryButton
-            label={t("authVerify")}
-            onPress={onVerify}
-            loading={loading}
-            disabled={code.trim().length < 6}
-          />
-        </View>
+            <PrimaryButton
+              label={t("authVerify")}
+              onPress={onVerify}
+              loading={loading}
+              disabled={code.trim().length < 6}
+            />
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -84,21 +97,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  container: {
+  flex: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scroll: {
+    flexGrow: 1,
     justifyContent: "center",
+    paddingBottom: spacing.xxl + 24,
+  },
+  content: {
     padding: spacing.xl,
     gap: spacing.md,
+    alignItems: "stretch",
   },
   emoji: {
     fontSize: 56,
     textAlign: "center",
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "800",
     color: colors.text,
     textAlign: "center",
@@ -108,25 +125,25 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: "center",
     fontWeight: "600",
+    marginBottom: spacing.sm,
   },
   input: {
     backgroundColor: colors.card,
     borderRadius: radius.chip,
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: colors.border,
     padding: spacing.lg,
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "800",
     color: colors.text,
+    letterSpacing: 8,
     textAlign: "center",
-    letterSpacing: 12,
-    marginTop: spacing.md,
   },
   helper: {
     fontSize: 13,
     color: colors.textMuted,
     textAlign: "center",
-    fontStyle: "italic",
+    fontWeight: "600",
   },
   error: {
     color: colors.accent,

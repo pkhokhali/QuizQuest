@@ -69,8 +69,17 @@ Demo student: any phone number + OTP `123456`, then complete onboarding. Seeded 
 
 Two workflows run from `.github/workflows/`:
 
-- **Deploy admin portal to GitHub Pages** (`deploy-admin.yml`): every push to `main` that touches `admin/` builds the static export and publishes it to `https://pkhokhali.github.io/QuizQuest/`. Set the `ADMIN_API_URL` repository variable (Settings → Secrets and variables → Actions → Variables) to your deployed backend URL — otherwise the portal is built pointing at `http://localhost:4000`, which only works with a locally running backend.
-- **Build Android APK** (`build-apk.yml`): every push to `main` builds a release APK (via `expo prebuild` + Gradle) and uploads it as a workflow artifact (Actions → run → `QuizQuest-apk`). Run it manually (Actions → "Build Android APK" → Run workflow) to bake in a custom API URL, or set the `APP_API_URL` repository variable. Pushing a tag like `v1.0.0` also attaches the APK to a GitHub Release for a permanent download link.
+- **Deploy admin portal to GitHub Pages** (`deploy-admin.yml`): every push to `main` that touches `admin/` builds the static export and publishes it to `https://pkhokhali.github.io/QuizQuest/`. Set the `ADMIN_API_URL` repository variable to your backend URL.
+- **Build Android APK** (`build-apk.yml`): builds a release APK and uploads it as the `QuizQuest-apk` artifact. **Requires** the `APP_API_URL` repository variable (or the `api_url` workflow input) — `localhost` is rejected because phones can't reach it. Same-Wi‑Fi testing: set `APP_API_URL` to `http://YOUR_PC_LAN_IP:4000` and keep `npm run dev` running in `server/`. Internet-wide: deploy the API (e.g. free Render blueprint in `render.yaml`) then set both `APP_API_URL` and `ADMIN_API_URL` to that HTTPS URL and rebuild.
+
+### Repo variables to set
+
+Settings → Secrets and variables → Actions → **Variables**:
+
+| Variable        | Example                                      | Used by        |
+| --------------- | -------------------------------------------- | -------------- |
+| `APP_API_URL`   | `http://192.168.0.111:4000` or Render URL    | APK build      |
+| `ADMIN_API_URL` | same as above                                | Pages deploy   |
 
 The backend itself needs a real host (any Node host works — Railway, Render, a VPS); GitHub can't run the persistent API/Socket.io server.
 

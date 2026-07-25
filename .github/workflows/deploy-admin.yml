@@ -33,15 +33,28 @@ jobs:
         run: npm ci
         working-directory: admin
 
+      - name: Resolve API URL
+        id: api
+        env:
+          ADMIN_URL: ${{ vars.ADMIN_API_URL }}
+          APP_URL: ${{ vars.APP_API_URL }}
+        run: |
+          URL="${ADMIN_URL:-}"
+          if [ -z "$URL" ]; then URL="${APP_URL:-}"; fi
+          if [ -z "$URL" ]; then
+            echo "::error::Set ADMIN_API_URL (or APP_API_URL) repository variable to your QuizQuest server URL so the portal can talk to the API."
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Building portal against API: $URL"
+
       - name: Build static export
         run: npm run build
         working-directory: admin
         env:
           # Project site is served from https://<user>.github.io/QuizQuest/
           NEXT_PUBLIC_BASE_PATH: /QuizQuest
-          # Set the ADMIN_API_URL repository variable to your deployed backend URL
-          # (Settings -> Secrets and variables -> Actions -> Variables).
-          NEXT_PUBLIC_API_URL: ${{ vars.ADMIN_API_URL || 'http://localhost:4000' }}
+          NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.url }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

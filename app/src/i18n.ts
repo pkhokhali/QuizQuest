@@ -12,6 +12,8 @@ const en = {
   loading: "Loading…",
   retry: "Try again",
   errorFriendly: "Hmm, that didn't load. Let's give it another go!",
+  errorNetwork:
+    "Can't reach the QuizQuest server. Make sure you're on the same Wi‑Fi as the server, or ask your teacher for the app link.",
   cancel: "Cancel",
   next: "Next",
   back: "Back",
@@ -189,6 +191,8 @@ const ne: Record<TranslationKey, string> = {
   loading: "लोड हुँदैछ…",
   retry: "फेरि प्रयास गर्नुहोस्",
   errorFriendly: "अहँ, यो लोड भएन। फेरि प्रयास गरौँ!",
+  errorNetwork:
+    "QuizQuest सर्भरसँग जडान भएन। सर्भरसँगैको Wi‑Fi मा हुनुहोस्, वा शिक्षकलाई सोध्नुहोस्।",
   cancel: "रद्द गर्नुहोस्",
   next: "अर्को",
   back: "पछाडि",

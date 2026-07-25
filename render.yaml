@@ -1,0 +1,19 @@
+# One-click deploy of the QuizQuest API on Render (https://render.com).
+# After the service is live, set these GitHub repo Variables and rerun the
+# "Build Android APK" + "Deploy admin portal" workflows:
+#   APP_API_URL   = https://<your-service>.onrender.com
+#   ADMIN_API_URL = https://<your-service>.onrender.com
+services:
+  - type: web
+    name: quizquest-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm ci && npm run seed
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0

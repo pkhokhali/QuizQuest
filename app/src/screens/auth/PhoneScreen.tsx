@@ -3,13 +3,14 @@ import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { requestOtp } from "../../api/client";
+import { ApiError, requestOtp } from "../../api/client";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { AuthStackParamList } from "../../navigation/types";
 import { useI18n } from "../../state/LanguageContext";
@@ -35,46 +36,59 @@ export function PhoneScreen({ navigation }: Props) {
     try {
       const res = await requestOtp(phone.trim());
       navigation.navigate("Otp", { phone: phone.trim(), devCode: res.devCode });
-    } catch {
-      setError(t("errorFriendly"));
+    } catch (err) {
+      // Network failures (status 0) mean the phone can't reach the baked-in API URL.
+      setError(
+        err instanceof ApiError && err.status === 0
+          ? t("errorNetwork")
+          : t("errorFriendly")
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
       >
-        <View style={styles.hero}>
-          <Text style={styles.logo}>🧭</Text>
-          <Text style={styles.appName}>{t("appName")}</Text>
-          <Text style={styles.tagline}>{t("tagline")}</Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.hero}>
+            <Text style={styles.logo}>🧭</Text>
+            <Text style={styles.appName}>{t("appName")}</Text>
+            <Text style={styles.tagline}>{t("tagline")}</Text>
+          </View>
 
-        <View style={styles.form}>
-          <Text style={styles.welcome}>{t("authWelcome")}</Text>
-          <Text style={styles.label}>{t("authPhoneLabel")}</Text>
-          <TextInput
-            style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder={t("authPhonePlaceholder")}
-            placeholderTextColor={colors.textMuted}
-            keyboardType="phone-pad"
-            maxLength={15}
-            autoFocus
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <PrimaryButton
-            label={t("authSendCode")}
-            onPress={onSubmit}
-            loading={loading}
-            disabled={!valid}
-          />
-        </View>
+          <View style={styles.form}>
+            <Text style={styles.welcome}>{t("authWelcome")}</Text>
+            <Text style={styles.label}>{t("authPhoneLabel")}</Text>
+            <TextInput
+              style={styles.input}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder={t("authPhonePlaceholder")}
+              placeholderTextColor={colors.textMuted}
+              keyboardType="phone-pad"
+              maxLength={15}
+              autoFocus
+            />
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <PrimaryButton
+              label={t("authSendCode")}
+              onPress={onSubmit}
+              loading={loading}
+              disabled={!valid}
+            />
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -85,15 +99,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.primary,
   },
-  container: {
+  flex: {
     flex: 1,
+  },
+  scroll: {
+    flexGrow: 1,
     justifyContent: "flex-end",
   },
   hero: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
+    paddingVertical: spacing.xxl,
   },
   logo: {
     fontSize: 72,
@@ -113,7 +131,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 24,
     gap: spacing.md,
   },
   welcome: {
