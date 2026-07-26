@@ -9,6 +9,7 @@ import { Card } from "../components/Card";
 import { ErrorCard } from "../components/ErrorCard";
 import { LoadingView } from "../components/LoadingView";
 import { IconAwards } from "../components/QuestIcons";
+import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { fonts, spacing } from "../theme";
@@ -16,6 +17,7 @@ import { fonts, spacing } from "../theme";
 export function AwardsScreen() {
   const { t, lang } = useI18n();
   const { colors } = useTheme();
+  const tabPadding = useTabScreenPadding();
   const [awards, setAwards] = useState<Award[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -47,7 +49,7 @@ export function AwardsScreen() {
   return (
     <Atmosphere>
       <SafeAreaView style={styles.safe} edges={["top"]}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabPadding }]}>
           <View style={styles.titleRow}>
             <IconAwards size={28} color={colors.primary} />
             <Text
@@ -126,7 +128,6 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     gap: spacing.md,
-    paddingBottom: spacing.xxl,
   },
   titleRow: {
     flexDirection: "row",

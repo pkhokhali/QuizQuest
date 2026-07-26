@@ -4,18 +4,18 @@ import { COUNTRIES, INDIA_STATES, US_STATES } from "../data/countries.js";
 import { PROVINCES, PEAKS, RIVERS, LAKES, FESTIVALS, NEPAL_FACTS } from "../data/nepal.js";
 import { PLANETS, ELEMENTS, UNITS, BODY_FACTS, GENERAL_SCIENCE, INVENTORS, ANIMAL_FACTS } from "../data/science.js";
 import { SYNONYMS, ANTONYMS, PLURALS, NEPALI_VOCAB } from "../data/english.js";
+import { shuffle } from "../../src/util.js";
 
 const ri = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
-const shuffled = (arr) => [...arr].sort(() => Math.random() - 0.5);
 
 /** Pick n distinct distractors from a pool, excluding the correct value. */
 function distractors(pool, correct, n = 3) {
-  const opts = shuffled(pool.filter((p) => p !== correct && p != null));
+  const opts = shuffle(pool.filter((p) => p !== correct && p != null));
   return opts.slice(0, n);
 }
 
 function assemble({ textEn, textNe, correctEn, distractorsEn, correctNe, distractorsNe, country, subject, gradeBand, difficulty, topic, source }) {
-  const order = shuffled([0, 1, 2, 3]);
+  const order = shuffle([0, 1, 2, 3]);
   const en = [correctEn, ...distractorsEn];
   const hasNe = textNe && correctNe && distractorsNe && distractorsNe.every((d) => d != null);
   const neArr = hasNe ? [correctNe, ...distractorsNe] : null;

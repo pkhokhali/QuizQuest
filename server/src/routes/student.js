@@ -4,6 +4,8 @@ import { requireAuth } from "../auth.js";
 import {
   serializeUser,
   serializeDigest,
+  optionOrder,
+  originalChoiceIndex,
   studentQuestion,
   gradeBandFor,
   today,
@@ -16,6 +18,43 @@ import {
 import { composeDailyQuiz, composeRevengeRound } from "../quizComposer.js";
 import { checkAwards, awardsForUser } from "../awards.js";
 import { isOnline } from "../presence.js";
+
+const BOT_PHONE = "9900000000";
+
+function getBotUser() {
+  return db.prepare("SELECT id FROM users WHERE phone = ?").get(BOT_PHONE);
+}
+
+/** One sample past battle so the Battle tab isn't empty for brand-new students. */
+function ensureDemoBattle(userId) {
+  const count = db
+    .prepare("SELECT COUNT(*) c FROM battles WHERE p1 = ? OR p2 = ?")
+    .get(userId, userId).c;
+  if (count > 0) return;
+  const bot = getBotUser();
+  if (!bot || bot.id === userId) return;
+  db.prepare("INSERT INTO battles (p1, p2, s1, s2, winner, date) VALUES (?, ?, ?, ?, ?, ?)").run(
+    userId,
+    bot.id,
+    420,
+    380,
+    userId,
+    daysAgo(2)
+  );
+}
+
+function ensureDemoFriend(userId) {
+  const bot = getBotUser();
+  if (!bot || bot.id === userId) return;
+  db.prepare("INSERT OR IGNORE INTO friendships (user_id, friend_id) VALUES (?, ?)").run(
+    userId,
+    bot.id
+  );
+  db.prepare("INSERT OR IGNORE INTO friendships (user_id, friend_id) VALUES (?, ?)").run(
+    bot.id,
+    userId
+  );
+}
 
 const router = Router();
 router.use(requireAuth);
@@ -146,7 +185,7 @@ function questionsForQuiz(quiz, language) {
   const ph = ids.map(() => "?").join(",");
   const rows = db.prepare(`SELECT * FROM questions WHERE id IN (${ph})`).all(...ids);
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
-  return ids.map((id) => byId[id]).filter(Boolean).map((q) => studentQuestion(q, language));
+  return ids.map((id) => byId[id]).filter(Boolean).map((q) => studentQuestion(q, language, quiz.id));
 }
 
 router.get("/quiz/daily", (req, res) => {
@@ -194,8 +233,12 @@ function submitQuiz(req, res, kind) {
     const q = byId[qid];
     if (!q) continue;
     const ans = answers.find((a) => a && a.questionId === qid);
-    const isCorrect = ans && ans.choice === q.correct_index;
-    correct.push({ questionId: qid, correctIndex: q.correct_index });
+    const choice = originalChoiceIndex(quiz.id, qid, ans?.choice ?? null);
+    const isCorrect = choice != null && choice === q.correct_index;
+    correct.push({
+      questionId: qid,
+      correctIndex: optionOrder(quiz.id, qid).indexOf(q.correct_index),
+    });
     if (isCorrect) {
       score += 1;
       if (kind === "daily") {
@@ -252,6 +295,7 @@ router.post("/quiz/revenge/submit", (req, res) => submitQuiz(req, res, "revenge"
 
 router.get("/battles/history", (req, res) => {
   const uid = req.user.id;
+  ensureDemoBattle(uid);
   const rows = db
     .prepare("SELECT * FROM battles WHERE p1 = ? OR p2 = ? ORDER BY id DESC LIMIT 30")
     .all(uid, uid);
@@ -319,6 +363,7 @@ router.get("/leaderboard", (req, res) => {
 // ---------- Friends ----------
 
 router.get("/friends", (req, res) => {
+  ensureDemoFriend(req.user.id);
   const ids = db.prepare("SELECT friend_id FROM friendships WHERE user_id = ?").all(req.user.id).map((r) => r.friend_id);
   const friends = ids
     .map((id) => db.prepare("SELECT * FROM users WHERE id = ?").get(id))

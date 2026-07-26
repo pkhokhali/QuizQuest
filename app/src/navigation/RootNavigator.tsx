@@ -3,6 +3,7 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useMemo } from "react";
 import { StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   IconAwards,
   IconBattle,
@@ -49,6 +50,8 @@ const TAB_ICONS: Record<
 function Tabs() {
   const { t } = useI18n();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const tabBarPaddingBottom = Math.max(insets.bottom, 6);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -57,7 +60,12 @@ function Tabs() {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: [
           styles.tabBar,
-          { backgroundColor: colors.card, borderTopColor: colors.border },
+          {
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+            height: 56 + tabBarPaddingBottom,
+            paddingBottom: tabBarPaddingBottom,
+          },
         ],
         tabBarLabelStyle: [styles.tabLabel, { fontFamily: fonts.bodyBold }],
         tabBarAccessibilityLabel: t(`tab${route.name}` as never),
@@ -165,9 +173,7 @@ const styles = StyleSheet.create({
   tabBar: {
     borderTopWidth: 1,
     elevation: 10,
-    height: 64,
     paddingTop: 6,
-    paddingBottom: 6,
   },
   tabLabel: {
     fontSize: 11,

@@ -27,6 +27,7 @@ import { Card } from "../components/Card";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { IconShield } from "../components/QuestIcons";
 import { connectBattleSocket, getBattleSocket } from "../socket/battleSocket";
+import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
@@ -38,6 +39,7 @@ export function BattleScreen() {
   const { t } = useI18n();
   const { token, user } = useAuth();
   const navigation = useNavigation();
+  const tabPadding = useTabScreenPadding();
 
   const [searching, setSearching] = useState(false);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
@@ -181,7 +183,7 @@ export function BattleScreen() {
   return (
     <Atmosphere>
       <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabPadding }]}>
         <View style={styles.titleRow}>
           <IconShield size={32} color={colors.primary} secondary={colors.accent} />
           <Text style={[styles.title, { fontFamily: fonts.display }]}>{t("battleTitle")}</Text>
@@ -371,7 +373,6 @@ function createStyles(colors: ColorTokens) {
   content: {
     padding: spacing.lg,
     gap: spacing.lg,
-    paddingBottom: spacing.xxl,
   },
   titleRow: {
     flexDirection: "row",

@@ -25,14 +25,22 @@ function getMix(gradeBand) {
     : { home: 60, extra: 25, global: 15 };
 }
 
-/** Weighted subject pick: user's preferred subjects appear twice as often. */
-function pickSubject(preferred) {
-  const pool = [];
-  for (const s of ALL_SUBJECTS) {
-    pool.push(s);
-    if (preferred.includes(s)) pool.push(s);
+
+/** Spread subjects across the daily quest so one topic (e.g. math) doesn't dominate. */
+function diverseSubjects(count, preferred) {
+  const pref = preferred.filter((s) => ALL_SUBJECTS.includes(s));
+  const others = ALL_SUBJECTS.filter((s) => !pref.includes(s));
+  const slots = [];
+  // At least one from each core bucket when we have room.
+  const core = shuffle(["math", "science", "gk", "social", "english"]);
+  for (const s of core) {
+    if (slots.length < count) slots.push(s);
   }
-  return pool[Math.floor(Math.random() * pool.length)];
+  while (slots.length < count) {
+    const pool = pref.length ? [...pref, ...pref, ...others] : ALL_SUBJECTS;
+    slots.push(pool[Math.floor(Math.random() * pool.length)]);
+  }
+  return shuffle(slots);
 }
 
 /**
@@ -98,8 +106,10 @@ export function composeDailyQuiz(user) {
   ];
 
   const picked = [];
-  for (const countries of buckets) {
-    const subject = pickSubject(preferred);
+  const subjects = diverseSubjects(buckets.length, preferred);
+  for (let i = 0; i < buckets.length; i++) {
+    const countries = buckets[i];
+    const subject = subjects[i];
     const difficulty = targetDifficulty(user.id, subject, gradeBand);
     const q = pickQuestion({ countries, gradeBand, subject, difficulty, excludeIds });
     if (q) {

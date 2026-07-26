@@ -6,7 +6,7 @@
   "description": "QuizQuest shared backend: REST API + real-time battle engine + question bank generator",
   "main": "src/index.js",
   "scripts": {
-    "dev": "node --watch src/index.js",
+    "dev": "node --watch-path=./src --watch src/index.js",
     "start": "node src/index.js",
     "seed": "node seed/seed.js"
   },

@@ -18,6 +18,7 @@ import { Chip } from "../components/Chip";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { IconLogout } from "../components/QuestIcons";
 import { AVATAR_BGS, AVATAR_EMOJIS, EXTRA_COUNTRIES, SUBJECTS } from "../constants";
+import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
@@ -27,6 +28,7 @@ export function ProfileScreen() {
   const { t, lang, setLang } = useI18n();
   const { user, setUser, signOut } = useAuth();
   const { colors, paletteId, setPaletteId } = useTheme();
+  const tabPadding = useTabScreenPadding();
 
   const [name, setName] = useState(user?.name ?? "");
   const [grade, setGrade] = useState<number | null>(user?.grade ?? null);
@@ -136,7 +138,7 @@ export function ProfileScreen() {
   return (
     <Atmosphere>
       <SafeAreaView style={styles.safe} edges={["top"]}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabPadding }]}>
           <Text
             style={[styles.title, { color: colors.text, fontFamily: fonts.display }]}
           >
@@ -532,7 +534,6 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     gap: spacing.lg,
-    paddingBottom: spacing.xxl,
   },
   title: {
     fontSize: 28,

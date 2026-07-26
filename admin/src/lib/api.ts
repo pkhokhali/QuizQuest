@@ -1,7 +1,23 @@
 import type { User } from "./types";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+/** When opened via LAN IP, talk to the API on the same host (port 4000). */
+function getBaseUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (
+    fromEnv &&
+    !fromEnv.includes("localhost") &&
+    !fromEnv.includes("127.0.0.1")
+  ) {
+    return fromEnv.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host && host !== "localhost" && host !== "127.0.0.1") {
+      return `http://${host}:4000`;
+    }
+  }
+  return (fromEnv || "http://localhost:4000").replace(/\/$/, "");
+}
 
 const TOKEN_KEY = "qq_token";
 const USER_KEY = "qq_user";
@@ -61,7 +77,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    res = await fetch(`${getBaseUrl()}${path}`, {
       method: options.method ?? "GET",
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,

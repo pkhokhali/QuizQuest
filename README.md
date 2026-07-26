@@ -19,7 +19,7 @@ A gamified, class-wise MCQ learning app for students (Grades 1–12, Nepal-first
 cd server
 npm install
 npm run seed        # generates the question bank (60k+ unique questions) + demo data
-npm run dev         # http://localhost:4000
+npm run dev         # http://localhost:4000 (also reachable on your LAN IP — see below)
 ```
 
 Question bank size is controlled with `QUESTION_SCALE` (default 1 ≈ 60k unique questions; higher scales push each template toward its unique-combination ceiling):
@@ -33,7 +33,7 @@ QUESTION_SCALE=3 npm run seed   # bigger bank; SQLite handles it comfortably
 ```bash
 cd admin
 npm install
-npm run dev         # http://localhost:3000
+npm run dev         # http://localhost:3000 (binds 0.0.0.0 — open http://YOUR_LAN_IP:3000 from other devices)
 ```
 
 Log in with phone `9800000000`, OTP `123456` (dev OTP is always `123456`).
@@ -46,7 +46,7 @@ npm install
 npx expo start      # scan QR with Expo Go (Android/iOS)
 ```
 
-On a physical device, set the API host to your machine's LAN IP in `app/src/api/config.ts`.
+On a physical device, set the API host to your machine's LAN IP in the login screen **Advanced** section, or build with `EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:4000`.
 
 Demo student: any phone number + OTP `123456`, then complete onboarding. Seeded demo students exist for leaderboards and battles.
 
@@ -83,13 +83,31 @@ Settings → Secrets and variables → Actions → **Variables**:
 
 The backend itself needs a real host (any Node host works — Railway, Render, a VPS); GitHub can't run the persistent API/Socket.io server.
 
-### Mobile app on the same Wi‑Fi
+### Same Wi-Fi / LAN access
 
-1. Start the API (must stay running): from repo root run `.\scripts\start-for-mobile.ps1` or `cd server; npm run dev`
-2. On your **phone browser** (same Wi‑Fi, not mobile data), open `http://YOUR_PC_LAN_IP:4000/` — you must see `{"ok":true,...}`. Find your IP with `ipconfig` (IPv4 under Wi‑Fi).
-3. Install the latest `QuizQuest-apk` artifact from GitHub Actions (built with `APP_API_URL`).
-4. If the phone browser cannot load step 2, allow port 4000 in Windows Firewall (Administrator PowerShell):
-   `netsh advfirewall firewall add rule name="QuizQuest API" dir=in action=allow protocol=TCP localport=4000`
+From repo root, start both the API and admin portal:
+
+```powershell
+.\scripts\start-lan.ps1
+```
+
+Or start only the API for mobile testing:
+
+```powershell
+.\scripts\start-for-mobile.ps1
+```
+
+1. Devices must be on the **same Wi-Fi** (not mobile data or guest Wi-Fi).
+2. Find your PC's IPv4 address with `ipconfig` (under Wi-Fi).
+3. **API**: open `http://YOUR_LAN_IP:4000/` — you should see `{"ok":true,...}`.
+4. **Admin portal**: open `http://YOUR_LAN_IP:3000/` — the portal auto-connects to the API on the same host.
+5. **Mobile app**: set server URL to `http://YOUR_LAN_IP:4000` on the login screen, or use an APK built with `APP_API_URL` set to that URL.
+6. If devices cannot connect, allow ports 4000 and 3000 in Windows Firewall (Administrator PowerShell):
+
+```powershell
+netsh advfirewall firewall add rule name="QuizQuest API" dir=in action=allow protocol=TCP localport=4000
+netsh advfirewall firewall add rule name="QuizQuest Admin" dir=in action=allow protocol=TCP localport=3000
+```
 
 ## Production notes
 

@@ -33,6 +33,7 @@ Write-Host "  1. Phone must be on the SAME Wi-Fi (not mobile data / guest Wi-Fi)
 Write-Host "  2. On the phone browser, open:  http://${ip}:4000/"
 Write-Host "     You should see JSON with `"ok`":true"
 Write-Host "  3. Use the APK built with APP_API_URL = http://${ip}:4000"
+Write-Host "  4. Admin portal (same Wi-Fi): http://${ip}:3000/"
 Write-Host ""
 Write-Host "Starting API on http://0.0.0.0:4000 ..." -ForegroundColor Green
 Write-Host ""

@@ -1,6 +1,8 @@
 import { useNavigation } from "@react-navigation/native";
 import React, { useCallback, useEffect, useRef, useState , useMemo} from "react";
 import {
+  Animated,
+  Easing,
   ScrollView,
   StyleSheet,
   Text,
@@ -37,6 +39,7 @@ interface QuizPlayScreenProps {
 }
 
 const ADVANCE_DELAY_MS = 350;
+const PER_QUESTION_MS = 30_000;
 
 export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
   const { colors } = useTheme();
@@ -46,21 +49,36 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
   const { refreshUser } = useAuth();
 
   const [phase, setPhase] = useState<Phase>("loading");
+  const [emptyMessage, setEmptyMessage] = useState<string | undefined>();
   const [quizId, setQuizId] = useState<number | null>(null);
   const [questions, setQuestions] = useState<StudentQuestion[]>([]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  const [answered, setAnswered] = useState(false);
   const [result, setResult] = useState<SubmitQuizResponse | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   const answersRef = useRef<AnswerInput[]>([]);
   const questionShownAt = useRef(Date.now());
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdown = useRef(new Animated.Value(1)).current;
+  const indexRef = useRef(0);
+  const questionsRef = useRef<StudentQuestion[]>([]);
+  const quizIdRef = useRef<number | null>(null);
+  const answeredRef = useRef(false);
+
+  indexRef.current = index;
+  questionsRef.current = questions;
+  quizIdRef.current = quizId;
+  answeredRef.current = answered;
 
   const load = useCallback(async () => {
     setPhase("loading");
+    setEmptyMessage(undefined);
     try {
       const data = mode === "daily" ? await getDailyQuiz() : await getRevengeQuiz();
       if (!data.questions || data.questions.length === 0) {
+        setEmptyMessage(mode === "daily" ? t("quizEmptyDaily") : undefined);
         setPhase("empty");
         return;
       }
@@ -69,16 +87,20 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
       answersRef.current = [];
       setIndex(0);
       setSelected(null);
+      setAnswered(false);
       questionShownAt.current = Date.now();
       setPhase("playing");
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setPhase("empty");
+      } else if (err instanceof ApiError && err.status === 503 && mode === "daily") {
+        setEmptyMessage(t("quizEmptyDaily"));
+        setPhase("empty");
       } else {
         setPhase("error");
       }
     }
-  }, [mode]);
+  }, [mode, t]);
 
   useEffect(() => {
     load();
@@ -105,26 +127,70 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
     [mode, refreshUser]
   );
 
-  const onPick = (choice: number) => {
-    if (selected !== null || quizId === null) return;
-    setSelected(choice);
-    const timeMs = Date.now() - questionShownAt.current;
-    answersRef.current.push({
-      questionId: questions[index].id,
-      choice,
-      timeMs,
-    });
+  const advance = useCallback(
+    (choice: number | null) => {
+      const currentIndex = indexRef.current;
+      const currentQuestions = questionsRef.current;
+      const currentQuizId = quizIdRef.current;
+      if (currentQuizId === null) return;
 
-    advanceTimer.current = setTimeout(() => {
-      if (index + 1 < questions.length) {
-        setIndex(index + 1);
-        setSelected(null);
-        questionShownAt.current = Date.now();
-      } else {
-        submit(answersRef.current, quizId);
-      }
-    }, ADVANCE_DELAY_MS);
+      setAnswered(true);
+      setSelected(choice);
+      const timeMs = Date.now() - questionShownAt.current;
+      answersRef.current.push({
+        questionId: currentQuestions[currentIndex].id,
+        choice,
+        timeMs,
+      });
+
+      advanceTimer.current = setTimeout(() => {
+        if (currentIndex + 1 < currentQuestions.length) {
+          setIndex(currentIndex + 1);
+          setSelected(null);
+          setAnswered(false);
+          questionShownAt.current = Date.now();
+        } else {
+          submit(answersRef.current, currentQuizId);
+        }
+      }, ADVANCE_DELAY_MS);
+    },
+    [submit]
+  );
+
+  const onPick = (choice: number) => {
+    if (answered || quizId === null) return;
+    advance(choice);
   };
+
+  useEffect(() => {
+    if (phase !== "playing" || answered) return;
+
+    const deadline = questionShownAt.current + PER_QUESTION_MS;
+    const tick = () => setSecondsLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    tick();
+    const interval = setInterval(tick, 250);
+
+    const remainingNow = Math.max(0, deadline - Date.now());
+    countdown.setValue(remainingNow / PER_QUESTION_MS);
+    const anim = Animated.timing(countdown, {
+      toValue: 0,
+      duration: remainingNow,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    });
+    anim.start();
+
+    const timeout = setTimeout(() => {
+      if (answeredRef.current || quizIdRef.current === null) return;
+      advance(null);
+    }, remainingNow);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+      anim.stop();
+    };
+  }, [phase, index, answered, advance, countdown]);
 
   if (phase === "loading") return <LoadingView />;
   if (phase === "submitting") return <LoadingView message={t("quizSubmitting")} />;
@@ -135,7 +201,7 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
       <SafeAreaView style={styles.safe}>
         <View style={styles.emptyBox}>
           <Text style={styles.emptyEmoji}>🌟</Text>
-          <Text style={styles.emptyText}>{t("revengeEmpty")}</Text>
+          <Text style={styles.emptyText}>{emptyMessage ?? t("revengeEmpty")}</Text>
           <PrimaryButton label={t("quizBackHome")} onPress={() => navigation.goBack()} />
         </View>
       </SafeAreaView>
@@ -155,7 +221,7 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
   }
 
   const question = questions[index];
-  const progress = (index + (selected !== null ? 1 : 0)) / questions.length;
+  const progress = (index + (answered ? 1 : 0)) / questions.length;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -176,6 +242,26 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
         style={styles.progressBar}
       />
 
+      <View style={styles.countdownRow}>
+        <Text style={styles.questionIndex}>
+          {t("quizProgress", { n: index + 1, total: questions.length })}
+        </Text>
+        <Text style={styles.seconds}>⏱ {secondsLeft ?? "-"}s</Text>
+      </View>
+      <View style={styles.countdownTrack}>
+        <Animated.View
+          style={[
+            styles.countdownFill,
+            {
+              width: countdown.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["0%", "100%"],
+              }),
+            },
+          ]}
+        />
+      </View>
+
       <ScrollView contentContainerStyle={styles.playContent}>
         <Card style={styles.questionCard}>
           <Text style={styles.questionText}>{question.text}</Text>
@@ -189,7 +275,7 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
               label={option}
               state={selected === i ? "selected" : "default"}
               onPress={() => onPick(i)}
-              disabled={selected !== null}
+              disabled={answered}
             />
           ))}
         </View>
@@ -332,6 +418,36 @@ function createStyles(colors: ColorTokens) {
   },
   progressBar: {
     marginHorizontal: spacing.lg,
+  },
+  countdownRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  questionIndex: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.textMuted,
+  },
+  seconds: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.accent,
+  },
+  countdownTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primarySoft,
+    overflow: "hidden",
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  countdownFill: {
+    height: "100%",
+    borderRadius: 5,
+    backgroundColor: colors.accent,
   },
   playContent: {
     padding: spacing.lg,

@@ -22,13 +22,11 @@ import { fonts, radius, spacing } from "../../theme";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Phone">;
 
-const LAN_DEFAULT = "http://192.168.0.111:4000";
-
 export function PhoneScreen({ navigation }: Props) {
   const { t } = useI18n();
   const { colors } = useTheme();
   const [phone, setPhone] = useState("");
-  const [serverUrl, setServerUrl] = useState(LAN_DEFAULT);
+  const [serverUrl, setServerUrl] = useState(getBuiltInBaseUrl());
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);

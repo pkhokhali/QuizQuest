@@ -11,7 +11,9 @@ npm install
 npm run dev
 ```
 
-The portal expects the QuizQuest API at `http://localhost:4000` by default. To point elsewhere, set:
+Dev server listens on all interfaces (`0.0.0.0`), so other devices on your LAN can open `http://YOUR_LAN_IP:3000`. When accessed that way, API calls automatically go to `http://YOUR_LAN_IP:4000` (same host as the browser).
+
+The portal expects the QuizQuest API at `http://localhost:4000` when opened locally. To point elsewhere, set:
 
 ```bash
 # .env.local

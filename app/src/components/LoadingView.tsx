@@ -1,5 +1,6 @@
 import React from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { fonts, spacing } from "../theme";
@@ -8,12 +9,15 @@ export function LoadingView({ message }: { message?: string }) {
   const { t } = useI18n();
   const { colors } = useTheme();
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.bg }]}
+      edges={["top", "bottom"]}
+    >
       <ActivityIndicator size="large" color={colors.primary} />
       <Text style={[styles.text, { color: colors.textMuted, fontFamily: fonts.body }]}>
         {message ?? t("loading")}
       </Text>
-    </View>
+    </SafeAreaView>
   );
 }
 

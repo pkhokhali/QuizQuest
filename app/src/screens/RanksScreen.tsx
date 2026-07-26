@@ -16,6 +16,7 @@ import { Card } from "../components/Card";
 import { ErrorCard } from "../components/ErrorCard";
 import { LoadingView } from "../components/LoadingView";
 import { IconRanks } from "../components/QuestIcons";
+import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
@@ -32,6 +33,7 @@ export function RanksScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
   const { user } = useAuth();
+  const tabPadding = useTabScreenPadding();
   const [scope, setScope] = useState<LeaderboardScope>("class");
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +100,7 @@ export function RanksScreen() {
       ) : failed || !data ? (
         <ErrorCard onRetry={() => load(scope)} />
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabPadding }]}>
           {scope !== "friends" && !user?.schoolId ? (
             <Card style={styles.joinCard}>
               <IconRanks size={40} color={colors.primary} />
@@ -224,7 +226,6 @@ function createStyles(colors: ColorTokens) {
   content: {
     padding: spacing.lg,
     gap: spacing.lg,
-    paddingBottom: spacing.xxl,
   },
   empty: {
     textAlign: "center",

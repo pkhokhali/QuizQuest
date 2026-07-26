@@ -1,5 +1,6 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { fonts, spacing } from "../theme";
@@ -16,7 +17,10 @@ export function ErrorCard({ onRetry, message }: ErrorCardProps) {
   const { t } = useI18n();
   const { colors } = useTheme();
   return (
-    <View style={[styles.wrapper, { backgroundColor: colors.bg }]}>
+    <SafeAreaView
+      style={[styles.wrapper, { backgroundColor: colors.bg }]}
+      edges={["top", "bottom"]}
+    >
       <Card style={styles.card}>
         <Text style={styles.emoji}>🙈</Text>
         <Text
@@ -26,7 +30,7 @@ export function ErrorCard({ onRetry, message }: ErrorCardProps) {
         </Text>
         <PrimaryButton label={t("retry")} onPress={onRetry} />
       </Card>
-    </View>
+    </SafeAreaView>
   );
 }
 

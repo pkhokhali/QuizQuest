@@ -113,13 +113,16 @@ export function serializeUser(u) {
   };
 }
 
-/** Question as students see it: localized, no correct answer. */
-export function studentQuestion(q, language = "en") {
+/** Question as students see it: localized, no correct answer. Options shuffled per session. */
+export function studentQuestion(q, language = "en", sessionId = null) {
   const useNe = language === "ne" && q.text_ne;
+  const stored = JSON.parse(useNe && q.options_ne ? q.options_ne : q.options_en);
+  const options =
+    sessionId == null ? stored : optionOrder(sessionId, q.id).map((i) => stored[i]);
   return {
     id: q.id,
     text: useNe ? q.text_ne : q.text_en,
-    options: JSON.parse(useNe && q.options_ne ? q.options_ne : q.options_en),
+    options,
     subject: q.subject,
     country: q.country,
     difficulty: q.difficulty,
@@ -169,4 +172,34 @@ export function shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+/** Deterministic shuffle for stable option order within a quiz session. */
+function seedFor(sessionId, questionId) {
+  return ((Number(sessionId) * 73856093) ^ (Number(questionId) * 19349663)) >>> 0;
+}
+
+export function optionOrder(sessionId, questionId) {
+  return seededShuffle([0, 1, 2, 3], seedFor(sessionId, questionId));
+}
+
+function seededShuffle(arr, seed) {
+  const a = [...arr];
+  let s = seed;
+  const rand = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** Map a student's shuffled choice index back to the stored option index. */
+export function originalChoiceIndex(sessionId, questionId, shuffledChoice) {
+  if (shuffledChoice == null || shuffledChoice === undefined) return null;
+  const order = optionOrder(sessionId, questionId);
+  return order[shuffledChoice] ?? null;
 }

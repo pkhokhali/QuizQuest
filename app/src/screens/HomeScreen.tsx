@@ -21,6 +21,7 @@ import { IconFlame, IconMap } from "../components/QuestIcons";
 import { StreakFlame } from "../components/StreakFlame";
 import { XpBar } from "../components/XpBar";
 import { xpForLevel } from "../constants";
+import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
@@ -32,6 +33,7 @@ export function HomeScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const pulse = useRef(new Animated.Value(1)).current;
+  const tabPadding = useTabScreenPadding();
 
   const [data, setData] = useState<HomeData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,7 +96,7 @@ export function HomeScreen() {
     <Atmosphere>
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: tabPadding }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -386,7 +388,6 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     gap: spacing.lg,
-    paddingBottom: spacing.xxl,
   },
   greetingRow: {
     flexDirection: "row",

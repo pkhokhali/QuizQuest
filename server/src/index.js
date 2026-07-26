@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import http from "http";
+import os from "os";
 import { Server } from "socket.io";
 import db from "./db.js";
 import authRoutes from "./routes/auth.js";
@@ -41,6 +42,28 @@ initBattle(io);
 const PORT = Number(process.env.PORT) || 4000;
 // Bind on all interfaces so phones on the same Wi‑Fi (and Docker hosts) can connect.
 const HOST = process.env.HOST || "0.0.0.0";
+
+function lanAddresses() {
+  const addrs = new Set();
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const iface of ifaces || []) {
+      if (iface.family === "IPv4" && !iface.internal) addrs.add(iface.address);
+    }
+  }
+  return [...addrs];
+}
+
 server.listen(PORT, HOST, () => {
   console.log(`QuizQuest API + battle engine listening on http://${HOST}:${PORT}`);
+  const questionCount = db.prepare("SELECT COUNT(*) c FROM questions").get().c;
+  if (questionCount === 0) {
+    console.warn("⚠ Question bank is empty — run `npm run seed` in server/ before students can play.");
+  } else {
+    console.log(`  ${questionCount.toLocaleString()} questions loaded`);
+  }
+  const lan = lanAddresses();
+  if (lan.length) {
+    console.log("LAN access:");
+    for (const ip of lan) console.log(`  http://${ip}:${PORT}/`);
+  }
 });

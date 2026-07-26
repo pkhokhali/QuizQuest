@@ -1,6 +1,6 @@
 import db from "./db.js";
 import { verifyToken } from "./auth.js";
-import { studentQuestion, gradeBandFor, levelForXp, today } from "./util.js";
+import { studentQuestion, gradeBandFor, levelForXp, today, optionOrder, originalChoiceIndex } from "./util.js";
 import { checkAwards } from "./awards.js";
 import { onlineSockets } from "./presence.js";
 
@@ -8,9 +8,13 @@ const TOTAL_QUESTIONS = 6;
 const PER_QUESTION_MS = 10000;
 const REVEAL_PAUSE_MS = 2500;
 
+const BOT_PHONE = "9900000000";
+const BOT_MATCH_DELAY_MS = 3000;
+
 const queues = new Map(); // gradeBand -> [{ socket, user }]
 const battles = new Map(); // battleId -> battle
 const challenges = new Map(); // challengeId -> { from, toUserId, expires }
+const botTimers = new Map(); // userId -> timeout
 let nextBattleId = 1;
 let nextChallengeId = 1;
 
@@ -30,6 +34,73 @@ function publicPlayer(user) {
     avatar: JSON.parse(user.avatar || "{}"),
     level: levelForXp(user.xp),
   };
+}
+
+function getBotUser() {
+  return db.prepare("SELECT * FROM users WHERE phone = ?").get(BOT_PHONE);
+}
+
+function emitTo(player, event, data) {
+  if (player.socket?.connected) player.socket.emit(event, data);
+}
+
+function makePlayer(entry) {
+  return {
+    socket: entry.socket ?? null,
+    user: entry.user,
+    isBot: Boolean(entry.isBot),
+    score: 0,
+    answers: {},
+  };
+}
+
+function clearBotTimer(userId) {
+  const timer = botTimers.get(userId);
+  if (timer) {
+    clearTimeout(timer);
+    botTimers.delete(userId);
+  }
+}
+
+function scheduleBotMatch(entry, gradeBand) {
+  clearBotTimer(entry.user.id);
+  const timer = setTimeout(() => tryBotMatch(entry, gradeBand), BOT_MATCH_DELAY_MS);
+  botTimers.set(entry.user.id, timer);
+}
+
+function tryBotMatch(entry, gradeBand) {
+  clearBotTimer(entry.user.id);
+  if (!entry.socket.connected || findBattleByUser(entry.user.id)) return;
+  const q = queues.get(gradeBand) || [];
+  const idx = q.findIndex((e) => e.user.id === entry.user.id);
+  if (idx === -1) return;
+  q.splice(idx, 1);
+  queues.set(gradeBand, q);
+  const botUser = getBotUser();
+  if (!botUser) return;
+  startBattle(entry, { socket: null, user: botUser, isBot: true }, gradeBand);
+}
+
+function answerAsBot(battle, botPlayer) {
+  if (botPlayer.answers[battle.index]) return;
+  const q = battle.questions[battle.index];
+  const shuffledCorrect = optionOrder(battle.id, q.id).indexOf(q.correct_index);
+  const correct = Math.random() < 0.55;
+  let choice = shuffledCorrect;
+  if (!correct) {
+    const wrong = [0, 1, 2, 3].filter((i) => i !== shuffledCorrect);
+    choice = wrong[Math.floor(Math.random() * wrong.length)];
+  }
+  botPlayer.answers[battle.index] = {
+    choice,
+    timeMs: 2500 + Math.floor(Math.random() * 4500),
+  };
+}
+
+function ensureBotAnswers(battle) {
+  for (const p of battle.players) {
+    if (p.isBot) answerAsBot(battle, p);
+  }
 }
 
 export function initBattle(io) {
@@ -57,15 +128,20 @@ export function initBattle(io) {
       const opponent = fresh.shift();
       queues.set(band, fresh);
       if (opponent) {
+        clearBotTimer(user.id);
         startBattle(opponent, { socket, user }, band);
       } else {
         fresh.push({ socket, user });
         queues.set(band, fresh);
         socket.emit("queue:waiting", { position: fresh.length });
+        scheduleBotMatch({ socket, user }, band);
       }
     });
 
-    socket.on("queue:leave", () => removeFromQueues(user.id));
+    socket.on("queue:leave", () => {
+      clearBotTimer(user.id);
+      removeFromQueues(user.id);
+    });
 
     socket.on("challenge:send", ({ friendUserId } = {}) => {
       const target = onlineSockets.get(Number(friendUserId));
@@ -94,6 +170,7 @@ export function initBattle(io) {
         choice: Number.isInteger(choice) ? choice : null,
         timeMs: Math.min(PER_QUESTION_MS, Math.max(0, Number(timeMs) || PER_QUESTION_MS)),
       };
+      ensureBotAnswers(battle);
       if (battle.players.every((p) => p.answers[battle.index])) {
         clearTimeout(battle.timer);
         reveal(battle);
@@ -101,6 +178,7 @@ export function initBattle(io) {
     });
 
     socket.on("disconnect", () => {
+      clearBotTimer(user.id);
       if (onlineSockets.get(user.id) === socket) onlineSockets.delete(user.id);
       removeFromQueues(user.id);
       const battle = findBattleByUser(user.id);
@@ -110,6 +188,7 @@ export function initBattle(io) {
 }
 
 function removeFromQueues(userId) {
+  clearBotTimer(userId);
   for (const [band, q] of queues) {
     queues.set(band, q.filter((e) => e.user.id !== userId));
   }
@@ -125,7 +204,7 @@ function findBattleByUser(userId) {
 function startBattle(a, b, gradeBand) {
   const questions = pickBattleQuestions(gradeBand);
   if (questions.length < 3) {
-    a.socket.emit("queue:waiting", { position: 1 });
+    emitTo(makePlayer(a), "queue:waiting", { position: 1 });
     return;
   }
   const battle = {
@@ -134,12 +213,12 @@ function startBattle(a, b, gradeBand) {
     index: -1,
     ended: false,
     timer: null,
-    players: [a, b].map((e) => ({ socket: e.socket, user: e.user, score: 0, answers: {} })),
+    players: [makePlayer(a), makePlayer(b)],
   };
   battles.set(battle.id, battle);
   for (const [i, p] of battle.players.entries()) {
     const opp = battle.players[1 - i];
-    p.socket.emit("battle:start", {
+    emitTo(p, "battle:start", {
       battleId: battle.id,
       opponent: publicPlayer(opp.user),
       totalQuestions: questions.length,
@@ -157,13 +236,16 @@ function nextQuestion(battle) {
   const deadlineTs = Date.now() + PER_QUESTION_MS;
   battle.deadlineTs = deadlineTs;
   for (const p of battle.players) {
-    p.socket.emit("battle:question", {
+    emitTo(p, "battle:question", {
       index: battle.index,
-      question: studentQuestion(q, p.user.language),
+      question: studentQuestion(q, p.user.language, battle.id),
       deadlineTs,
     });
   }
-  battle.timer = setTimeout(() => reveal(battle), PER_QUESTION_MS + 400);
+  battle.timer = setTimeout(() => {
+    ensureBotAnswers(battle);
+    reveal(battle);
+  }, PER_QUESTION_MS + 400);
 }
 
 function reveal(battle) {
@@ -174,7 +256,8 @@ function reveal(battle) {
   );
   for (const p of battle.players) {
     const ans = p.answers[battle.index];
-    const isCorrect = ans && ans.choice === q.correct_index;
+    const choice = ans ? originalChoiceIndex(battle.id, q.id, ans.choice) : null;
+    const isCorrect = choice != null && choice === q.correct_index;
     if (isCorrect) {
       const remaining = Math.max(0, PER_QUESTION_MS - ans.timeMs);
       p.score += 100 + Math.floor(remaining / 100);
@@ -184,9 +267,9 @@ function reveal(battle) {
   for (const [i, p] of battle.players.entries()) {
     const opp = battle.players[1 - i];
     const ans = p.answers[battle.index];
-    p.socket.emit("battle:reveal", {
+    emitTo(p, "battle:reveal", {
       index: battle.index,
-      correctIndex: q.correct_index,
+      correctIndex: optionOrder(battle.id, q.id).indexOf(q.correct_index),
       scores: { you: p.score, them: opp.score },
       yourChoice: ans ? ans.choice : null,
       theirAnswered: Boolean(opp.answers[battle.index]),
@@ -223,7 +306,7 @@ function endBattle(battle) {
   const results = finishAndPersist(battle, winnerUserId);
   for (const [i, r] of results.entries()) {
     const opp = results[1 - i];
-    r.player.socket.emit("battle:end", {
+    emitTo(r.player, "battle:end", {
       result: r.result,
       scores: { you: r.player.score, them: opp.player.score },
       xpEarned: r.xpEarned,
@@ -237,8 +320,8 @@ function forfeit(battle, leaverUserId) {
   const results = finishAndPersist(battle, winner.user.id);
   const winnerResult = results.find((r) => r.player.user.id === winner.user.id);
   const loserResult = results.find((r) => r.player.user.id === leaverUserId);
-  winner.socket.emit("battle:opponent_left", {});
-  winner.socket.emit("battle:end", {
+  emitTo(winner, "battle:opponent_left", {});
+  emitTo(winner, "battle:end", {
     result: "win",
     scores: { you: winnerResult.player.score, them: loserResult.player.score },
     xpEarned: winnerResult.xpEarned,

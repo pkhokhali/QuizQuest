@@ -1,10 +1,13 @@
 // Parameterized math question templates. Each template yields bilingual MCQs with
 // plausible distractors. Volume scales with the `scale` factor (QUESTION_SCALE env).
 
+import { shuffle } from "../../src/util.js";
+
 const NE_DIGITS = ["०", "१", "२", "३", "४", "५", "६", "७", "८", "९"];
 const ne = (n) => String(n).replace(/\d/g, (d) => NE_DIGITS[Number(d)]);
 const ri = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 const pick = (arr) => arr[ri(0, arr.length - 1)];
+const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
 
 /** Build 4 options (1 correct + 3 distinct numeric distractors), shuffled. */
 function numericOptions(correct, spreadFns) {
@@ -16,8 +19,17 @@ function numericOptions(correct, spreadFns) {
   }
   let extra = correct + opts.size;
   while (opts.size < 4) opts.add(extra++);
-  const arr = [...opts].sort(() => Math.random() - 0.5);
+  const arr = shuffle([...opts]);
   return { options: arr, correctIndex: arr.indexOf(correct) };
+}
+
+function shuffleTextOptions(optionsEn, optionsNe, correctIndex) {
+  const order = shuffle([0, 1, 2, 3]);
+  return {
+    optionsEn: order.map((i) => optionsEn[i]),
+    optionsNe: optionsNe ? order.map((i) => optionsNe[i]) : optionsNe,
+    correctIndex: order.indexOf(correctIndex),
+  };
 }
 
 const NEAR = [(c) => c + 1, (c) => c - 1, (c) => c + 2, (c) => c - 2, (c) => c + 10, (c) => c - 10];
@@ -73,14 +85,47 @@ T.push({
 T.push({
   band: "6-8", count: 6000, gen() {
     const styles = [
-      () => { const p = pick([5, 10, 20, 25, 50, 75]), n = ri(1, 40) * 20; return q(`What is ${p}% of ${n}?`, `${ne(n)} को ${ne(p)}% कति हुन्छ?`, (p * n) / 100, [...NEAR, (c) => c * 2, (c) => c / 2].filter(Boolean), "6-8", 3, "percentage"); },
-      () => { const x = ri(2, 15), a = ri(2, 9), b = ri(1, 30); return q(`If ${a}x + ${b} = ${a * x + b}, what is x?`, `यदि ${ne(a)}x + ${ne(b)} = ${ne(a * x + b)} भए x कति हुन्छ?`, x, NEAR, "6-8", 3, "algebra"); },
-      () => { const a = ri(2, 12); return q(`What is ${a}² (${a} squared)?`, `${ne(a)}² (${ne(a)} को वर्ग) कति हुन्छ?`, a * a, [...NEAR, (c) => c + a, (c) => 2 * a], "6-8", 2, "squares"); },
-      () => { const a = ri(2, 20); return q(`What is the square root of ${a * a}?`, `${ne(a * a)} को वर्गमूल कति हो?`, a, NEAR, "6-8", 3, "roots"); },
-      () => { const l = ri(4, 25), w = ri(3, 20); return q(`What is the area of a rectangle with length ${l} cm and width ${w} cm? (in cm²)`, `लम्बाइ ${ne(l)} से.मि. र चौडाइ ${ne(w)} से.मि. भएको आयतको क्षेत्रफल कति से.मि.² हुन्छ?`, l * w, [...NEAR, (c) => 2 * (l + w)], "6-8", 3, "geometry"); },
-      () => { const pair = pick([[4, 6], [6, 8], [8, 12], [9, 12], [10, 15], [12, 18], [15, 20]]); const g = (a, b) => (b === 0 ? a : g(b, a % b)); const l = (pair[0] * pair[1]) / g(pair[0], pair[1]); return q(`What is the LCM of ${pair[0]} and ${pair[1]}?`, `${ne(pair[0])} र ${ne(pair[1])} को ल.स. कति हो?`, l, [...NEAR, () => g(pair[0], pair[1]), () => pair[0] * pair[1]], "6-8", 3, "lcm-hcf"); },
-      () => { const t = ri(2, 8), s = ri(10, 90); return q(`A bus travels at ${s} km/h for ${t} hours. How far does it go? (in km)`, `एउटा बस ${ne(s)} कि.मि./घण्टाको गतिमा ${ne(t)} घण्टा चल्छ। कति टाढा पुग्छ (कि.मि.)?`, s * t, [...NEAR, (c) => c + s, (c) => c - t], "6-8", 3, "speed-distance"); },
-      () => { const nums = Array.from({ length: 4 }, () => ri(2, 30) * 2); const avg = nums.reduce((a, b) => a + b) / 4; return Number.isInteger(avg) ? q(`What is the average of ${nums.join(", ")}?`, `${nums.map(ne).join(", ")} को औसत कति हो?`, avg, NEAR, "6-8", 3, "statistics") : null; },
+      () => {
+        const p = ri(1, 99);
+        const n = ri(10, 999);
+        const ans = (p * n) / 100;
+        return Number.isInteger(ans) ? q(`What is ${p}% of ${n}?`, `${ne(n)} को ${ne(p)}% कति हुन्छ?`, ans, [...NEAR, (c) => c * 2, (c) => c / 2], "6-8", 3, "percentage") : null;
+      },
+      () => { const x = ri(2, 40), a = ri(2, 12), b = ri(1, 60); return q(`If ${a}x + ${b} = ${a * x + b}, what is x?`, `यदि ${ne(a)}x + ${ne(b)} = ${ne(a * x + b)} भए x कति हुन्छ?`, x, NEAR, "6-8", 3, "algebra"); },
+      () => { const a = ri(2, 25); return q(`What is ${a}² (${a} squared)?`, `${ne(a)}² (${ne(a)} को वर्ग) कति हुन्छ?`, a * a, [...NEAR, (c) => c + a, (c) => 2 * a], "6-8", 2, "squares"); },
+      () => { const a = ri(2, 35); return q(`What is the square root of ${a * a}?`, `${ne(a * a)} को वर्गमूल कति हो?`, a, NEAR, "6-8", 3, "roots"); },
+      () => { const l = ri(2, 99), w = ri(2, 99); return q(`What is the area of a rectangle with length ${l} cm and width ${w} cm? (in cm²)`, `लम्बाइ ${ne(l)} से.मि. र चौडाइ ${ne(w)} से.मि. भएको आयतको क्षेत्रफल कति से.मि.² हुन्छ?`, l * w, [...NEAR, (c) => 2 * (l + w)], "6-8", 3, "geometry"); },
+      () => {
+        const a = ri(4, 40);
+        const b = ri(4, 40);
+        const g = gcd(a, b);
+        const l = (a * b) / g;
+        return q(`What is the LCM of ${a} and ${b}?`, `${ne(a)} र ${ne(b)} को ल.स. कति हो?`, l, [...NEAR, () => g, () => a * b], "6-8", 3, "lcm-hcf");
+      },
+      () => {
+        const a = ri(4, 48);
+        const b = ri(4, 48);
+        const g = gcd(a, b);
+        return q(`What is the HCF of ${a} and ${b}?`, `${ne(a)} र ${ne(b)} को म.स. कति हो?`, g, [...NEAR, () => (a * b) / g, () => a + b], "6-8", 3, "lcm-hcf");
+      },
+      () => { const t = ri(2, 12), s = ri(5, 120); return q(`A bus travels at ${s} km/h for ${t} hours. How far does it go? (in km)`, `एउटा बस ${ne(s)} कि.मि./घण्टाको गतिमा ${ne(t)} घण्टा चल्छ। कति टाढा पुग्छ (कि.मि.)?`, s * t, [...NEAR, (c) => c + s, (c) => c - t], "6-8", 3, "speed-distance"); },
+      () => {
+        const nums = Array.from({ length: 4 }, () => ri(1, 99));
+        const sum = nums.reduce((a, b) => a + b, 0);
+        if (sum % 4 !== 0) return null;
+        return q(`What is the average of ${nums.join(", ")}?`, `${nums.map(ne).join(", ")} को औसत कति हो?`, sum / 4, NEAR, "6-8", 3, "statistics");
+      },
+      () => { const a = ri(100, 999), b = ri(100, 999); return q(`What is ${a} + ${b}?`, `${ne(a)} + ${ne(b)} कति हुन्छ?`, a + b, [...NEAR, (c) => c + 100, (c) => c - 100], "6-8", 2, "addition"); },
+      () => { const a = ri(200, 999), b = ri(50, a); return q(`What is ${a} - ${b}?`, `${ne(a)} - ${ne(b)} कति हुन्छ?`, a - b, NEAR, "6-8", 2, "subtraction"); },
+      () => { const b = ri(2, 15), c = ri(3, 40), a = b * c; return q(`What is ${a} ÷ ${b}?`, `${ne(a)} ÷ ${ne(b)} कति हुन्छ?`, c, NEAR, "6-8", 2, "division"); },
+      () => { const a = ri(12, 99), b = ri(2, 12); return q(`What is ${a} × ${b}?`, `${ne(a)} × ${ne(b)} कति हुन्छ?`, a * b, [...NEAR, (c) => c + b], "6-8", 2, "multiplication"); },
+      () => { const s = ri(3, 25); return q(`What is the volume of a cube with edge ${s} cm? (in cm³)`, `${ne(s)} से.मि. भुजा भएको घनको आयतन कति से.मि.³ हुन्छ?`, s ** 3, [...NEAR, (c) => 6 * s * s, (c) => s * s], "6-8", 3, "geometry"); },
+      () => {
+        const a = ri(2, 8);
+        const b = ri(2, 8);
+        const c = ri(2, 8);
+        return q(`What is ${a} + ${b} × ${c}? (order of operations)`, `${ne(a)} + ${ne(b)} × ${ne(c)} कति हुन्छ?`, a + b * c, [...NEAR, (c2) => (a + b) * c, (c2) => a * b + c], "6-8", 3, "order-of-ops");
+      },
     ];
     return pick(styles)();
   },
@@ -109,7 +154,14 @@ T.push({
       () => { const first = ri(1, 10), d = ri(2, 8), k = ri(5, 15); return q(`An arithmetic sequence starts at ${first} with common difference ${d}. What is the ${k}th term?`, `पहिलो पद ${ne(first)} र सार्वअन्तर ${ne(d)} भएको समान्तर श्रेणीको ${ne(k)}औं पद कति हुन्छ?`, first + (k - 1) * d, [(c) => c + d, (c) => c - d, (c) => first + k * d, (c) => c + 1], "11-12", 4, "sequences"); },
       () => { const nn = ri(4, 9); const c = nn * (nn - 1) / 2; return q(`How many ways can 2 students be chosen from ${nn} students?`, `${ne(nn)} जना विद्यार्थीबाट २ जना कति तरिकाले छान्न सकिन्छ?`, c, [(c2) => nn * nn, (c2) => nn * (nn - 1), (c2) => c2 + nn, (c2) => c2 - 1], "11-12", 4, "combinatorics"); },
       () => { const a = ri(2, 6); return q(`What is log base ${a} of ${a ** 3}?`, `${ne(a ** 3)} को आधार ${ne(a)} मा लघुगणक कति हुन्छ?`, 3, [() => a, () => a ** 3, () => 2, () => 9], "11-12", 4, "logarithms"); },
-      () => { const deg = pick([0, 30, 90]); const val = { 0: 0, 30: 0.5, 90: 1 }[deg]; const opts = ["0", "0.5", "1", "√3/2"]; const correctIdx = opts.indexOf(String(val)); return { textEn: `What is sin(${deg}°)?`, textNe: `sin(${ne(deg)}°) कति हुन्छ?`, optionsEn: opts, optionsNe: opts, correctIndex: correctIdx, subject: "math", gradeBand: "11-12", difficulty: 4, topic: "trigonometry", source: "generator:math-trigonometry" }; },
+      () => {
+        const deg = pick([0, 30, 90]);
+        const val = { 0: 0, 30: 0.5, 90: 1 }[deg];
+        const opts = ["0", "0.5", "1", "√3/2"];
+        const correctIdx = opts.indexOf(String(val));
+        const shuffled = shuffleTextOptions(opts, opts, correctIdx);
+        return { textEn: `What is sin(${deg}°)?`, textNe: `sin(${ne(deg)}°) कति हुन्छ?`, ...shuffled, subject: "math", gradeBand: "11-12", difficulty: 4, topic: "trigonometry", source: "generator:math-trigonometry" };
+      },
     ];
     return pick(styles)();
   },

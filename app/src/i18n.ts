@@ -94,6 +94,7 @@ const en = {
   revengeTitle: "Revenge Round",
   revengeResultsTitle: "Revenge served!",
   revengeEmpty: "No tricky ones waiting — you're all caught up!",
+  quizEmptyDaily: "Questions aren't ready yet — the server needs to be seeded first.",
 
   // Battle
   battleTitle: "Battle",
@@ -292,6 +293,7 @@ const ne: Record<TranslationKey, string> = {
   revengeTitle: "रिभेन्ज राउन्ड",
   revengeResultsTitle: "रिभेन्ज पूरा!",
   revengeEmpty: "कुनै जटिल प्रश्न बाँकी छैन — सबै सकियो!",
+  quizEmptyDaily: "प्रश्नहरू तयार छैनन् — सर्वरमा पहिले seed चलाउनुपर्छ।",
 
   battleTitle: "ब्याटल",
   battleQuick: "क्विक ब्याटल",

@@ -5,7 +5,7 @@ import db from "../src/db.js";
 import { generateMath } from "./generators/math.js";
 import { generateFacts } from "./generators/facts.js";
 import { CURATED } from "./data/curated.js";
-import { GRADE_BANDS, today, daysAgo } from "../src/util.js";
+import { GRADE_BANDS, today, daysAgo, shuffle } from "../src/util.js";
 
 const SCALE = Math.max(0.1, Number(process.env.QUESTION_SCALE) || 1);
 // Math is universal curriculum content: spread it across countries so every
@@ -68,7 +68,7 @@ console.log(`  facts: ${facts.length}`);
 const curatedRows = CURATED.flatMap(
   ([textEn, textNe, corr, dist, corrNe, distNe, country, subject, bands, difficulty, topic]) =>
     bands.map((band) => {
-      const order = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+      const order = shuffle([0, 1, 2, 3]);
       const en = [corr, ...dist];
       const nes = corrNe && distNe ? [corrNe, ...distNe] : null;
       return {
@@ -140,6 +140,22 @@ for (const [i, [phone, name, grade, lang, extras, subjects]] of DEMO.entries()) 
     if (Math.random() < 0.75) insertXp.run(id, 20 + Math.floor(Math.random() * 80), "daily_quest", daysAgo(d));
   }
 }
+
+// Practice opponent for quick battle when no human is in queue.
+const botId = insertUser.run(
+  "9900000000",
+  "Quest Bot",
+  8,
+  "en",
+  JSON.stringify(["india"]),
+  JSON.stringify(["math", "gk"]),
+  JSON.stringify({ emoji: "🤖", bg: "#6366F1" }),
+  500,
+  0,
+  0,
+  daysAgo(3),
+  schoolA
+).lastInsertRowid;
 
 // Friendships among the grade-8 crew
 const pairs = [[0, 1], [0, 2], [1, 3], [2, 4], [3, 5], [0, 4]];
