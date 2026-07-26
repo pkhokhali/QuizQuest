@@ -1,8 +1,15 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import React, { useEffect } from "react";
-import { StyleSheet, Text } from "react-native";
+import React, { useEffect, useMemo } from "react";
+import { StyleSheet } from "react-native";
+import {
+  IconAwards,
+  IconBattle,
+  IconHome,
+  IconProfile,
+  IconRanks,
+} from "../components/QuestIcons";
 import { LoadingView } from "../components/LoadingView";
 import { AwardsScreen } from "../screens/AwardsScreen";
 import { BattleLiveScreen } from "../screens/BattleLiveScreen";
@@ -16,7 +23,8 @@ import { OtpScreen } from "../screens/auth/OtpScreen";
 import { PhoneScreen } from "../screens/auth/PhoneScreen";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
-import { colors } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { fonts } from "../theme";
 import {
   AuthStackParamList,
   MainTabParamList,
@@ -27,29 +35,36 @@ const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
-const TAB_EMOJIS: Record<keyof MainTabParamList, string> = {
-  Home: "🏠",
-  Battle: "⚔️",
-  Ranks: "🏔️",
-  Awards: "🏅",
-  Profile: "🦊",
+const TAB_ICONS: Record<
+  keyof MainTabParamList,
+  React.ComponentType<{ size?: number; color?: string }>
+> = {
+  Home: IconHome,
+  Battle: IconBattle,
+  Ranks: IconRanks,
+  Awards: IconAwards,
+  Profile: IconProfile,
 };
 
 function Tabs() {
   const { t } = useI18n();
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabLabel,
-        tabBarIcon: ({ focused }) => (
-          <Text style={[styles.tabIcon, !focused && styles.tabIconInactive]}>
-            {TAB_EMOJIS[route.name]}
-          </Text>
-        ),
+        tabBarStyle: [
+          styles.tabBar,
+          { backgroundColor: colors.card, borderTopColor: colors.border },
+        ],
+        tabBarLabelStyle: [styles.tabLabel, { fontFamily: fonts.bodyBold }],
+        tabBarAccessibilityLabel: t(`tab${route.name}` as never),
+        tabBarIcon: ({ focused, color }) => {
+          const Icon = TAB_ICONS[route.name];
+          return <Icon size={focused ? 24 : 22} color={color} />;
+        },
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: t("tabHome") }} />
@@ -85,21 +100,26 @@ function RevengeRoundRoute() {
   return <QuizPlayScreen mode="revenge" />;
 }
 
-const navTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    background: colors.bg,
-    primary: colors.primary,
-  },
-};
-
 export function RootNavigator() {
   const { restoring, token, user } = useAuth();
   const { setLang } = useI18n();
+  const { colors } = useTheme();
 
-  // Keep the UI language in sync with the server-side preference once the
-  // student is fully set up (during onboarding the local toggle leads).
+  const navTheme = useMemo(
+    () => ({
+      ...DefaultTheme,
+      colors: {
+        ...DefaultTheme.colors,
+        background: colors.bg,
+        primary: colors.primary,
+        card: colors.card,
+        text: colors.text,
+        border: colors.border,
+      },
+    }),
+    [colors]
+  );
+
   useEffect(() => {
     if (user?.onboarded && user.language) setLang(user.language);
   }, [user?.onboarded, user?.language, setLang]);
@@ -143,20 +163,13 @@ export function RootNavigator() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.card,
-    borderTopWidth: 0,
-    elevation: 8,
-    height: 62,
+    borderTopWidth: 1,
+    elevation: 10,
+    height: 64,
     paddingTop: 6,
+    paddingBottom: 6,
   },
   tabLabel: {
     fontSize: 11,
-    fontWeight: "700",
-  },
-  tabIcon: {
-    fontSize: 20,
-  },
-  tabIconInactive: {
-    opacity: 0.45,
   },
 });

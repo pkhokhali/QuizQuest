@@ -1,5 +1,5 @@
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -22,14 +22,19 @@ import {
   QueueWaitingEvent,
 } from "../api/types";
 import { AvatarCircle } from "../components/AvatarCircle";
+import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { IconShield } from "../components/QuestIcons";
 import { connectBattleSocket, getBattleSocket } from "../socket/battleSocket";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
-import { colors, radius, spacing } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { ColorTokens, fonts, radius, spacing } from "../theme";
 
 export function BattleScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
   const { token, user } = useAuth();
   const navigation = useNavigation();
@@ -174,9 +179,13 @@ export function BattleScreen() {
   });
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <Atmosphere>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>⚔️ {t("battleTitle")}</Text>
+        <View style={styles.titleRow}>
+          <IconShield size={32} color={colors.primary} secondary={colors.accent} />
+          <Text style={[styles.title, { fontFamily: fonts.display }]}>{t("battleTitle")}</Text>
+        </View>
 
         {/* Incoming challenge banner */}
         {incoming && (
@@ -349,10 +358,12 @@ export function BattleScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+    </Atmosphere>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ColorTokens) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -361,6 +372,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.lg,
     paddingBottom: spacing.xxl,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   title: {
     fontSize: 26,
@@ -601,3 +617,5 @@ const styles = StyleSheet.create({
     color: colors.amber,
   },
 });
+}
+

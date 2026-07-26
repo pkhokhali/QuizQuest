@@ -7,15 +7,18 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, pingServer, requestOtp } from "../../api/client";
 import { getBaseUrl, getBuiltInBaseUrl, setBaseUrl } from "../../api/config";
+import { BrandMark } from "../../components/BrandMark";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { AuthStackParamList } from "../../navigation/types";
 import { useI18n } from "../../state/LanguageContext";
-import { colors, radius, spacing } from "../../theme";
+import { useTheme } from "../../state/ThemeContext";
+import { fonts, radius, spacing } from "../../theme";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Phone">;
 
@@ -23,12 +26,14 @@ const LAN_DEFAULT = "http://192.168.0.111:4000";
 
 export function PhoneScreen({ navigation }: Props) {
   const { t } = useI18n();
+  const { colors } = useTheme();
   const [phone, setPhone] = useState("");
   const [serverUrl, setServerUrl] = useState(LAN_DEFAULT);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [serverOk, setServerOk] = useState<boolean | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const valid = phone.trim().length >= 10;
   const serverValid = /^https?:\/\/.+/.test(serverUrl.trim());
@@ -92,7 +97,10 @@ export function PhoneScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.primary }]}
+      edges={["top", "left", "right"]}
+    >
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -105,43 +113,95 @@ export function PhoneScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.hero}>
-            <Text style={styles.logo}>🧭</Text>
-            <Text style={styles.appName}>{t("appName")}</Text>
-            <Text style={styles.tagline}>{t("tagline")}</Text>
+            <BrandMark size="hero" light />
           </View>
 
-          <View style={styles.form}>
-            <Text style={styles.welcome}>{t("authWelcome")}</Text>
+          <View style={[styles.form, { backgroundColor: colors.bg }]}>
+            <Text
+              style={[styles.welcome, { color: colors.text, fontFamily: fonts.display }]}
+            >
+              {t("authWelcome")}
+            </Text>
 
-            <Text style={styles.label}>{t("authServerLabel")}</Text>
-            <Text style={styles.hint}>{t("authServerHint")}</Text>
-            <TextInput
-              style={styles.inputServer}
-              value={serverUrl}
-              onChangeText={(v) => {
-                setServerUrl(v);
-                setServerOk(null);
-              }}
-              placeholder={t("authServerPlaceholder")}
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-            />
-            <PrimaryButton
-              label={t("authTestServer")}
-              onPress={onTestServer}
-              variant="ghost"
-              loading={testing}
-              disabled={!serverValid || testing}
-            />
-            {serverOk ? (
-              <Text style={styles.serverOk}>{t("authServerOk")}</Text>
+            <TouchableOpacity
+              onPress={() => setShowAdvanced((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={t("authServerLabel")}
+            >
+              <Text
+                style={[
+                  styles.advancedToggle,
+                  { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                ]}
+              >
+                {showAdvanced ? "▾ " : "▸ "}
+                {t("authServerLabel")}
+              </Text>
+            </TouchableOpacity>
+
+            {showAdvanced ? (
+              <>
+                <Text
+                  style={[styles.hint, { color: colors.textMuted, fontFamily: fonts.body }]}
+                >
+                  {t("authServerHint")}
+                </Text>
+                <TextInput
+                  style={[
+                    styles.inputServer,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                      color: colors.text,
+                      fontFamily: fonts.body,
+                    },
+                  ]}
+                  value={serverUrl}
+                  onChangeText={(v) => {
+                    setServerUrl(v);
+                    setServerOk(null);
+                  }}
+                  placeholder={t("authServerPlaceholder")}
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                <PrimaryButton
+                  label={t("authTestServer")}
+                  onPress={onTestServer}
+                  variant="ghost"
+                  loading={testing}
+                  disabled={!serverValid || testing}
+                />
+                {serverOk ? (
+                  <Text
+                    style={[
+                      styles.serverOk,
+                      { color: colors.primary, fontFamily: fonts.bodyBold },
+                    ]}
+                  >
+                    {t("authServerOk")}
+                  </Text>
+                ) : null}
+              </>
             ) : null}
 
-            <Text style={styles.label}>{t("authPhoneLabel")}</Text>
+            <Text
+              style={[styles.label, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}
+            >
+              {t("authPhoneLabel")}
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  color: colors.text,
+                  fontFamily: fonts.bodyBold,
+                },
+              ]}
               value={phone}
               onChangeText={setPhone}
               placeholder={t("authPhonePlaceholder")}
@@ -149,7 +209,11 @@ export function PhoneScreen({ navigation }: Props) {
               keyboardType="phone-pad"
               maxLength={15}
             />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? (
+              <Text style={[styles.error, { color: colors.accent, fontFamily: fonts.body }]}>
+                {error}
+              </Text>
+            ) : null}
             <PrimaryButton
               label={t("authSendCode")}
               onPress={onSubmit}
@@ -164,93 +228,39 @@ export function PhoneScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.primary,
-  },
-  flex: {
-    flex: 1,
-  },
-  scroll: {
-    flexGrow: 1,
-    justifyContent: "flex-end",
-  },
+  safe: { flex: 1 },
+  flex: { flex: 1 },
+  scroll: { flexGrow: 1, justifyContent: "flex-end" },
   hero: {
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.sm,
     paddingVertical: spacing.xxl,
   },
-  logo: {
-    fontSize: 72,
-  },
-  appName: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: colors.textOnPrimary,
-  },
-  tagline: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.85)",
-    fontWeight: "600",
-  },
   form: {
-    backgroundColor: colors.bg,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: spacing.xl,
     paddingBottom: spacing.xxl + 24,
     gap: spacing.md,
   },
-  welcome: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.textMuted,
-  },
-  hint: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 18,
-    marginTop: -4,
-  },
+  welcome: { fontSize: 24, marginBottom: spacing.sm },
+  label: { fontSize: 14 },
+  advancedToggle: { fontSize: 13, paddingVertical: spacing.xs },
+  hint: { fontSize: 12, lineHeight: 18, marginTop: -4 },
   inputServer: {
-    backgroundColor: colors.card,
     borderRadius: radius.chip,
     borderWidth: 2,
-    borderColor: colors.border,
     padding: spacing.md,
     fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
   },
-  serverOk: {
-    color: colors.primary,
-    fontWeight: "700",
-    fontSize: 14,
-    textAlign: "center",
-  },
+  serverOk: { fontSize: 14, textAlign: "center" },
   input: {
-    backgroundColor: colors.card,
     borderRadius: radius.chip,
     borderWidth: 2,
-    borderColor: colors.border,
     padding: spacing.lg,
     fontSize: 20,
-    fontWeight: "700",
-    color: colors.text,
     letterSpacing: 1,
   },
-  error: {
-    color: colors.accent,
-    fontWeight: "600",
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  error: { fontSize: 14, lineHeight: 20 },
 });

@@ -5,6 +5,7 @@ const appJson = require("./app.json");
 module.exports = {
   ...appJson.expo,
   plugins: [
+    "expo-font",
     [
       "expo-build-properties",
       {

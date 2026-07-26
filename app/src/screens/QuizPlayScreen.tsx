@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState , useMemo} from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -27,7 +27,8 @@ import { StreakFlame } from "../components/StreakFlame";
 import { XpBar } from "../components/XpBar";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
-import { colors, radius, spacing } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { radius, spacing, ColorTokens } from "../theme";
 
 type Phase = "loading" | "error" | "empty" | "playing" | "submitting" | "results";
 
@@ -38,6 +39,8 @@ interface QuizPlayScreenProps {
 const ADVANCE_DELAY_MS = 350;
 
 export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
   const navigation = useNavigation();
   const { refreshUser } = useAuth();
@@ -206,6 +209,8 @@ interface ResultsViewProps {
 }
 
 function ResultsView({ mode, result, questions, answers, onDone }: ResultsViewProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { t, lang } = useI18n();
   const correctMap = new Map(result.correct.map((c) => [c.questionId, c.correctIndex]));
   const answerMap = new Map(answers.map((a) => [a.questionId, a.choice]));
@@ -296,7 +301,8 @@ function ResultsView({ mode, result, questions, answers, onDone }: ResultsViewPr
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ColorTokens) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -466,3 +472,5 @@ const styles = StyleSheet.create({
     color: colors.amber,
   },
 });
+}
+

@@ -48,6 +48,7 @@ export interface User {
   bestStreak: number;
   friendCode: string;
   schoolId: number | null;
+  schoolName: string | null;
   onboarded: boolean;
 }
 
@@ -110,6 +111,12 @@ export interface UpdateMeBody {
   subjects?: Subject[];
   quizTime?: QuizTime;
   avatar?: AvatarInfo;
+  joinCode?: string;
+}
+
+export interface JoinSchoolResponse {
+  user: User;
+  school: { id: number; name: string };
 }
 
 export type DailyQuizStatus = "not_started" | "in_progress" | "completed";

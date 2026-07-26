@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, ViewStyle } from "react-native";
-import { colors, radius, spacing } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { fonts, radius, spacing } from "../theme";
 
 interface ChipProps {
   label: string;
@@ -11,11 +12,15 @@ interface ChipProps {
 }
 
 export function Chip({ label, selected, onPress, disabled, style }: ChipProps) {
+  const { colors } = useTheme();
   return (
     <TouchableOpacity
       style={[
         styles.chip,
-        selected && styles.selected,
+        {
+          backgroundColor: selected ? colors.primary : colors.card,
+          borderColor: selected ? colors.primary : colors.border,
+        },
         disabled && styles.disabled,
         style,
       ]}
@@ -23,7 +28,17 @@ export function Chip({ label, selected, onPress, disabled, style }: ChipProps) {
       disabled={disabled || !onPress}
       activeOpacity={0.7}
     >
-      <Text style={[styles.label, selected && styles.selectedLabel]}>{label}</Text>
+      <Text
+        style={[
+          styles.label,
+          {
+            color: selected ? colors.textOnPrimary : colors.text,
+            fontFamily: fonts.body,
+          },
+        ]}
+      >
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -33,23 +48,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.chip,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
-    backgroundColor: colors.card,
     borderWidth: 2,
-    borderColor: colors.border,
-  },
-  selected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
   disabled: {
     opacity: 0.5,
   },
   label: {
     fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  selectedLabel: {
-    color: colors.textOnPrimary,
   },
 });

@@ -103,5 +103,16 @@ check("mix config rejects bad sum", (await call("PUT", "/api/admin/mix-config", 
 const schools = await call("GET", "/api/admin/schools", { token: at });
 check("schools", schools.json.schools?.length >= 2);
 
+// Student joins a school by code → class/school ranks populate
+const joinCode = schools.json.schools?.[0]?.joinCode;
+const join = await call("POST", "/api/school/join", { token: newLogin.json.token, body: { joinCode } });
+check("school join", join.status === 200 && join.json.user.schoolId && join.json.user.schoolName, JSON.stringify(join.json).slice(0, 200));
+const badJoin = await call("POST", "/api/school/join", { token: newLogin.json.token, body: { joinCode: "SCH-NOPE00" } });
+check("school join rejects bad code", badJoin.status === 404);
+
+// "afterschool" quiz time is accepted (previously silently dropped)
+const afterschool = await call("PUT", "/api/me", { token: newLogin.json.token, body: { quizTime: "afterschool" } });
+check("afterschool quizTime saved", afterschool.json.user.quizTime === "afterschool", JSON.stringify(afterschool.json.user.quizTime));
+
 console.log(failures === 0 ? "\nAll smoke tests passed." : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

@@ -42,11 +42,34 @@ router.put("/me", (req, res) => {
   if (Array.isArray(b.subjects)) {
     sets.push("subjects = ?"); params.push(JSON.stringify(b.subjects.filter((s) => SUBJECTS.includes(s))));
   }
-  if (["morning", "afternoon", "evening"].includes(b.quizTime)) { sets.push("quiz_time = ?"); params.push(b.quizTime); }
+  // Accept both the app's "afterschool" and the legacy "afternoon" label.
+  if (["morning", "afternoon", "afterschool", "evening"].includes(b.quizTime)) { sets.push("quiz_time = ?"); params.push(b.quizTime); }
   if (b.avatar && typeof b.avatar === "object") { sets.push("avatar = ?"); params.push(JSON.stringify(b.avatar)); }
+  if (typeof b.joinCode === "string" && b.joinCode.trim()) {
+    const school = db.prepare("SELECT id FROM schools WHERE join_code = ?").get(b.joinCode.trim().toUpperCase());
+    if (school) { sets.push("school_id = ?"); params.push(school.id); }
+  }
   if (sets.length) {
     db.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).run(...params, req.user.id);
   }
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  res.json({ user: serializeUser(user) });
+});
+
+// Join a school (or class) by its code so class/school ranks light up.
+router.post("/school/join", (req, res) => {
+  const code = String(req.body.joinCode || "").trim().toUpperCase();
+  if (!code) return res.status(400).json({ error: "Enter your school code" });
+  const school = db.prepare("SELECT * FROM schools WHERE join_code = ?").get(code);
+  if (!school) return res.status(404).json({ error: "No school found with that code" });
+  db.prepare("UPDATE users SET school_id = ? WHERE id = ?").run(school.id, req.user.id);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  res.json({ user: serializeUser(user), school: { id: school.id, name: school.name } });
+});
+
+// Leave the current school.
+router.post("/school/leave", (req, res) => {
+  db.prepare("UPDATE users SET school_id = NULL WHERE id = ?").run(req.user.id);
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
   res.json({ user: serializeUser(user) });
 });

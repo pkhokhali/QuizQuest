@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -11,16 +11,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { updateMe } from "../api/client";
 import { Language, QuizTime, Subject } from "../api/types";
 import { Chip } from "../components/Chip";
+import { Atmosphere } from "../components/Atmosphere";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ProgressDots } from "../components/ProgressDots";
 import { EXTRA_COUNTRIES, HOME_COUNTRY, SUBJECTS } from "../constants";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
-import { colors, radius, shadow, spacing } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { radius, shadow, spacing, ColorTokens } from "../theme";
 
 const TOTAL_STEPS = 5;
 
 export function OnboardingScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { t, lang, setLang } = useI18n();
   const { user, setUser } = useAuth();
 
@@ -92,7 +96,8 @@ export function OnboardingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <Atmosphere>
+      <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         {step > 0 ? (
           <TouchableOpacity onPress={() => setStep(step - 1)} style={styles.back}>
@@ -268,10 +273,12 @@ export function OnboardingScreen() {
         />
       </View>
     </SafeAreaView>
+    </Atmosphere>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ColorTokens) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -473,3 +480,5 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
 });
+}
+

@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { colors, radius, spacing } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { ColorTokens, fonts, radius, spacing } from "../theme";
 
 export type OptionState = "default" | "selected" | "correct" | "missed" | "dimmed";
 
@@ -25,7 +26,8 @@ export function OptionButton({
   onPress,
   disabled,
 }: OptionButtonProps) {
-  const palette = getPalette(state);
+  const { colors } = useTheme();
+  const palette = getPalette(state, colors);
 
   return (
     <TouchableOpacity
@@ -37,18 +39,31 @@ export function OptionButton({
       onPress={onPress}
       disabled={disabled || !onPress}
       activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel={`${LETTERS[index] ?? ""}. ${label}`}
+      accessibilityState={{
+        selected: state === "selected",
+        disabled: Boolean(disabled || !onPress),
+      }}
     >
       <View style={[styles.letter, { backgroundColor: palette.letterBg }]}>
-        <Text style={[styles.letterText, { color: palette.letterFg }]}>
+        <Text
+          style={[
+            styles.letterText,
+            { color: palette.letterFg, fontFamily: fonts.bodyBold },
+          ]}
+        >
           {LETTERS[index] ?? "?"}
         </Text>
       </View>
-      <Text style={[styles.label, { color: palette.fg }]}>{label}</Text>
+      <Text style={[styles.label, { color: palette.fg, fontFamily: fonts.body }]}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
 
-function getPalette(state: OptionState) {
+function getPalette(state: OptionState, colors: ColorTokens) {
   switch (state) {
     case "selected":
       return {
@@ -106,12 +121,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   letterText: {
-    fontWeight: "800",
     fontSize: 15,
   },
   label: {
     flex: 1,
     fontSize: 16,
-    fontWeight: "600",
   },
 });

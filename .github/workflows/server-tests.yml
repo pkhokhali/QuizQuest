@@ -1,0 +1,61 @@
+name: Server tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/server-tests.yml"
+  pull_request:
+    paths:
+      - "server/**"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Seed question bank + demo data
+        run: npm run seed
+        working-directory: server
+
+      - name: Start API server
+        run: |
+          npm start &
+          echo $! > server.pid
+          # Wait for the health endpoint to come up
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4000/ >/dev/null; then
+              echo "Server is up"; break
+            fi
+            sleep 1
+          done
+        working-directory: server
+
+      - name: Run API smoke tests
+        run: node scripts/smoke.js
+        working-directory: server
+        env:
+          BASE_URL: http://localhost:4000
+
+      - name: Run battle smoke tests
+        run: node scripts/battle-smoke.js
+        working-directory: server
+        env:
+          BASE_URL: http://localhost:4000
+
+      - name: Stop API server
+        if: always()
+        run: kill "$(cat server/server.pid)" || true

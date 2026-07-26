@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState , useMemo} from "react";
 import {
   Animated,
   Easing,
@@ -23,11 +23,14 @@ import { getBattleSocket, getLastQuestion } from "../socket/battleSocket";
 import { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
-import { colors, radius, spacing } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { radius, spacing, ColorTokens } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BattleLive">;
 
 export function BattleLiveScreen({ route, navigation }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { start } = route.params;
   const { t, lang } = useI18n();
   const { user, refreshUser } = useAuth();
@@ -280,7 +283,8 @@ export function BattleLiveScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ColorTokens) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -444,3 +448,5 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 });
+}
+

@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, View, ViewStyle } from "react-native";
-import { colors } from "../theme";
+import { useTheme } from "../state/ThemeContext";
 
 interface XpBarProps {
   /** 0..1 */
@@ -13,11 +13,13 @@ interface XpBarProps {
 
 export function XpBar({
   progress,
-  color = colors.accent,
+  color,
   trackColor = "rgba(255,255,255,0.3)",
   height = 10,
   style,
 }: XpBarProps) {
+  const { colors } = useTheme();
+  const fill = color ?? colors.accent;
   const clamped = Math.max(0, Math.min(1, progress));
   return (
     <View
@@ -33,7 +35,7 @@ export function XpBar({
           {
             width: `${clamped * 100}%`,
             borderRadius: height / 2,
-            backgroundColor: color,
+            backgroundColor: fill,
           },
         ]}
       />

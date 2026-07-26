@@ -17,3 +17,10 @@ services:
         value: production
       - key: HOST
         value: 0.0.0.0
+      # Strong signing secret for JWTs — generated once by Render, never in git.
+      - key: JWT_SECRET
+        generateValue: true
+      # Restrict browser origins in production. Set to your admin Pages URL, e.g.
+      # https://pkhokhali.github.io  (comma-separate multiple origins).
+      - key: CORS_ORIGIN
+        value: "*"

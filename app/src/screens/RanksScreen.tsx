@@ -1,5 +1,5 @@
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -10,12 +10,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getLeaderboard } from "../api/client";
 import { LeaderboardEntry, LeaderboardResponse, LeaderboardScope } from "../api/types";
+import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Card } from "../components/Card";
 import { ErrorCard } from "../components/ErrorCard";
 import { LoadingView } from "../components/LoadingView";
+import { IconRanks } from "../components/QuestIcons";
+import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
-import { colors, radius, spacing } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { ColorTokens, fonts, radius, spacing } from "../theme";
 
 const SCOPES: { value: LeaderboardScope; labelKey: "ranksClass" | "ranksSchool" | "ranksFriends" }[] = [
   { value: "class", labelKey: "ranksClass" },
@@ -24,7 +28,10 @@ const SCOPES: { value: LeaderboardScope; labelKey: "ranksClass" | "ranksSchool" 
 ];
 
 export function RanksScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
+  const { user } = useAuth();
   const [scope, setScope] = useState<LeaderboardScope>("class");
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,9 +63,15 @@ export function RanksScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <Atmosphere>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBlock}>
-        <Text style={styles.title}>🏔️ {t("ranksTitle")}</Text>
+        <View style={styles.titleRow}>
+          <IconRanks size={28} color={colors.primary} />
+          <Text style={[styles.title, { fontFamily: fonts.display }]}>
+            {t("ranksTitle")}
+          </Text>
+        </View>
         <Text style={styles.subtitle}>{t("ranksResets")}</Text>
         <View style={styles.scopeRow}>
           {SCOPES.map((s) => (
@@ -86,7 +99,15 @@ export function RanksScreen() {
         <ErrorCard onRetry={() => load(scope)} />
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
-          {data.top3.length === 0 && data.neighborhood.length === 0 ? (
+          {scope !== "friends" && !user?.schoolId ? (
+            <Card style={styles.joinCard}>
+              <IconRanks size={40} color={colors.primary} />
+              <Text style={[styles.joinTitle, { fontFamily: fonts.display }]}>
+                {t("ranksJoinSchoolTitle")}
+              </Text>
+              <Text style={styles.joinCopy}>{t("ranksJoinSchoolCopy")}</Text>
+            </Card>
+          ) : data.top3.length === 0 && data.neighborhood.length === 0 ? (
             <Text style={styles.empty}>{t("ranksEmpty")}</Text>
           ) : (
             <>
@@ -145,16 +166,23 @@ export function RanksScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+    </Atmosphere>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ColorTokens) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
   },
   headerBlock: {
     padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   title: {
@@ -204,6 +232,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 15,
     marginTop: spacing.xxl,
+  },
+  joinCard: {
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.xl,
+    marginTop: spacing.lg,
+  },
+  joinTitle: {
+    fontSize: 20,
+    color: colors.text,
+  },
+  joinCopy: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textMuted,
+    textAlign: "center",
   },
   podium: {
     flexDirection: "row",
@@ -271,3 +315,5 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 });
+}
+

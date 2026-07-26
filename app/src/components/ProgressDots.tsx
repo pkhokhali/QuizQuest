@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
-import { colors, spacing } from "../theme";
+import { useTheme } from "../state/ThemeContext";
+import { spacing } from "../theme";
 
 interface ProgressDotsProps {
   count: number;
@@ -8,10 +9,20 @@ interface ProgressDotsProps {
 }
 
 export function ProgressDots({ count, current }: ProgressDotsProps) {
+  const { colors } = useTheme();
   return (
     <View style={styles.row}>
       {Array.from({ length: count }).map((_, i) => (
-        <View key={i} style={[styles.dot, i === current && styles.active]} />
+        <View
+          key={i}
+          style={[
+            styles.dot,
+            {
+              backgroundColor: i === current ? colors.primary : colors.primarySoft,
+              width: i === current ? 24 : 10,
+            },
+          ]}
+        />
       ))}
     </View>
   );
@@ -24,13 +35,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   dot: {
-    width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: colors.primarySoft,
-  },
-  active: {
-    backgroundColor: colors.primary,
-    width: 24,
   },
 });

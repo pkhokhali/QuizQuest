@@ -8,6 +8,7 @@ import {
   FriendsResponse,
   HomeData,
   Digest,
+  JoinSchoolResponse,
   LeaderboardResponse,
   LeaderboardScope,
   RequestOtpResponse,
@@ -111,6 +112,14 @@ export function getMe(): Promise<{ user: User }> {
 
 export function updateMe(body: UpdateMeBody): Promise<{ user: User }> {
   return request("/api/me", { method: "PUT", body });
+}
+
+export function joinSchool(joinCode: string): Promise<JoinSchoolResponse> {
+  return request("/api/school/join", { method: "POST", body: { joinCode } });
+}
+
+export function leaveSchool(): Promise<{ user: User }> {
+  return request("/api/school/leave", { method: "POST" });
 }
 
 export function getHome(): Promise<HomeData> {

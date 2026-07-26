@@ -9,7 +9,13 @@ import adminRoutes from "./routes/admin.js";
 import { initBattle } from "./battle.js";
 
 const app = express();
-app.use(cors());
+// Lock down origins in production via CORS_ORIGIN (comma-separated); "*" in dev.
+const ORIGINS = (process.env.CORS_ORIGIN || "*")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+const corsOrigin = ORIGINS.includes("*") ? "*" : ORIGINS;
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: "20mb" })); // large limit for CSV imports
 
 app.get("/", (req, res) => {
@@ -29,7 +35,7 @@ app.use((err, req, res, next) => {
 });
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, { cors: { origin: corsOrigin } });
 initBattle(io);
 
 const PORT = Number(process.env.PORT) || 4000;

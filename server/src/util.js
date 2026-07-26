@@ -1,3 +1,5 @@
+import db from "./db.js";
+
 export const GRADE_BANDS = ["1-3", "4-5", "6-8", "9-10", "11-12"];
 
 export function gradeBandFor(grade) {
@@ -83,6 +85,11 @@ export function toBsDateString(adDate = new Date()) {
 }
 
 export function serializeUser(u) {
+  let schoolName = null;
+  if (u.school_id) {
+    const row = db.prepare("SELECT name FROM schools WHERE id = ?").get(u.school_id);
+    schoolName = row ? row.name : null;
+  }
   return {
     id: u.id,
     phone: u.phone,
@@ -101,6 +108,7 @@ export function serializeUser(u) {
     bestStreak: u.best_streak,
     friendCode: friendCode(u.id),
     schoolId: u.school_id,
+    schoolName,
     onboarded: Boolean(u.grade && u.home_country),
   };
 }

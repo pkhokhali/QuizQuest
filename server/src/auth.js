@@ -3,6 +3,12 @@ import db from "./db.js";
 
 export const JWT_SECRET = process.env.JWT_SECRET || "quizquest-dev-secret";
 
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.warn(
+    "[security] JWT_SECRET is not set in production — using an insecure default. Set JWT_SECRET in the environment."
+  );
+}
+
 export function signToken(user) {
   return jwt.sign({ uid: user.id, role: user.role }, JWT_SECRET, { expiresIn: "90d" });
 }
