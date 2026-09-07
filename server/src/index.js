@@ -86,7 +86,7 @@ app.get("/privacy", (req, res) => {
     <p>For any privacy inquiries or support, please contact:<br>
     <strong>Developer:</strong> Prabin Khokhali<br>
     <strong>Email:</strong> <a href="mailto:prabinkhokhali89@gmail.com">prabinkhokhali89@gmail.com</a><br>
-    <strong>Repository:</strong> <a href="https://github.com/pkhokhali/QuizQuest">https://github.com/pkhokhali/QuizQuest</a></p>
+    <strong>Website:</strong> <a href="https://prabinkhokhali.com.np/apps/4f40b1f4-d9ad-4a75-b23a-82acb617b6a1" target="_blank" rel="noopener noreferrer">https://prabinkhokhali.com.np/apps/4f40b1f4-d9ad-4a75-b23a-82acb617b6a1</a></p>
 
     <footer>
       &copy; 2026 QuizQuest. All rights reserved.
