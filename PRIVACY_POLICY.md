@@ -91,5 +91,4 @@ If you have any questions, suggestions, or concerns regarding this Privacy Polic
 - **Developer:** Prabin Khokhali
 - **App Name:** QuizQuest
 - **Email:** prabinkhokhali89@gmail.com
-- **Website:** https://quizquest-api.fly.dev
-- **Repository:** https://github.com/pkhokhali/QuizQuest
+- **Website:** https://prabinkhokhali.com.np/apps/4f40b1f4-d9ad-4a75-b23a-82acb617b6a1
