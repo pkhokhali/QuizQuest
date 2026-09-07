@@ -18,6 +18,7 @@ import {
   submitRevengeQuiz,
 } from "../api/client";
 import { AnswerInput, StudentQuestion, SubmitQuizResponse } from "../api/types";
+import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
 import { EmojiBurst } from "../components/EmojiBurst";
 import { ErrorCard } from "../components/ErrorCard";
@@ -30,7 +31,7 @@ import { XpBar } from "../components/XpBar";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
-import { radius, spacing, ColorTokens } from "../theme";
+import { radius, spacing, fonts, ColorTokens } from "../theme";
 
 type Phase = "loading" | "error" | "empty" | "playing" | "submitting" | "results";
 
@@ -198,13 +199,17 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
 
   if (phase === "empty") {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyEmoji}>🌟</Text>
-          <Text style={styles.emptyText}>{emptyMessage ?? t("revengeEmpty")}</Text>
-          <PrimaryButton label={t("quizBackHome")} onPress={() => navigation.goBack()} />
-        </View>
-      </SafeAreaView>
+      <Atmosphere>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyEmoji}>🌟</Text>
+            <Text style={[styles.emptyText, { fontFamily: fonts.bodyBold }]}>
+              {emptyMessage ?? t("revengeEmpty")}
+            </Text>
+            <PrimaryButton label={t("quizBackHome")} onPress={() => navigation.goBack()} />
+          </View>
+        </SafeAreaView>
+      </Atmosphere>
     );
   }
 
@@ -222,65 +227,88 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
 
   const question = questions[index];
   const progress = (index + (answered ? 1 : 0)) / questions.length;
+  const isUrgent = secondsLeft !== null && secondsLeft <= 5;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.close}>
-          <Text style={styles.closeText}>✕</Text>
-        </TouchableOpacity>
-        <Text style={styles.progressText}>
-          {t("quizProgress", { n: index + 1, total: questions.length })}
-        </Text>
-        <View style={styles.close} />
-      </View>
-      <XpBar
-        progress={progress}
-        color={colors.primary}
-        trackColor={colors.primarySoft}
-        height={8}
-        style={styles.progressBar}
-      />
-
-      <View style={styles.countdownRow}>
-        <Text style={styles.questionIndex}>
-          {t("quizProgress", { n: index + 1, total: questions.length })}
-        </Text>
-        <Text style={styles.seconds}>⏱ {secondsLeft ?? "-"}s</Text>
-      </View>
-      <View style={styles.countdownTrack}>
-        <Animated.View
-          style={[
-            styles.countdownFill,
-            {
-              width: countdown.interpolate({
-                inputRange: [0, 1],
-                outputRange: ["0%", "100%"],
-              }),
-            },
-          ]}
-        />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.playContent}>
-        <Card style={styles.questionCard}>
-          <Text style={styles.questionText}>{question.text}</Text>
-        </Card>
-
-        <View style={styles.options}>
-          {question.options.map((option, i) => (
-            <OptionButton
-              key={i}
-              index={i}
-              label={option}
-              state={selected === i ? "selected" : "default"}
-              onPress={() => onPick(i)}
-              disabled={answered}
-            />
-          ))}
+    <Atmosphere>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.close}>
+            <Text style={[styles.closeText, { color: colors.textMuted }]}>✕</Text>
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={[styles.progressText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
+              {t("quizProgress", { n: index + 1, total: questions.length })}
+            </Text>
+          </View>
+          <View style={[styles.timerPill, { backgroundColor: isUrgent ? colors.dangerSoft : colors.surfaceElevated }]}>
+            <Text
+              style={[
+                styles.seconds,
+                {
+                  color: isUrgent ? colors.danger : colors.primary,
+                  fontFamily: fonts.bodyBold,
+                },
+              ]}
+            >
+              ⏱ {secondsLeft ?? "-"}s
+            </Text>
+          </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        <XpBar
+          progress={progress}
+          color={colors.primary}
+          trackColor={colors.primarySoft}
+          height={6}
+          style={styles.progressBar}
+        />
+
+        <View style={styles.countdownTrack}>
+          <Animated.View
+            style={[
+              styles.countdownFill,
+              {
+                backgroundColor: isUrgent ? colors.danger : colors.accent,
+                width: countdown.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ["0%", "100%"],
+                }),
+              },
+            ]}
+          />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.playContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Card style={styles.questionCard}>
+            <View style={[styles.qNumChip, { backgroundColor: colors.primarySoft }]}>
+              <Text style={[styles.qNumText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                QUESTION {index + 1} OF {questions.length}
+              </Text>
+            </View>
+            <Text style={[styles.questionText, { color: colors.text, fontFamily: fonts.display }]}>
+              {question.text}
+            </Text>
+          </Card>
+
+          <View style={styles.options}>
+            {question.options.map((option, i) => (
+              <OptionButton
+                key={i}
+                index={i}
+                label={option}
+                state={selected === i ? "selected" : "default"}
+                onPress={() => onPick(i)}
+                disabled={answered}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Atmosphere>
   );
 }
 
@@ -302,291 +330,413 @@ function ResultsView({ mode, result, questions, answers, onDone }: ResultsViewPr
   const answerMap = new Map(answers.map((a) => [a.questionId, a.choice]));
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <EmojiBurst />
-      <ScrollView contentContainerStyle={styles.resultsContent}>
-        <Text style={styles.resultsTitle}>
-          {mode === "daily" ? t("quizResultsTitle") : t("revengeResultsTitle")}
-        </Text>
-
-        <ScoreRing score={result.score} total={result.total} />
-
-        <View style={styles.statsRow}>
-          <View style={styles.statPill}>
-            <Text style={styles.statValue}>{t("quizXpEarned", { xp: result.xpEarned })}</Text>
-          </View>
-          <View style={styles.statPill}>
-            <Text style={styles.statValue}>{t("quizLevelNow", { level: result.level })}</Text>
-          </View>
-        </View>
-
-        {mode === "daily" && (
-          <View style={styles.streakBox}>
-            <StreakFlame count={result.streak} size={36} />
-            <Text style={styles.streakText}>
-              {t("quizStreakNow", { streak: result.streak })}
+    <Atmosphere>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
+        <EmojiBurst />
+        <ScrollView
+          contentContainerStyle={styles.resultsContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.resultCelebrationBadge, { backgroundColor: colors.goldSoft }]}>
+            <Text style={styles.resultBadgeEmoji}>🏆</Text>
+            <Text
+              style={[
+                styles.resultBadgeText,
+                { color: colors.gold, fontFamily: fonts.bodyBold },
+              ]}
+            >
+              QUEST COMPLETED
             </Text>
           </View>
-        )}
 
-        {result.newAwards.length > 0 && (
-          <Card color={colors.cream} style={styles.newAwardsCard}>
-            <Text style={styles.newAwardsTitle}>🎁 {t("quizNewAward")}</Text>
-            {result.newAwards.map((award) => (
-              <View key={award.code} style={styles.newAwardRow}>
-                <Text style={styles.newAwardIcon}>{award.icon}</Text>
-                <View style={styles.newAwardText}>
-                  <Text style={styles.newAwardName}>
-                    {lang === "ne" && award.nameNe ? award.nameNe : award.nameEn}
-                  </Text>
-                  <Text style={styles.newAwardDesc}>
-                    {lang === "ne" && award.descNe ? award.descNe : award.descEn}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </Card>
-        )}
+          <Text
+            style={[
+              styles.resultsTitle,
+              { color: colors.text, fontFamily: fonts.display },
+            ]}
+          >
+            {mode === "daily" ? t("quizResultsTitle") : t("revengeResultsTitle")}
+          </Text>
 
-        <Text style={styles.reviewTitle}>{t("quizReviewTitle")}</Text>
-        <View style={styles.reviewList}>
-          {questions.map((q) => {
-            const correctIndex = correctMap.get(q.id);
-            const myChoice = answerMap.get(q.id);
-            const gotIt = correctIndex !== undefined && myChoice === correctIndex;
-            return (
-              <Card key={q.id} style={styles.reviewCard}>
-                <Text style={styles.reviewQuestion}>{q.text}</Text>
-                {correctIndex !== undefined && (
-                  <View style={styles.reviewOptions}>
-                    <OptionButton
-                      index={correctIndex}
-                      label={q.options[correctIndex]}
-                      state="correct"
-                    />
-                    {!gotIt && myChoice !== null && myChoice !== undefined && (
-                      <OptionButton
-                        index={myChoice}
-                        label={q.options[myChoice]}
-                        state="missed"
-                      />
-                    )}
+          <ScoreRing score={result.score} total={result.total} />
+
+          <View style={styles.statsRow}>
+            <View
+              style={[
+                styles.statPill,
+                {
+                  backgroundColor: colors.primarySoft,
+                  borderColor: colors.primary,
+                  borderWidth: 1,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: colors.primary, fontFamily: fonts.bodyBold },
+                ]}
+              >
+                ⚡ {t("quizXpEarned", { xp: result.xpEarned })}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.statPill,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: colors.text, fontFamily: fonts.bodyBold },
+                ]}
+              >
+                🎖️ {t("quizLevelNow", { level: result.level })}
+              </Text>
+            </View>
+          </View>
+
+          {mode === "daily" && (
+            <View
+              style={[
+                styles.streakBox,
+                {
+                  backgroundColor: colors.accentSoft,
+                  borderColor: colors.accent,
+                  borderWidth: 1,
+                },
+              ]}
+            >
+              <StreakFlame count={result.streak} size={32} />
+              <Text
+                style={[
+                  styles.streakText,
+                  { color: colors.accent, fontFamily: fonts.bodyBold },
+                ]}
+              >
+                {t("quizStreakNow", { streak: result.streak })}
+              </Text>
+            </View>
+          )}
+
+          {result.newAwards.length > 0 && (
+            <Card
+              style={StyleSheet.flatten([
+                styles.newAwardsCard,
+                {
+                  borderColor: colors.gold,
+                  borderWidth: 1.5,
+                  backgroundColor: colors.surfaceElevated,
+                },
+              ])}
+            >
+              <Text
+                style={[
+                  styles.newAwardsTitle,
+                  { color: colors.gold, fontFamily: fonts.bodyBold },
+                ]}
+              >
+                🎁 {t("quizNewAward")}
+              </Text>
+              {result.newAwards.map((award) => (
+                <View key={award.code} style={styles.newAwardRow}>
+                  <Text style={styles.newAwardIcon}>{award.icon}</Text>
+                  <View style={styles.newAwardText}>
+                    <Text
+                      style={[
+                        styles.newAwardName,
+                        { color: colors.text, fontFamily: fonts.bodyBold },
+                      ]}
+                    >
+                      {lang === "ne" && award.nameNe ? award.nameNe : award.nameEn}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.newAwardDesc,
+                        { color: colors.textMuted, fontFamily: fonts.body },
+                      ]}
+                    >
+                      {lang === "ne" && award.descNe ? award.descNe : award.descEn}
+                    </Text>
                   </View>
-                )}
-                <Text style={gotIt ? styles.reviewNice : styles.reviewMissed}>
-                  {gotIt ? t("quizNiceOne") : t("quizMissedGentle")}
-                </Text>
-              </Card>
-            );
-          })}
-        </View>
+                </View>
+              ))}
+            </Card>
+          )}
 
-        <PrimaryButton label={t("quizBackHome")} onPress={onDone} />
-      </ScrollView>
-    </SafeAreaView>
+          <Text
+            style={[
+              styles.reviewTitle,
+              { color: colors.text, fontFamily: fonts.display },
+            ]}
+          >
+            {t("quizReviewTitle")}
+          </Text>
+          <View style={styles.reviewList}>
+            {questions.map((q) => {
+              const correctIndex = correctMap.get(q.id);
+              const myChoice = answerMap.get(q.id);
+              const gotIt = correctIndex !== undefined && myChoice === correctIndex;
+              return (
+                <Card
+                  key={q.id}
+                  style={StyleSheet.flatten([
+                    styles.reviewCard,
+                    {
+                      borderColor: gotIt ? colors.green : colors.border,
+                      borderWidth: 1,
+                    },
+                  ])}
+                >
+                  <Text
+                    style={[
+                      styles.reviewQuestion,
+                      { color: colors.text, fontFamily: fonts.bodyBold },
+                    ]}
+                  >
+                    {q.text}
+                  </Text>
+                  {correctIndex !== undefined && (
+                    <View style={styles.reviewOptions}>
+                      <OptionButton
+                        index={correctIndex}
+                        label={q.options[correctIndex]}
+                        state="correct"
+                      />
+                      {!gotIt && myChoice !== null && myChoice !== undefined && (
+                        <OptionButton
+                          index={myChoice}
+                          label={q.options[myChoice]}
+                          state="missed"
+                        />
+                      )}
+                    </View>
+                  )}
+                  <Text
+                    style={[
+                      gotIt ? styles.reviewNice : styles.reviewMissed,
+                      {
+                        color: gotIt ? colors.green : colors.amber,
+                        fontFamily: fonts.bodyBold,
+                      },
+                    ]}
+                  >
+                    {gotIt ? t("quizNiceOne") : t("quizMissedGentle")}
+                  </Text>
+                </Card>
+              );
+            })}
+          </View>
+
+          <PrimaryButton label={t("quizBackHome")} onPress={onDone} />
+        </ScrollView>
+      </SafeAreaView>
+    </Atmosphere>
   );
 }
 
 function createStyles(colors: ColorTokens) {
   return StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  close: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  closeText: {
-    fontSize: 20,
-    color: colors.textMuted,
-    fontWeight: "700",
-  },
-  progressText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: colors.text,
-  },
-  progressBar: {
-    marginHorizontal: spacing.lg,
-  },
-  countdownRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.sm,
-  },
-  questionIndex: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.textMuted,
-  },
-  seconds: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: colors.accent,
-  },
-  countdownTrack: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.primarySoft,
-    overflow: "hidden",
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.sm,
-  },
-  countdownFill: {
-    height: "100%",
-    borderRadius: 5,
-    backgroundColor: colors.accent,
-  },
-  playContent: {
-    padding: spacing.lg,
-    gap: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  questionCard: {
-    padding: spacing.xl,
-    minHeight: 140,
-    justifyContent: "center",
-  },
-  questionText: {
-    fontSize: 21,
-    fontWeight: "700",
-    color: colors.text,
-    lineHeight: 30,
-  },
-  options: {
-    gap: spacing.md,
-  },
-  emptyBox: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: spacing.xl,
-    gap: spacing.lg,
-  },
-  emptyEmoji: {
-    fontSize: 56,
-  },
-  emptyText: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: colors.text,
-    textAlign: "center",
-  },
-  resultsContent: {
-    padding: spacing.xl,
-    alignItems: "center",
-    gap: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  resultsTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: colors.text,
-    textAlign: "center",
-    marginTop: spacing.lg,
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  statPill: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.chip,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: colors.primaryDark,
-  },
-  streakBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.chip,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-  },
-  streakText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: colors.accent,
-  },
-  newAwardsCard: {
-    width: "100%",
-    gap: spacing.md,
-  },
-  newAwardsTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: colors.text,
-  },
-  newAwardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  newAwardIcon: {
-    fontSize: 32,
-  },
-  newAwardText: {
-    flex: 1,
-  },
-  newAwardName: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: colors.text,
-  },
-  newAwardDesc: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontWeight: "600",
-  },
-  reviewTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: colors.text,
-    alignSelf: "flex-start",
-  },
-  reviewList: {
-    width: "100%",
-    gap: spacing.md,
-  },
-  reviewCard: {
-    gap: spacing.md,
-  },
-  reviewQuestion: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  reviewOptions: {
-    gap: spacing.sm,
-  },
-  reviewNice: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: colors.green,
-  },
-  reviewMissed: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: colors.amber,
-  },
-});
+    safe: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    headerCenter: {
+      flex: 1,
+      alignItems: "center",
+    },
+    close: {
+      width: 40,
+      height: 40,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    closeText: {
+      fontSize: 20,
+      fontWeight: "700",
+    },
+    progressText: {
+      fontSize: 14,
+    },
+    progressBar: {
+      marginHorizontal: spacing.lg,
+    },
+    timerPill: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 4,
+      borderRadius: radius.chip,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    seconds: {
+      fontSize: 14,
+    },
+    countdownTrack: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: "rgba(255, 255, 255, 0.08)",
+      overflow: "hidden",
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.sm,
+    },
+    countdownFill: {
+      height: "100%",
+      borderRadius: 3,
+    },
+    playContent: {
+      padding: spacing.lg,
+      gap: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
+    questionCard: {
+      padding: spacing.xl,
+      minHeight: 140,
+      justifyContent: "center",
+      gap: spacing.sm,
+    },
+    qNumChip: {
+      alignSelf: "flex-start",
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 3,
+      borderRadius: radius.small,
+    },
+    qNumText: {
+      fontSize: 11,
+      letterSpacing: 0.8,
+    },
+    questionText: {
+      fontSize: 20,
+      lineHeight: 28,
+    },
+    options: {
+      gap: spacing.md,
+    },
+    emptyBox: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: spacing.xl,
+      gap: spacing.lg,
+    },
+    emptyEmoji: {
+      fontSize: 56,
+    },
+    emptyText: {
+      fontSize: 17,
+      textAlign: "center",
+    },
+    resultsContent: {
+      padding: spacing.xl,
+      alignItems: "center",
+      gap: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
+    resultCelebrationBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.chip,
+      marginTop: spacing.md,
+    },
+    resultBadgeEmoji: {
+      fontSize: 16,
+    },
+    resultBadgeText: {
+      fontSize: 11,
+      letterSpacing: 1,
+    },
+    resultsTitle: {
+      fontSize: 26,
+      textAlign: "center",
+    },
+    statsRow: {
+      flexDirection: "row",
+      gap: spacing.md,
+    },
+    statPill: {
+      borderRadius: radius.chip,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+    },
+    statValue: {
+      fontSize: 15,
+    },
+    streakBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      borderRadius: radius.chip,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+    },
+    streakText: {
+      fontSize: 15,
+    },
+    newAwardsCard: {
+      width: "100%",
+      gap: spacing.md,
+      padding: spacing.lg,
+    },
+    newAwardsTitle: {
+      fontSize: 16,
+    },
+    newAwardRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    newAwardIcon: {
+      fontSize: 32,
+    },
+    newAwardText: {
+      flex: 1,
+      gap: 2,
+    },
+    newAwardName: {
+      fontSize: 15,
+    },
+    newAwardDesc: {
+      fontSize: 12,
+    },
+    reviewTitle: {
+      fontSize: 20,
+      alignSelf: "flex-start",
+      marginTop: spacing.sm,
+    },
+    reviewList: {
+      width: "100%",
+      gap: spacing.md,
+    },
+    reviewCard: {
+      gap: spacing.md,
+      padding: spacing.lg,
+    },
+    reviewQuestion: {
+      fontSize: 15,
+      lineHeight: 20,
+    },
+    reviewOptions: {
+      gap: spacing.sm,
+    },
+    reviewNice: {
+      fontSize: 13,
+    },
+    reviewMissed: {
+      fontSize: 13,
+    },
+  });
 }
 

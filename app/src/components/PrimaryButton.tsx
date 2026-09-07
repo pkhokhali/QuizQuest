@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useRef } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   ViewStyle,
 } from "react-native";
 import { useTheme } from "../state/ThemeContext";
@@ -16,6 +17,7 @@ interface PrimaryButtonProps {
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  icon?: React.ReactNode;
 }
 
 export function PrimaryButton({
@@ -25,8 +27,28 @@ export function PrimaryButton({
   disabled,
   loading,
   style,
+  icon,
 }: PrimaryButtonProps) {
   const { colors } = useTheme();
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const onPressIn = () => {
+    Animated.spring(scale, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 4,
+    }).start();
+  };
+
+  const onPressOut = () => {
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 8,
+    }).start();
+  };
 
   const bg =
     variant === "primary"
@@ -34,13 +56,13 @@ export function PrimaryButton({
       : variant === "accent"
         ? colors.accent
         : variant === "danger"
-          ? colors.dangerSoft
+          ? colors.danger
           : "transparent";
   const fg =
     variant === "ghost"
       ? colors.primary
       : variant === "danger"
-        ? colors.danger
+        ? "#FFFFFF"
         : colors.textOnPrimary;
   const border =
     variant === "ghost"
@@ -50,49 +72,60 @@ export function PrimaryButton({
         : "transparent";
 
   return (
-    <TouchableOpacity
-      style={[
-        styles.button,
-        { backgroundColor: bg, borderColor: border },
-        (variant === "ghost" || variant === "danger") && styles.outlined,
-        (disabled || loading) && styles.disabled,
-        style,
-      ]}
-      onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
-    >
-      {loading ? (
-        <ActivityIndicator color={fg} />
-      ) : (
-        <Text style={[styles.label, { color: fg, fontFamily: fonts.bodyBold }]}>
-          {label}
-        </Text>
-      )}
-    </TouchableOpacity>
+    <Animated.View style={[{ transform: [{ scale }] }, style]}>
+      <Pressable
+        style={[
+          styles.button,
+          { backgroundColor: bg, borderColor: border },
+          (variant === "ghost" || variant === "danger") && styles.outlined,
+          (disabled || loading) && styles.disabled,
+          variant === "primary" && {
+            shadowColor: colors.primary,
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 4,
+          },
+        ]}
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled || loading}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
+      >
+        {loading ? (
+          <ActivityIndicator color={fg} size="small" />
+        ) : (
+          <Text style={[styles.label, { color: fg, fontFamily: fonts.bodyBold }]}>
+            {icon ? icon : null}
+            {label}
+          </Text>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
     borderRadius: radius.button,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md + 2,
     paddingHorizontal: spacing.xl,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 56,
+    minHeight: 52,
     borderWidth: 0,
   },
   outlined: {
-    borderWidth: 2,
+    borderWidth: 1.5,
   },
   disabled: {
     opacity: 0.5,
   },
   label: {
-    fontSize: 17,
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
 });

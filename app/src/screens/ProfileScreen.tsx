@@ -146,14 +146,23 @@ export function ProfileScreen() {
           </Text>
 
           {/* Account hero — logout lives here, always visible */}
-          <Card color={colors.primary} style={styles.accountCard}>
+          <Card
+            style={StyleSheet.flatten([
+              styles.accountCard,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+                borderWidth: 1,
+              },
+            ])}
+          >
             <View style={styles.accountTop}>
               <AvatarCircle avatar={{ emoji, bg }} size={72} />
               <View style={styles.accountMeta}>
                 <Text
                   style={[
                     styles.accountLabel,
-                    { color: "rgba(255,255,255,0.8)", fontFamily: fonts.body },
+                    { color: colors.primary, fontFamily: fonts.bodyBold },
                   ]}
                 >
                   {t("profileAccount")}
@@ -161,32 +170,41 @@ export function ProfileScreen() {
                 <Text
                   style={[
                     styles.accountName,
-                    { color: colors.textOnPrimary, fontFamily: fonts.display },
+                    { color: colors.text, fontFamily: fonts.display },
                   ]}
                   numberOfLines={1}
                 >
                   {user.name}
                 </Text>
-                <Text
-                  style={[
-                    styles.friendCode,
-                    { color: "rgba(255,255,255,0.9)", fontFamily: fonts.bodyBold },
-                  ]}
-                >
-                  {t("profileFriendCode")}: {user.friendCode}
-                </Text>
+                <View style={[styles.codeBadge, { backgroundColor: colors.surface }]}>
+                  <Text
+                    style={[
+                      styles.friendCode,
+                      { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                    ]}
+                  >
+                    {t("profileFriendCode")}: <Text style={{ color: colors.text }}>{user.friendCode}</Text>
+                  </Text>
+                </View>
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.logoutBtn, { backgroundColor: "rgba(255,255,255,0.16)" }]}
+              style={[
+                styles.logoutBtn,
+                {
+                  backgroundColor: colors.dangerSoft,
+                  borderColor: colors.danger,
+                  borderWidth: 1,
+                },
+              ]}
               onPress={onLogout}
               activeOpacity={0.85}
             >
-              <IconLogout size={18} color={colors.textOnPrimary} />
+              <IconLogout size={16} color={colors.danger} />
               <Text
                 style={[
                   styles.logoutText,
-                  { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
+                  { color: colors.danger, fontFamily: fonts.bodyBold },
                 ]}
               >
                 {t("profileLogout")}
@@ -560,8 +578,14 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   friendCode: {
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 12,
+  },
+  codeBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.small,
+    marginTop: 4,
   },
   logoutBtn: {
     flexDirection: "row",

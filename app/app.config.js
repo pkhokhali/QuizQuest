@@ -16,7 +16,16 @@ module.exports = {
     ],
     "./plugins/withNetworkSecurity.js",
   ],
+  updates: {
+    url: "https://u.expo.dev/8209eeb8-c465-4463-89f5-d14dd9d2188f"
+  },
+  runtimeVersion: {
+    policy: "appVersion"
+  },
   extra: {
-    apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000",
+    apiUrl: process.env.EXPO_PUBLIC_API_URL || "https://quizquest-api.fly.dev",
+    eas: {
+      projectId: "8209eeb8-c465-4463-89f5-d14dd9d2188f"
+    }
   },
 };

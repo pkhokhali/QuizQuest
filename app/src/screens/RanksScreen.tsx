@@ -113,55 +113,87 @@ export function RanksScreen() {
             <Text style={styles.empty}>{t("ranksEmpty")}</Text>
           ) : (
             <>
-              {/* Podium */}
-              <View style={styles.podium}>
+              {/* Olympic Esports Style Podium */}
+              <View style={styles.podiumContainer}>
                 {podiumOrder(data.top3).map((entry) => {
                   const isFirst = entry.rank === 1;
+                  const isSecond = entry.rank === 2;
+                  const tierColor = isFirst ? colors.gold : isSecond ? colors.silver : colors.bronze;
+                  const medalEmoji = isFirst ? "👑" : isSecond ? "🥈" : "🥉";
+
                   return (
                     <View
                       key={entry.userId}
-                      style={[styles.podiumSpot, isFirst && styles.podiumFirst]}
+                      style={[
+                        styles.podiumSpot,
+                        isFirst ? styles.podiumFirst : isSecond ? styles.podiumSecond : styles.podiumThird,
+                        { borderColor: tierColor },
+                      ]}
                     >
-                      <Text style={styles.medal}>
-                        {entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : "🥉"}
-                      </Text>
-                      <AvatarCircle avatar={entry.avatar} size={isFirst ? 64 : 52} />
-                      <Text style={styles.podiumName} numberOfLines={1}>
+                      <View style={[styles.crownBadge, { backgroundColor: isFirst ? "rgba(251, 191, 36, 0.2)" : "transparent" }]}>
+                        <Text style={styles.medalEmoji}>{medalEmoji}</Text>
+                      </View>
+
+                      <AvatarCircle avatar={entry.avatar} size={isFirst ? 58 : 46} />
+
+                      <Text style={[styles.podiumName, { color: colors.text }]} numberOfLines={1}>
                         {entry.isMe ? t("ranksYou") : entry.name}
                       </Text>
-                      <Text style={styles.podiumXp}>
-                        {t("ranksXp", { xp: entry.weeklyXp })}
-                      </Text>
+
+                      <View style={[styles.podiumXpBadge, { backgroundColor: colors.bgMid }]}>
+                        <Text style={[styles.podiumXpText, { color: tierColor, fontFamily: fonts.bodyBold }]}>
+                          {t("ranksXp", { xp: entry.weeklyXp })}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.pedestalBase, { backgroundColor: isFirst ? colors.primary : colors.bgMid }]}>
+                        <Text style={[styles.pedestalNumber, { color: isFirst ? colors.textOnPrimary : colors.textMuted }]}>
+                          #{entry.rank}
+                        </Text>
+                      </View>
                     </View>
                   );
                 })}
               </View>
 
-              {/* Neighborhood */}
+              {/* Neighborhood / Rank List */}
               <View style={styles.list}>
-                {data.neighborhood.map((entry) => (
-                  <Card
-                    key={entry.userId}
-                    style={StyleSheet.flatten([
-                      styles.row,
-                      entry.isMe ? styles.meRow : null,
-                    ])}
-                  >
-                    <Text style={[styles.rank, entry.isMe && styles.meText]}>
-                      #{entry.rank}
-                    </Text>
-                    <AvatarCircle avatar={entry.avatar} size={40} />
-                    <Text
-                      style={[styles.rowName, entry.isMe && styles.meText]}
-                      numberOfLines={1}
+                {data.neighborhood.map((entry) => {
+                  const isMe = entry.isMe;
+                  return (
+                    <Card
+                      key={entry.userId}
+                      style={[
+                        styles.row,
+                        isMe && styles.meRow,
+                        isMe && { borderColor: colors.primary },
+                      ]}
                     >
-                      {entry.isMe ? t("ranksYou") : entry.name}
-                    </Text>
-                    <Text style={[styles.rowXp, entry.isMe && styles.meText]}>
-                      {t("ranksXp", { xp: entry.weeklyXp })}
-                    </Text>
-                  </Card>
-                ))}
+                      <View style={[styles.rankBadge, isMe && { backgroundColor: colors.primary }]}>
+                        <Text style={[styles.rankNumber, { color: isMe ? colors.textOnPrimary : colors.textMuted }]}>
+                          #{entry.rank}
+                        </Text>
+                      </View>
+
+                      <AvatarCircle avatar={entry.avatar} size={40} />
+
+                      <View style={styles.rowNameContainer}>
+                        <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>
+                          {isMe ? t("ranksYou") : entry.name}
+                        </Text>
+                        {isMe && (
+                          <View style={[styles.youTag, { backgroundColor: colors.primary }]}>
+                            <Text style={[styles.youTagText, { color: colors.textOnPrimary }]}>YOU</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <Text style={[styles.rowXp, { color: colors.accent, fontFamily: fonts.displayMed }]}>
+                        {t("ranksXp", { xp: entry.weeklyXp })}
+                      </Text>
+                    </Card>
+                  );
+                })}
               </View>
             </>
           )}
@@ -176,11 +208,11 @@ function createStyles(colors: ColorTokens) {
   return StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
   headerBlock: {
-    padding: spacing.lg,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    gap: spacing.xs,
   },
   titleRow: {
     flexDirection: "row",
@@ -188,36 +220,38 @@ function createStyles(colors: ColorTokens) {
     gap: spacing.sm,
   },
   title: {
-    fontSize: 26,
-    fontWeight: "800",
+    fontSize: 24,
     color: colors.text,
   },
   subtitle: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 12,
     color: colors.primary,
   },
   scopeRow: {
     flexDirection: "row",
-    gap: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 3,
     marginTop: spacing.sm,
   },
   scopeChip: {
     flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: radius.chip,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 11,
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: colors.border,
   },
   scopeChipActive: {
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
   },
   scopeText: {
-    fontSize: 14,
-    fontWeight: "800",
+    fontSize: 13,
     color: colors.textMuted,
   },
   scopeTextActive: {
@@ -230,8 +264,7 @@ function createStyles(colors: ColorTokens) {
   empty: {
     textAlign: "center",
     color: colors.textMuted,
-    fontWeight: "700",
-    fontSize: 15,
+    fontSize: 14,
     marginTop: spacing.xxl,
   },
   joinCard: {
@@ -241,47 +274,81 @@ function createStyles(colors: ColorTokens) {
     marginTop: spacing.lg,
   },
   joinTitle: {
-    fontSize: 20,
+    fontSize: 18,
     color: colors.text,
   },
   joinCopy: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
     color: colors.textMuted,
     textAlign: "center",
+    lineHeight: 18,
   },
-  podium: {
+  podiumContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "center",
-    gap: spacing.md,
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
   },
   podiumSpot: {
     alignItems: "center",
     backgroundColor: colors.card,
     borderRadius: radius.card,
-    padding: spacing.md,
-    width: 100,
-    gap: spacing.xs,
+    borderWidth: 1.5,
+    paddingTop: spacing.sm,
+    width: "31%",
+    gap: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   podiumFirst: {
-    paddingVertical: spacing.xl,
-    backgroundColor: colors.cream,
-    borderWidth: 2,
-    borderColor: colors.gold,
+    paddingTop: spacing.md,
   },
-  medal: {
-    fontSize: 24,
+  podiumSecond: {
+    marginBottom: 0,
+  },
+  podiumThird: {
+    marginBottom: 0,
+  },
+  crownBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  medalEmoji: {
+    fontSize: 20,
   },
   podiumName: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: colors.text,
-  },
-  podiumXp: {
     fontSize: 12,
-    fontWeight: "700",
-    color: colors.primary,
+    marginTop: 2,
+    paddingHorizontal: 4,
+    textAlign: "center",
+  },
+  podiumXpBadge: {
+    borderRadius: 8,
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    marginBottom: spacing.xs,
+  },
+  podiumXpText: {
+    fontSize: 11,
+  },
+  pedestalBase: {
+    width: "100%",
+    paddingVertical: spacing.sm,
+    borderBottomLeftRadius: radius.card - 2,
+    borderBottomRightRadius: radius.card - 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pedestalNumber: {
+    fontSize: 14,
+    fontWeight: "800",
   },
   list: {
     gap: spacing.sm,
@@ -291,29 +358,49 @@ function createStyles(colors: ColorTokens) {
     alignItems: "center",
     gap: spacing.md,
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   meRow: {
-    backgroundColor: colors.primary,
+    borderWidth: 1.5,
+    elevation: 4,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
   },
-  meText: {
-    color: colors.textOnPrimary,
+  rankBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  rank: {
-    width: 42,
-    fontSize: 15,
+  rankNumber: {
+    fontSize: 13,
     fontWeight: "800",
-    color: colors.textMuted,
+  },
+  rowNameContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs + 2,
   },
   rowName: {
-    flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
-    color: colors.text,
+  },
+  youTag: {
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  youTagText: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.5,
   },
   rowXp: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.primary,
+    fontSize: 13,
   },
 });
 }

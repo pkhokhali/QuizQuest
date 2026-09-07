@@ -13,7 +13,10 @@ export function Card({ color, style, children, ...rest }: CardProps) {
     <View
       style={[
         styles.card,
-        { backgroundColor: color ?? colors.card },
+        {
+          backgroundColor: color ?? colors.card,
+          borderColor: colors.border,
+        },
         style,
       ]}
       {...rest}
@@ -27,6 +30,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: radius.card,
     padding: spacing.lg,
+    borderWidth: 1,
     ...shadow.card,
   },
 });

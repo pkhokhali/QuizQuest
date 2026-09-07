@@ -13,6 +13,8 @@ export type ColorTokens = {
   bgMid: string;
   bgDeep: string;
   card: string;
+  surface: string;
+  surfaceElevated: string;
   cream: string;
   text: string;
   textMuted: string;
@@ -23,6 +25,7 @@ export type ColorTokens = {
   amberSoft: string;
   border: string;
   gold: string;
+  goldSoft: string;
   silver: string;
   bronze: string;
   danger: string;
@@ -36,126 +39,138 @@ export type PaletteMeta = {
   colors: ColorTokens;
 };
 
-/** Classic violet quest — familiar QuizQuest look, refined. */
+/** Cinematic Violet quest — deep cosmic space with vivid neon glow. */
 const violet: ColorTokens = {
-  primary: "#6D28D9",
-  primaryDark: "#4C1D95",
-  primarySoft: "#EDE9FE",
-  accent: "#F97316",
+  primary: "#A855F7", // Electric purple
+  primaryDark: "#7E22CE",
+  primarySoft: "#F3E8FF",
+  accent: "#FB923C", // Vivid warm orange
   accentSoft: "#FFEDD5",
-  bg: "#F5F0FB",
-  bgMid: "#E9DFF7",
-  bgDeep: "#C4B5FD",
-  card: "#FFFFFF",
-  cream: "#FFF8EF",
-  text: "#2D2440",
-  textMuted: "#7C7196",
+  bg: "#0F0728", // Deep cosmic void
+  bgMid: "#1B0F40",
+  bgDeep: "#28165E",
+  card: "#1E1248",
+  surface: "#1E1248",
+  surfaceElevated: "#281861",
+  cream: "#FAF5FF",
+  text: "#F8FAFC",
+  textMuted: "#C4B5FD",
   textOnPrimary: "#FFFFFF",
-  green: "#16A34A",
-  greenSoft: "#DCFCE7",
-  amber: "#F59E0B",
+  green: "#10B981",
+  greenSoft: "#D1FAE5",
+  amber: "#FBBF24",
   amberSoft: "#FEF3C7",
-  border: "#E8E0F4",
+  border: "rgba(255, 255, 255, 0.12)",
   gold: "#FBBF24",
-  silver: "#CBD5E1",
-  bronze: "#D6A26C",
+  goldSoft: "rgba(251, 191, 36, 0.15)",
+  silver: "#E2E8F0",
+  bronze: "#FB923C",
+  danger: "#F43F5E",
+  dangerSoft: "#FFE4E6",
+};
+
+/** Himalayan Midnight — sleek cosmic night, radiant electric cyan, and warm gold. */
+const himalaya: ColorTokens = {
+  primary: "#00D2FF", // Electric neon cyan
+  primaryDark: "#0077B6",
+  primarySoft: "#E0F7FA",
+  accent: "#FFB703", // Vivid warm gold
+  accentSoft: "#FFEAA7",
+  bg: "#0A0E27", // Ultra-clean deep midnight void
+  bgMid: "#12183D",
+  bgDeep: "#1B2252",
+  card: "#141C44", // Refined slate-navy card
+  surface: "#141C44",
+  surfaceElevated: "#1C265C",
+  cream: "#E8F4F8",
+  text: "#F8FAFC",
+  textMuted: "#94A3B8", // High-legibility slate
+  textOnPrimary: "#0A0E27",
+  green: "#10B981",
+  greenSoft: "#D1FAE5",
+  amber: "#FBBF24",
+  amberSoft: "#FEF3C7",
+  border: "rgba(255, 255, 255, 0.1)",
+  gold: "#FBBF24",
+  goldSoft: "rgba(251, 191, 36, 0.15)",
+  silver: "#E2E8F0",
+  bronze: "#FB923C",
+  danger: "#F43F5E",
+  dangerSoft: "#FFE4E6",
+};
+
+/** Dawn trail — crisp editorial ivory, vivid rose, and soft slate. */
+const dawn: ColorTokens = {
+  primary: "#E11D48", // Vivid rose
+  primaryDark: "#BE123C",
+  primarySoft: "#FFE4E6",
+  accent: "#0284C7", // Sky blue
+  accentSoft: "#E0F2FE",
+  bg: "#F8FAFC", // Clean light canvas
+  bgMid: "#F1F5F9",
+  bgDeep: "#E2E8F0",
+  card: "#FFFFFF",
+  surface: "#FFFFFF",
+  surfaceElevated: "#F8FAFC",
+  cream: "#FFF1F2",
+  text: "#0F172A",
+  textMuted: "#64748B",
+  textOnPrimary: "#FFFFFF",
+  green: "#059669",
+  greenSoft: "#D1FAE5",
+  amber: "#D97706",
+  amberSoft: "#FEF3C7",
+  border: "#E2E8F0",
+  gold: "#D97706",
+  goldSoft: "rgba(217, 119, 6, 0.12)",
+  silver: "#94A3B8",
+  bronze: "#C2410C",
   danger: "#DC2626",
   dangerSoft: "#FEE2E2",
 };
 
-/** Himalayan morning — indigo sky, saffron, mist teal. */
-const himalaya: ColorTokens = {
-  primary: "#1E3A5F",
-  primaryDark: "#0F2744",
-  primarySoft: "#D6E4F0",
-  accent: "#E8A317",
-  accentSoft: "#FFF1C9",
-  bg: "#F2F6F8",
-  bgMid: "#DCE8EF",
-  bgDeep: "#8FB4C9",
+/** Forest climb — deep pine canopy, emerald green, and lantern gold. */
+const forest: ColorTokens = {
+  primary: "#059669", // Rich emerald
+  primaryDark: "#047857",
+  primarySoft: "#D1FAE5",
+  accent: "#D97706",
+  accentSoft: "#FEF3C7",
+  bg: "#F4F7F5",
+  bgMid: "#E6EFEA",
+  bgDeep: "#D1E3D8",
   card: "#FFFFFF",
-  cream: "#FFF8E8",
-  text: "#1A2B3C",
-  textMuted: "#5C7388",
+  surface: "#FFFFFF",
+  surfaceElevated: "#F4F7F5",
+  cream: "#ECFDF5",
+  text: "#064E3B",
+  textMuted: "#4B6358",
   textOnPrimary: "#FFFFFF",
-  green: "#0D9488",
-  greenSoft: "#CCFBF1",
-  amber: "#E8A317",
-  amberSoft: "#FEF3C7",
-  border: "#D3E0EA",
-  gold: "#E8A317",
-  silver: "#94A3B8",
-  bronze: "#C4894A",
-  danger: "#B91C1C",
-  dangerSoft: "#FEE2E2",
-};
-
-/** Dawn trail — coral rose, slate ink, soft apricot light. */
-const dawn: ColorTokens = {
-  primary: "#C45C4A",
-  primaryDark: "#8F3A2E",
-  primarySoft: "#FCE8E4",
-  accent: "#2F4858",
-  accentSoft: "#D9E4EA",
-  bg: "#FFF6F1",
-  bgMid: "#F8E0D6",
-  bgDeep: "#E8B4A4",
-  card: "#FFFFFF",
-  cream: "#FFF1E6",
-  text: "#2A2420",
-  textMuted: "#8A7368",
-  textOnPrimary: "#FFFFFF",
-  green: "#3D8B6E",
+  green: "#059669",
   greenSoft: "#D1FAE5",
   amber: "#D97706",
   amberSoft: "#FEF3C7",
-  border: "#F0DDD4",
-  gold: "#E0A84A",
-  silver: "#B8C0C8",
-  bronze: "#C4894A",
-  danger: "#B91C1C",
-  dangerSoft: "#FEE2E2",
-};
-
-/** Forest climb — pine canopy, moss, lantern gold. */
-const forest: ColorTokens = {
-  primary: "#1F4D3A",
-  primaryDark: "#123226",
-  primarySoft: "#D7EBE2",
-  accent: "#D4A017",
-  accentSoft: "#FFF3C4",
-  bg: "#F3F7F4",
-  bgMid: "#D8E8DE",
-  bgDeep: "#7BA892",
-  card: "#FFFFFF",
-  cream: "#FFF9E8",
-  text: "#1C2E26",
-  textMuted: "#5F756A",
-  textOnPrimary: "#FFFFFF",
-  green: "#2F8F5B",
-  greenSoft: "#DCFCE7",
-  amber: "#D4A017",
-  amberSoft: "#FEF3C7",
-  border: "#D5E5DB",
-  gold: "#D4A017",
-  silver: "#A8B5AE",
-  bronze: "#B8894A",
-  danger: "#B91C1C",
+  border: "#D1E3D8",
+  gold: "#D97706",
+  goldSoft: "rgba(217, 119, 6, 0.12)",
+  silver: "#94A3B8",
+  bronze: "#C2410C",
+  danger: "#DC2626",
   dangerSoft: "#FEE2E2",
 };
 
 export const PALETTES: PaletteMeta[] = [
   {
+    id: "himalaya",
+    nameKey: "themeHimalaya",
+    swatch: [himalaya.primary, himalaya.accent, himalaya.bgDeep],
+    colors: himalaya,
+  },
+  {
     id: "violet",
     nameKey: "themeViolet",
     swatch: [violet.primary, violet.accent, violet.bgDeep],
     colors: violet,
-  },
-  {
-    id: "himalaya",
-    nameKey: "themeHimalaya",
-    swatch: [himalaya.primary, himalaya.accent, himalaya.green],
-    colors: himalaya,
   },
   {
     id: "dawn",
@@ -174,17 +189,17 @@ export const PALETTES: PaletteMeta[] = [
 export const DEFAULT_PALETTE_ID: PaletteId = "himalaya";
 
 export function getPalette(id: PaletteId): PaletteMeta {
-  return PALETTES.find((p) => p.id === id) ?? PALETTES[1];
+  return PALETTES.find((p) => p.id === id) ?? PALETTES[0];
 }
 
 /** Default export for rare static fallbacks (prefer useTheme). */
 export const colors: ColorTokens = himalaya;
 
 export const radius = {
-  card: 22,
-  button: 20,
-  chip: 18,
-  small: 12,
+  card: 20,
+  button: 16,
+  chip: 12,
+  small: 8,
 };
 
 export const spacing = {
@@ -215,10 +230,10 @@ export const fonts = {
 
 export const shadow = {
   card: {
-    shadowColor: "#0F2744",
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
+    shadowColor: "#000000",
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
 };

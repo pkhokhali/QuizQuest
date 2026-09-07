@@ -95,6 +95,14 @@ router.put("/me", (req, res) => {
   res.json({ user: serializeUser(user) });
 });
 
+router.post("/me/push-token", (req, res) => {
+  const token = req.body?.token;
+  if (typeof token === "string" && token.trim()) {
+    db.prepare("INSERT OR REPLACE INTO push_tokens (user_id, token) VALUES (?, ?)").run(req.user.id, token.trim());
+  }
+  res.json({ ok: true });
+});
+
 // Join a school (or class) by its code so class/school ranks light up.
 router.post("/school/join", (req, res) => {
   const code = String(req.body.joinCode || "").trim().toUpperCase();

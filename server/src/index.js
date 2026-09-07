@@ -24,6 +24,78 @@ app.get("/", (req, res) => {
   res.json({ name: "QuizQuest API", ok: true, questions });
 });
 
+app.get("/privacy", (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuizQuest - Privacy Policy</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; background: #f8fafc; margin: 0; padding: 24px; }
+    .container { max-width: 800px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    h1 { color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
+    h2 { color: #1e293b; margin-top: 28px; }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    .badge { display: inline-block; background: #e0f2fe; color: #0284c7; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 13px; margin-bottom: 16px; }
+    footer { margin-top: 40px; font-size: 13px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="badge">Official Policy</span>
+    <h1>Privacy Policy for QuizQuest</h1>
+    <p><strong>Effective Date:</strong> September 8, 2026<br><strong>Last Updated:</strong> September 8, 2026</p>
+    
+    <p>Welcome to <strong>QuizQuest</strong>. We are committed to protecting your privacy and ensuring your personal information is handled safely, transparently, and responsibly.</p>
+
+    <h2>1. Information We Collect</h2>
+    <ul>
+      <li><strong>Account Information:</strong> When you sign in or register, your authentication credentials (phone number or email) are securely managed via Google Firebase Authentication.</li>
+      <li><strong>Profile & Preferences:</strong> Chosen nickname/display name, grade level (optional), avatar selection, and preferred language (English or Nepali).</li>
+      <li><strong>Gameplay & Progress:</strong> Daily quiz scores, answer choices, time spent per question, streaks, XP earned, leaderboard ranking, and achievement trophies.</li>
+      <li><strong>Push Notifications:</strong> Expo push tokens (if notification permission is granted) to alert you about daily quests and friend challenges.</li>
+    </ul>
+
+    <h2>2. How We Use Information</h2>
+    <p>We use your information exclusively to:</p>
+    <ul>
+      <li>Deliver daily quizzes, multiplayer 1v1 battles, and accurate leaderboard rankings.</li>
+      <li>Remember your language and display preferences.</li>
+      <li>Help schools organize student learning circles when school codes are entered.</li>
+      <li>Diagnose crashes and maintain server uptime.</li>
+    </ul>
+    <p><strong>We do NOT sell, rent, or trade your personal data to any advertisers or third-party brokers.</strong></p>
+
+    <h2>3. Third-Party Services</h2>
+    <p>QuizQuest relies on trusted industry providers:</p>
+    <ul>
+      <li><strong>Google Firebase:</strong> Secure authentication & identity management.</li>
+      <li><strong>Expo:</strong> Mobile client updates and push notification infrastructure.</li>
+      <li><strong>Fly.io:</strong> Cloud backend hosting and encrypted database.</li>
+    </ul>
+
+    <h2>4. Children's Privacy (COPPA & Student Safety)</h2>
+    <p>QuizQuest is family- and student-friendly. We do not require real names or physical locations, and we do not display behavioral ads. Parents or guardians can request data review or account deletion at any time.</p>
+
+    <h2>5. Account & Data Deletion</h2>
+    <p>You may request deletion of your account and all associated gameplay history at any time by tapping <strong>Delete Account</strong> in the app profile settings, or by emailing <strong>prabinkhokhali89@gmail.com</strong> with the subject line <em>"Account Deletion Request"</em>.</p>
+
+    <h2>6. Contact Us</h2>
+    <p>For any privacy inquiries or support, please contact:<br>
+    <strong>Developer:</strong> Prabin Khokhali<br>
+    <strong>Email:</strong> <a href="mailto:prabinkhokhali89@gmail.com">prabinkhokhali89@gmail.com</a><br>
+    <strong>Repository:</strong> <a href="https://github.com/pkhokhali/QuizQuest">https://github.com/pkhokhali/QuizQuest</a></p>
+
+    <footer>
+      &copy; 2026 QuizQuest. All rights reserved.
+    </footer>
+  </div>
+</body>
+</html>`);
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api", studentRoutes);

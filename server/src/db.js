@@ -137,6 +137,13 @@ CREATE TABLE IF NOT EXISTS schools (
   join_code TEXT UNIQUE NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS push_tokens (
+  user_id INTEGER NOT NULL,
+  token TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, token)
+);
 `);
 
 export default db;

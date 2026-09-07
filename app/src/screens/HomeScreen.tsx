@@ -105,16 +105,35 @@ export function HomeScreen() {
             />
           }
         >
+          {/* Student Profile & Greeting HUD */}
           <View style={styles.greetingRow}>
             <View style={styles.greetingText}>
-              <Text
-                style={[
-                  styles.brandHint,
-                  { color: colors.primary, fontFamily: fonts.bodyBold },
-                ]}
-              >
-                {t("appName")}
-              </Text>
+              <View style={styles.brandBadgeRow}>
+                <Text
+                  style={[
+                    styles.brandHint,
+                    { color: colors.primary, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  {t("appName")}
+                </Text>
+                <View
+                  style={[
+                    styles.levelPill,
+                    { backgroundColor: colors.primary, borderColor: colors.primaryDark },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.levelPillText,
+                      { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
+                    ]}
+                  >
+                    Lv. {data.user.level}
+                  </Text>
+                </View>
+              </View>
+
               <Text
                 style={[styles.greeting, { color: colors.text, fontFamily: fonts.display }]}
               >
@@ -126,238 +145,367 @@ export function HomeScreen() {
                   { color: colors.textMuted, fontFamily: fonts.body },
                 ]}
               >
-                {t("tagline")}
+                ✨ {t("tagline")}
               </Text>
             </View>
-            <AvatarCircle avatar={data.user.avatar} size={52} />
+            <AvatarCircle avatar={data.user.avatar} size={54} />
           </View>
 
-          <Card color={colors.primary} style={styles.streakCard}>
+          {/* Player Progression & Streak HUD Card */}
+          <Card style={styles.streakCard}>
             <View style={styles.streakTop}>
-              <View>
+              <View style={styles.streakLeft}>
                 <Animated.View style={{ transform: [{ scale: pulse }] }}>
-                  <StreakFlame count={data.user.streak} size={52} />
+                  <StreakFlame count={data.user.streak} size={48} />
                 </Animated.View>
-                <Text
-                  style={[
-                    styles.streakLabel,
-                    { fontFamily: fonts.body },
-                  ]}
-                >
-                  {t("homeStreakDays")} · {t("homeStreakKeepGoing")}
-                </Text>
+                <View>
+                  <Text
+                    style={[
+                      styles.streakCountText,
+                      { color: colors.text, fontFamily: fonts.display },
+                    ]}
+                  >
+                    {data.user.streak} {t("homeStreakDays")}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.streakLabel,
+                      { color: colors.textMuted, fontFamily: fonts.body },
+                    ]}
+                  >
+                    {t("homeStreakKeepGoing")}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.weeklyBox}>
+
+              <View
+                style={[
+                  styles.weeklyBox,
+                  { backgroundColor: colors.bgMid, borderColor: colors.border },
+                ]}
+              >
                 <Text
                   style={[
                     styles.weeklyXp,
-                    { color: colors.textOnPrimary, fontFamily: fonts.display },
+                    { color: colors.accent, fontFamily: fonts.display },
                   ]}
                 >
-                  {data.weeklyXp}
+                  +{data.weeklyXp}
                 </Text>
-                <Text style={[styles.weeklyLabel, { fontFamily: fonts.body }]}>
+                <Text
+                  style={[
+                    styles.weeklyLabel,
+                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                  ]}
+                >
                   {t("homeWeeklyXp")}
                 </Text>
               </View>
             </View>
-            <View style={styles.levelRow}>
-              <Text
-                style={[
-                  styles.levelText,
-                  { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
-                ]}
-              >
-                {t("homeLevel", { level: data.user.level })}
-              </Text>
-              <Text style={[styles.levelXp, { fontFamily: fonts.body }]}>
-                {t("homeXpProgress", { xp: `${xpIntoLevel}/${levelXpNeeded}` })}
-              </Text>
+
+            {/* Level XP Bar */}
+            <View style={styles.levelProgressContainer}>
+              <View style={styles.levelRow}>
+                <Text
+                  style={[
+                    styles.levelText,
+                    { color: colors.text, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  {t("homeLevel", { level: data.user.level })}
+                </Text>
+                <Text
+                  style={[
+                    styles.levelXp,
+                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  {t("homeXpProgress", { xp: `${xpIntoLevel} / ${levelXpNeeded} XP` })}
+                </Text>
+              </View>
+              <XpBar progress={xpIntoLevel / levelXpNeeded} />
             </View>
-            <XpBar progress={xpIntoLevel / levelXpNeeded} />
           </Card>
 
+          {/* Hero Daily Quest Card */}
           <TouchableOpacity
-            activeOpacity={0.85}
+            activeOpacity={0.88}
             disabled={quizDone}
             onPress={() => navigation.navigate("DailyQuiz")}
           >
-            <Card color={colors.cream} style={styles.questCard}>
-              <IconMap size={48} color={colors.primary} secondary={colors.accent} />
-              <View style={styles.questBody}>
-                <Text
+            <Card
+              style={StyleSheet.flatten([
+                styles.questCard,
+                !quizDone && { borderColor: colors.primary, borderWidth: 1.5 },
+              ])}
+            >
+              <View style={styles.questHeaderRow}>
+                <View
                   style={[
-                    styles.questTitle,
-                    { color: colors.text, fontFamily: fonts.display },
+                    styles.questBountyBadge,
+                    {
+                      backgroundColor: quizDone
+                        ? "rgba(16, 185, 129, 0.18)"
+                        : "rgba(0, 210, 255, 0.16)",
+                      borderColor: quizDone ? colors.green : colors.primary,
+                    },
                   ]}
                 >
-                  {t("homeTodaysQuest")}
-                </Text>
-                <Text
-                  style={[
-                    styles.questMeta,
-                    { color: colors.textMuted, fontFamily: fonts.body },
-                  ]}
-                >
-                  {t("homeQuestMeta")}
-                </Text>
-                {quizDone ? (
                   <Text
                     style={[
-                      styles.questDone,
+                      styles.questBountyText,
+                      {
+                        color: quizDone ? colors.green : colors.primary,
+                        fontFamily: fonts.bodyBold,
+                      },
+                    ]}
+                  >
+                    {quizDone ? "✓ COMPLETED" : "DAILY QUEST · +50 XP"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.questMainContent}>
+                <View
+                  style={[
+                    styles.questIconBox,
+                    { backgroundColor: colors.bgMid, borderColor: colors.border },
+                  ]}
+                >
+                  <IconMap size={44} color={colors.primary} secondary={colors.accent} />
+                </View>
+
+                <View style={styles.questBody}>
+                  <Text
+                    style={[
+                      styles.questTitle,
+                      { color: colors.text, fontFamily: fonts.display },
+                    ]}
+                  >
+                    {t("homeTodaysQuest")}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.questMeta,
+                      { color: colors.textMuted, fontFamily: fonts.body },
+                    ]}
+                  >
+                    {t("homeQuestMeta")}
+                  </Text>
+                </View>
+              </View>
+
+              {quizDone ? (
+                <View
+                  style={[
+                    styles.questDoneBanner,
+                    { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: colors.green },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.questDoneText,
                       { color: colors.green, fontFamily: fonts.bodyBold },
                     ]}
                   >
-                    {t("homeQuestDone", {
+                    🎉 {t("homeQuestDone", {
                       score: data.dailyQuiz.score ?? 0,
                       total: data.dailyQuiz.total,
                     })}
                   </Text>
-                ) : (
-                  <View
-                    style={[styles.questCta, { backgroundColor: colors.primary }]}
+                </View>
+              ) : (
+                <View style={[styles.questCta, { backgroundColor: colors.primary }]}>
+                  <Text
+                    style={[
+                      styles.questCtaText,
+                      { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
+                    ]}
                   >
-                    <Text
-                      style={[
-                        styles.questCtaText,
-                        { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
-                      ]}
-                    >
-                      {t("homeStartQuest")} →
-                    </Text>
-                  </View>
-                )}
-              </View>
+                    {t("homeStartQuest")} →
+                  </Text>
+                </View>
+              )}
             </Card>
           </TouchableOpacity>
 
+          {/* Revenge Round Card */}
           {data.revengeAvailable && (
             <TouchableOpacity
-              activeOpacity={0.85}
+              activeOpacity={0.88}
               onPress={() => navigation.navigate("RevengeRound")}
             >
-              <Card color={colors.accentSoft} style={styles.revengeCard}>
-                <IconFlame size={44} color={colors.accent} secondary={colors.primary} />
-                <View style={styles.questBody}>
-                  <Text
-                    style={[
-                      styles.revengeTitle,
-                      { color: colors.text, fontFamily: fonts.display },
-                    ]}
-                  >
-                    {t("homeRevengeTitle")}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.revengeCopy,
-                      { color: colors.textMuted, fontFamily: fonts.body },
-                    ]}
-                  >
-                    {t("homeRevengeCopy")}
-                  </Text>
+              <Card
+                style={StyleSheet.flatten([
+                  styles.revengeCard,
+                  { borderColor: colors.accent, borderWidth: 1.5 },
+                ])}
+              >
+                <View style={styles.questHeaderRow}>
                   <View
-                    style={[styles.revengeCta, { backgroundColor: colors.accent }]}
+                    style={[
+                      styles.questBountyBadge,
+                      {
+                        backgroundColor: "rgba(255, 183, 3, 0.16)",
+                        borderColor: colors.accent,
+                      },
+                    ]}
                   >
                     <Text
                       style={[
-                        styles.revengeCtaText,
-                        {
-                          color: colors.textOnPrimary,
-                          fontFamily: fonts.bodyBold,
-                        },
+                        styles.questBountyText,
+                        { color: colors.accent, fontFamily: fonts.bodyBold },
                       ]}
                     >
-                      {t("homeRevengeCta")} →
+                      🔥 REVENGE ROUND · +25 XP
                     </Text>
                   </View>
+                </View>
+
+                <View style={styles.questMainContent}>
+                  <View
+                    style={[
+                      styles.questIconBox,
+                      { backgroundColor: colors.bgMid, borderColor: colors.border },
+                    ]}
+                  >
+                    <IconFlame size={40} color={colors.accent} secondary={colors.primary} />
+                  </View>
+                  <View style={styles.questBody}>
+                    <Text
+                      style={[
+                        styles.revengeTitle,
+                        { color: colors.text, fontFamily: fonts.display },
+                      ]}
+                    >
+                      {t("homeRevengeTitle")}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.revengeCopy,
+                        { color: colors.textMuted, fontFamily: fonts.body },
+                      ]}
+                    >
+                      {t("homeRevengeCopy")}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.revengeCta, { backgroundColor: colors.accent }]}>
+                  <Text
+                    style={[
+                      styles.revengeCtaText,
+                      { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
+                    ]}
+                  >
+                    {t("homeRevengeCta")} →
+                  </Text>
                 </View>
               </Card>
             </TouchableOpacity>
           )}
 
+          {/* Today's Digest Card */}
           {digest && (
             <Card style={styles.digestCard}>
               <View style={styles.digestHeader}>
-                <Text
-                  style={[
-                    styles.digestTitle,
-                    { color: colors.text, fontFamily: fonts.bodyBold },
-                  ]}
-                >
-                  {t("homeDigestTitle")}
-                </Text>
+                <View style={styles.digestBadge}>
+                  <Text style={[styles.digestBadgeText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                    📰 DAILY DIGEST
+                  </Text>
+                </View>
                 <Text
                   style={[
                     styles.digestDate,
-                    { color: colors.primary, fontFamily: fonts.bodyBold },
+                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
                   ]}
                 >
                   {digest.bsDate}
                 </Text>
               </View>
+
               <Text
                 style={[
                   styles.digestHeadline,
-                  { color: colors.text, fontFamily: fonts.bodyBold },
+                  { color: colors.text, fontFamily: fonts.displayMed },
                 ]}
               >
-                {lang === "ne" && digest.headlineNe
-                  ? digest.headlineNe
-                  : digest.headlineEn}
+                {lang === "ne" && digest.headlineNe ? digest.headlineNe : digest.headlineEn}
               </Text>
-              <View style={[styles.digestItem, { backgroundColor: colors.bg }]}>
+
+              <View
+                style={[
+                  styles.digestItem,
+                  { backgroundColor: colors.bgMid, borderColor: colors.border },
+                ]}
+              >
                 <Text
                   style={[
                     styles.digestLabel,
-                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                    { color: colors.primary, fontFamily: fonts.bodyBold },
                   ]}
                 >
-                  {t("homeDigestGk")}
+                  💡 {t("homeDigestGk")}
                 </Text>
                 <Text
-                  style={[styles.digestText, { color: colors.text, fontFamily: fonts.body }]}
+                  style={[
+                    styles.digestText,
+                    { color: colors.text, fontFamily: fonts.body },
+                  ]}
                 >
-                  {lang === "ne" && digest.gkFactNe
-                    ? digest.gkFactNe
-                    : digest.gkFactEn}
+                  {lang === "ne" && digest.gkFactNe ? digest.gkFactNe : digest.gkFactEn}
                 </Text>
               </View>
-              <View style={[styles.digestItem, { backgroundColor: colors.bg }]}>
+
+              <View
+                style={[
+                  styles.digestItem,
+                  { backgroundColor: colors.bgMid, borderColor: colors.border },
+                ]}
+              >
                 <Text
                   style={[
                     styles.digestLabel,
-                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                    { color: colors.accent, fontFamily: fonts.bodyBold },
                   ]}
                 >
-                  {t("homeDigestNepal")}
+                  🇳🇵 {t("homeDigestNepal")}
                 </Text>
                 <Text
-                  style={[styles.digestText, { color: colors.text, fontFamily: fonts.body }]}
+                  style={[
+                    styles.digestText,
+                    { color: colors.text, fontFamily: fonts.body },
+                  ]}
                 >
-                  {lang === "ne" && digest.nepalFactNe
-                    ? digest.nepalFactNe
-                    : digest.nepalFactEn}
+                  {lang === "ne" && digest.nepalFactNe ? digest.nepalFactNe : digest.nepalFactEn}
                 </Text>
               </View>
             </Card>
           )}
 
+          {/* Recent Awards Carousel */}
           {data.recentAwards.length > 0 && (
-            <View>
+            <View style={styles.awardsSection}>
               <Text
                 style={[
                   styles.sectionTitle,
                   { color: colors.text, fontFamily: fonts.bodyBold },
                 ]}
               >
-                {t("homeRecentAwards")}
+                🏆 {t("homeRecentAwards")}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.awardsRow}>
                   {data.recentAwards.map((award) => (
                     <View
                       key={award.code}
-                      style={[styles.awardChip, { backgroundColor: colors.card }]}
+                      style={[
+                        styles.awardChip,
+                        {
+                          backgroundColor: colors.card,
+                          borderColor: colors.gold,
+                        },
+                      ]}
                     >
                       <Text style={styles.awardIcon}>{award.icon}</Text>
                       <Text
@@ -395,103 +543,186 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   greetingText: { flex: 1, paddingRight: spacing.md, gap: 2 },
+  brandBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: 2,
+  },
   brandHint: {
-    fontSize: 12,
+    fontSize: 11,
     letterSpacing: 1.2,
     textTransform: "uppercase",
   },
-  greeting: { fontSize: 26 },
+  levelPill: {
+    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  levelPillText: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  greeting: { fontSize: 24 },
   greetingSub: { fontSize: 13 },
-  streakCard: { gap: spacing.md, padding: spacing.xl },
+  streakCard: {
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
   streakTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
+  },
+  streakLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  streakCountText: {
+    fontSize: 18,
   },
   streakLabel: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 13,
-    marginTop: spacing.xs,
-  },
-  weeklyBox: { alignItems: "flex-end" },
-  weeklyXp: { fontSize: 28 },
-  weeklyLabel: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.85)",
+  },
+  weeklyBox: {
+    alignItems: "center",
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+  },
+  weeklyXp: { fontSize: 20 },
+  weeklyLabel: {
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  levelProgressContainer: {
+    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
   levelRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: spacing.sm,
   },
-  levelText: { fontSize: 15 },
+  levelText: { fontSize: 13 },
   levelXp: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 13,
+    fontSize: 12,
   },
   questCard: {
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  questHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.lg,
   },
-  questBody: { flex: 1, gap: spacing.xs },
-  questTitle: { fontSize: 22 },
+  questBountyBadge: {
+    paddingVertical: 3,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  questBountyText: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  questMainContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  questIconBox: {
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  questBody: { flex: 1, gap: 2 },
+  questTitle: { fontSize: 20 },
   questMeta: { fontSize: 13 },
-  questDone: { fontSize: 15, marginTop: spacing.xs },
-  questCta: {
-    alignSelf: "flex-start",
-    borderRadius: radius.chip,
+  questDoneBanner: {
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.xs,
-  },
-  questCtaText: { fontSize: 14 },
-  revengeCard: {
-    flexDirection: "row",
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.chip,
+    borderWidth: 1,
     alignItems: "center",
-    gap: spacing.lg,
   },
-  revengeTitle: { fontSize: 20 },
+  questDoneText: { fontSize: 14 },
+  questCta: {
+    borderRadius: radius.button,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  questCtaText: { fontSize: 15, letterSpacing: 0.3 },
+  revengeCard: {
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  revengeTitle: { fontSize: 19 },
   revengeCopy: { fontSize: 13 },
   revengeCta: {
-    alignSelf: "flex-start",
-    borderRadius: radius.chip,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.xs,
+    borderRadius: radius.button,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  revengeCtaText: { fontSize: 14 },
-  digestCard: { gap: spacing.md },
+  revengeCtaText: { fontSize: 15, letterSpacing: 0.3 },
+  digestCard: { gap: spacing.md, padding: spacing.lg },
   digestHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  digestTitle: { fontSize: 17 },
-  digestDate: { fontSize: 13 },
-  digestHeadline: { fontSize: 16 },
+  digestBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 8,
+  },
+  digestBadgeText: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  digestDate: { fontSize: 12 },
+  digestHeadline: { fontSize: 16, lineHeight: 22 },
   digestItem: {
-    borderRadius: radius.small,
+    borderRadius: radius.chip,
+    borderWidth: 1,
     padding: spacing.md,
     gap: spacing.xs,
   },
   digestLabel: {
-    fontSize: 12,
+    fontSize: 11,
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  digestText: { fontSize: 14, lineHeight: 20 },
+  digestText: { fontSize: 13, lineHeight: 19 },
+  awardsSection: {
+    gap: spacing.sm,
+  },
   sectionTitle: {
-    fontSize: 17,
-    marginBottom: spacing.sm,
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
   awardsRow: { flexDirection: "row", gap: spacing.md },
   awardChip: {
     alignItems: "center",
-    borderRadius: radius.chip,
+    borderRadius: radius.card,
+    borderWidth: 1,
     padding: spacing.md,
     width: 96,
     gap: spacing.xs,
   },
-  awardIcon: { fontSize: 30 },
+  awardIcon: { fontSize: 28 },
   awardName: { fontSize: 11, textAlign: "center" },
 });

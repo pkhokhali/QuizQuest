@@ -2,6 +2,7 @@ import { Router } from "express";
 import db from "../db.js";
 import { signToken } from "../auth.js";
 import { serializeUser } from "../util.js";
+import admin from "../firebase.js";
 
 const router = Router();
 const DEV_OTP = "123456";
@@ -64,6 +65,41 @@ router.post("/verify", (req, res) => {
     user = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
   }
   res.json({ token: signToken(user), user: serializeUser(user), isNew });
+});
+
+router.post("/verify-firebase", async (req, res) => {
+  const idToken = req.body.token;
+  if (!idToken) return res.status(400).json({ error: "No Firebase token provided" });
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const email = decodedToken.email;
+    if (!email) return res.status(400).json({ error: "Firebase user must have an email" });
+    
+    // We repurpose the "phone" column to store the email to avoid a database schema migration
+    let user = db.prepare("SELECT * FROM users WHERE phone = ?").get(email);
+    const isNew = !user;
+    
+    if (!user) {
+      const name = typeof req.body.name === "string" ? req.body.name.slice(0, 60) : (decodedToken.name || "");
+      const info = db.prepare("INSERT INTO users (phone, name) VALUES (?, ?)").run(email, name);
+      user = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+    }
+    
+    res.json({ token: signToken(user), user: serializeUser(user), isNew });
+  } catch (error) {
+    console.error("Firebase auth error:", error);
+    if (error.code === "auth/id-token-expired") {
+      return res.status(401).json({ error: "Session expired. Please sign in again." });
+    }
+    if (error.code === "auth/argument-error") {
+      return res.status(400).json({ error: "Malformed authentication token." });
+    }
+    if (error.message?.includes("Project Id") || error.message?.includes("credential")) {
+      return res.status(500).json({ error: "Authentication service misconfigured on server." });
+    }
+    res.status(401).json({ error: error.message || "Invalid authentication token." });
+  }
 });
 
 export default router;

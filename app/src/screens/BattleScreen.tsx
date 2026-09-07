@@ -213,7 +213,16 @@ export function BattleScreen() {
         )}
 
         {/* Quick battle hero */}
-        <Card color={colors.primary} style={styles.heroCard}>
+        <Card
+          style={StyleSheet.flatten([
+            styles.heroCard,
+            {
+              backgroundColor: colors.surfaceElevated,
+              borderColor: colors.accent,
+              borderWidth: 1.5,
+            },
+          ])}
+        >
           {searching ? (
             <View style={styles.searchingBox}>
               <Animated.Text
@@ -221,23 +230,51 @@ export function BattleScreen() {
               >
                 ⚔️
               </Animated.Text>
-              <Text style={styles.searchingText}>{t("battleSearching")}</Text>
+              <Text
+                style={[
+                  styles.searchingText,
+                  { color: colors.text, fontFamily: fonts.display },
+                ]}
+              >
+                {t("battleSearching")}
+              </Text>
               {queuePosition !== null && (
-                <Text style={styles.queueText}>
+                <Text
+                  style={[
+                    styles.queueText,
+                    { color: colors.textMuted, fontFamily: fonts.body },
+                  ]}
+                >
                   {t("battleQueuePosition", { position: queuePosition })}
                 </Text>
               )}
               <PrimaryButton
                 label={t("battleCancelSearch")}
                 onPress={cancelQueue}
-                variant="accent"
+                variant="ghost"
               />
             </View>
           ) : (
             <View style={styles.heroBox}>
-              <Text style={styles.heroEmoji}>⚡</Text>
-              <Text style={styles.heroTitle}>{t("battleQuick")}</Text>
-              <Text style={styles.heroSub}>{t("battleQuickSub")}</Text>
+              <View style={[styles.heroEmojiBox, { backgroundColor: colors.accentSoft }]}>
+                <Text style={styles.heroEmoji}>⚡</Text>
+              </View>
+              <Text
+                style={[
+                  styles.heroTitle,
+                  { color: colors.text, fontFamily: fonts.display },
+                ]}
+              >
+                {t("battleQuick")}
+              </Text>
+              <Text
+                style={[
+                  styles.heroSub,
+                  { color: colors.textMuted, fontFamily: fonts.body },
+                ]}
+              >
+                {t("battleQuickSub")}
+              </Text>
               <PrimaryButton
                 label={t("battleQuick")}
                 onPress={startQueue}
@@ -428,24 +465,32 @@ function createStyles(colors: ColorTokens) {
   },
   heroCard: {
     padding: spacing.xl,
+    gap: spacing.md,
   },
   heroBox: {
     alignItems: "center",
     gap: spacing.sm,
   },
+  heroEmojiBox: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
   heroEmoji: {
-    fontSize: 48,
+    fontSize: 36,
   },
   heroTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: colors.textOnPrimary,
+    fontSize: 22,
+    textAlign: "center",
   },
   heroSub: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-    fontWeight: "600",
-    marginBottom: spacing.sm,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: spacing.xs,
   },
   searchingBox: {
     alignItems: "center",
@@ -455,18 +500,15 @@ function createStyles(colors: ColorTokens) {
     fontSize: 48,
   },
   searchingText: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: colors.textOnPrimary,
+    fontSize: 20,
+    textAlign: "center",
   },
   queueText: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.85)",
-    fontWeight: "600",
+    fontSize: 14,
   },
   sectionTitle: {
-    fontSize: 19,
-    fontWeight: "800",
+    fontSize: 18,
+    fontFamily: fonts.display,
     color: colors.text,
     marginTop: spacing.sm,
   },

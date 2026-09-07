@@ -6,16 +6,21 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "extra": {
+      "eas": {
+        "projectId": "8209eeb8-c465-4463-89f5-d14dd9d2188f"
+      }
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.pkhokhali.quizquest"
     },
     "android": {
       "package": "com.pkhokhali.quizquest",
-      "versionCode": 5,
+      "versionCode": 6,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

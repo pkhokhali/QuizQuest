@@ -67,35 +67,35 @@ function getPalette(state: OptionState, colors: ColorTokens) {
   switch (state) {
     case "selected":
       return {
-        bg: colors.primarySoft,
+        bg: colors.bgMid,
         border: colors.primary,
-        fg: colors.primaryDark,
+        fg: colors.text,
         letterBg: colors.primary,
         letterFg: colors.textOnPrimary,
       };
     case "correct":
       return {
-        bg: colors.greenSoft,
+        bg: "rgba(16, 185, 129, 0.18)",
         border: colors.green,
         fg: colors.text,
         letterBg: colors.green,
-        letterFg: colors.textOnPrimary,
+        letterFg: "#FFFFFF",
       };
     case "missed":
       return {
-        bg: colors.amberSoft,
+        bg: "rgba(245, 158, 11, 0.18)",
         border: colors.amber,
         fg: colors.text,
         letterBg: colors.amber,
-        letterFg: colors.textOnPrimary,
+        letterFg: "#FFFFFF",
       };
     default:
       return {
         bg: colors.card,
         border: colors.border,
         fg: colors.text,
-        letterBg: colors.primarySoft,
-        letterFg: colors.primary,
+        letterBg: colors.bgMid,
+        letterFg: colors.textMuted,
       };
   }
 }

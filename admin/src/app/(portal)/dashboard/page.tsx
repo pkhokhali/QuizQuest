@@ -28,20 +28,20 @@ function StatCard({
   accent?: "indigo" | "violet" | "emerald" | "amber";
 }) {
   const accents = {
-    indigo: "bg-indigo-50 text-indigo-600",
-    violet: "bg-violet-50 text-violet-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
+    indigo: "bg-indigo-900/30 text-indigo-300 border border-indigo-500/20",
+    violet: "bg-violet-900/30 text-violet-300 border border-violet-500/20",
+    emerald: "bg-emerald-900/30 text-emerald-300 border border-emerald-500/20",
+    amber: "bg-amber-900/30 text-amber-300 border border-amber-500/20",
   };
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="glass-card flex items-center gap-4 p-5">
       <div
         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${accents[accent]}`}
       >
         <span aria-hidden>{icon}</span>
       </div>
       <div className="min-w-0">
-        <div className="text-2xl font-bold tracking-tight text-slate-800">
+        <div className="text-2xl font-bold tracking-tight text-slate-100">
           {value}
         </div>
         <div className="truncate text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -61,8 +61,8 @@ function BarChart({
 }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-sm font-semibold text-slate-700">{title}</h3>
+    <div className="glass-card p-5">
+      <h3 className="mb-4 text-sm font-semibold text-slate-200">{title}</h3>
       {data.length === 0 ? (
         <p className="py-6 text-center text-sm text-slate-400">
           No data yet — check back once students start playing.
@@ -71,17 +71,17 @@ function BarChart({
         <div className="space-y-3">
           {data.map((d) => (
             <div key={d.label} className="flex items-center gap-3">
-              <div className="w-24 shrink-0 truncate text-xs font-medium capitalize text-slate-500">
+              <div className="w-24 shrink-0 truncate text-xs font-medium capitalize text-slate-300">
                 {d.prefix && <span aria-hidden className="mr-1">{d.prefix}</span>}
                 {d.label}
               </div>
-              <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-800/50 border border-slate-700/50">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all"
+                  className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all shadow-[0_0_10px_rgba(139,92,246,0.5)]"
                   style={{ width: `${(d.value / max) * 100}%` }}
                 />
               </div>
-              <div className="w-14 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-600">
+              <div className="w-14 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-300">
                 {d.value.toLocaleString()}
               </div>
             </div>
@@ -130,12 +130,12 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-800">
-          Dashboard
+      <div className="glass-panel p-6">
+        <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400">
+          Magic Dashboard
         </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          A quick pulse on how QuizQuest is doing today.
+        <p className="mt-2 text-sm text-slate-300">
+          A command center for the QuizQuest universe.
         </p>
       </div>
 
@@ -145,12 +145,12 @@ export default function DashboardPage() {
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-[84px]" />
+              <Skeleton key={i} className="h-[84px] glass-card" />
             ))}
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-64" />
+              <Skeleton key={i} className="h-64 glass-card" />
             ))}
           </div>
         </>

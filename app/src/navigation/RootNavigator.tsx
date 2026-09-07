@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useMemo } from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   IconAwards,
@@ -25,7 +25,7 @@ import { PhoneScreen } from "../screens/auth/PhoneScreen";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
-import { fonts } from "../theme";
+import { fonts, radius } from "../theme";
 import {
   AuthStackParamList,
   MainTabParamList,
@@ -51,7 +51,7 @@ function Tabs() {
   const { t } = useI18n();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const tabBarPaddingBottom = Math.max(insets.bottom, 6);
+  const tabBarPaddingBottom = Math.max(insets.bottom, 8);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -63,7 +63,8 @@ function Tabs() {
           {
             backgroundColor: colors.card,
             borderTopColor: colors.border,
-            height: 56 + tabBarPaddingBottom,
+            borderTopWidth: 1,
+            height: 62 + tabBarPaddingBottom,
             paddingBottom: tabBarPaddingBottom,
           },
         ],
@@ -71,7 +72,16 @@ function Tabs() {
         tabBarAccessibilityLabel: t(`tab${route.name}` as never),
         tabBarIcon: ({ focused, color }) => {
           const Icon = TAB_ICONS[route.name];
-          return <Icon size={focused ? 24 : 22} color={color} />;
+          return (
+            <View
+              style={[
+                styles.tabIconBox,
+                focused && { backgroundColor: colors.primarySoft },
+              ]}
+            >
+              <Icon size={focused ? 22 : 20} color={color} />
+            </View>
+          );
         },
       })}
     >
@@ -172,10 +182,18 @@ export function RootNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     borderTopWidth: 1,
-    elevation: 10,
+    elevation: 12,
     paddingTop: 6,
+  },
+  tabIconBox: {
+    width: 44,
+    height: 32,
+    borderRadius: radius.chip,
+    alignItems: "center",
+    justifyContent: "center",
   },
   tabLabel: {
     fontSize: 11,
+    marginTop: 2,
   },
 });

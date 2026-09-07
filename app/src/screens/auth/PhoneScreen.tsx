@@ -11,21 +11,59 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ApiError, pingServer, requestOtp } from "../../api/client";
+import { ApiError, pingServer, verifyFirebase } from "../../api/client";
 import { getBaseUrl, getBuiltInBaseUrl, setBaseUrl } from "../../api/config";
+import { Atmosphere } from "../../components/Atmosphere";
 import { BrandMark } from "../../components/BrandMark";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { AuthStackParamList } from "../../navigation/types";
 import { useI18n } from "../../state/LanguageContext";
 import { useTheme } from "../../state/ThemeContext";
+import { useAuth } from "../../state/AuthContext";
 import { fonts, radius, spacing } from "../../theme";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../../firebase";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Phone">;
+
+function formatAuthError(err: any): string {
+  const code = String(err?.code || "");
+  const msg = String(err?.message || "");
+
+  if (code.includes("email-already-in-use") || msg.includes("email-already-in-use")) {
+    return "This email is already registered. Please switch to Sign In.";
+  }
+  if (code.includes("invalid-credential") || code.includes("wrong-password") || msg.includes("invalid-credential")) {
+    return "Incorrect email or password. New here? Tap 'Create Account'.";
+  }
+  if (code.includes("user-not-found") || msg.includes("user-not-found")) {
+    return "No account found with this email. Tap 'Create Account' to join!";
+  }
+  if (code.includes("weak-password") || msg.includes("weak-password")) {
+    return "Password must be at least 6 characters.";
+  }
+  if (code.includes("invalid-email") || msg.includes("invalid-email")) {
+    return "Please enter a valid email address.";
+  }
+  if (code.includes("too-many-requests") || msg.includes("too-many-requests")) {
+    return "Too many failed attempts. Please wait a moment and try again.";
+  }
+  if (code.includes("network-request-failed") || msg.includes("network")) {
+    return "Network error. Please check your internet connection.";
+  }
+  return msg.replace(/^Firebase:\s*Error\s*\((.*?)\)\.?/, "$1") || "Authentication failed. Please try again.";
+}
 
 export function PhoneScreen({ navigation }: Props) {
   const { t } = useI18n();
   const { colors } = useTheme();
-  const [phone, setPhone] = useState("");
+  const { signIn } = useAuth();
+  
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  
   const [serverUrl, setServerUrl] = useState(getBuiltInBaseUrl());
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -33,7 +71,7 @@ export function PhoneScreen({ navigation }: Props) {
   const [serverOk, setServerOk] = useState<boolean | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const valid = phone.trim().length >= 10;
+  const valid = email.trim().length >= 5 && password.trim().length >= 6;
   const serverValid = /^https?:\/\/.+/.test(serverUrl.trim());
 
   useEffect(() => {
@@ -64,7 +102,7 @@ export function PhoneScreen({ navigation }: Props) {
 
   const onSubmit = async () => {
     if (!valid) {
-      setError(t("authPhoneInvalid"));
+      setError("Please enter a valid email and password (min 6 characters).");
       return;
     }
     if (!serverValid) {
@@ -81,66 +119,92 @@ export function PhoneScreen({ navigation }: Props) {
         setLoading(false);
         return;
       }
-      const res = await requestOtp(phone.trim());
-      navigation.navigate("Otp", { phone: phone.trim(), devCode: res.devCode });
-    } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 0
-          ? t("errorNetwork")
-          : t("errorFriendly")
-      );
+      
+      let userCredential;
+      if (isSignUp) {
+        userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      } else {
+        userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      }
+
+      const idToken = await userCredential.user.getIdToken();
+      const res = await verifyFirebase(idToken);
+      
+      await signIn(res.token, res.user);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.status === 0) {
+        setError(t("errorNetwork"));
+      } else {
+        setError(formatAuthError(err));
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.primary }]}
-      edges={["top", "left", "right"]}
-    >
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={false}
+    <Atmosphere>
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
         >
-          <View style={styles.hero}>
-            <BrandMark size="hero" light />
-          </View>
-
-          <View style={[styles.form, { backgroundColor: colors.bg }]}>
-            <Text
-              style={[styles.welcome, { color: colors.text, fontFamily: fonts.display }]}
-            >
-              {t("authWelcome")}
-            </Text>
-
+          {/* Top Bar with subtle Server Config pill */}
+          <View style={styles.topBar}>
             <TouchableOpacity
+              style={[
+                styles.serverPill,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
               onPress={() => setShowAdvanced((v) => !v)}
               accessibilityRole="button"
               accessibilityLabel={t("authServerLabel")}
             >
               <Text
                 style={[
-                  styles.advancedToggle,
+                  styles.serverPillText,
                   { color: colors.textMuted, fontFamily: fonts.bodyBold },
                 ]}
               >
-                {showAdvanced ? "▾ " : "▸ "}
-                {t("authServerLabel")}
+                ⚙ {showAdvanced ? "Close" : "Server"}
               </Text>
             </TouchableOpacity>
+          </View>
 
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Collapsible Server Config Box */}
             {showAdvanced ? (
-              <>
+              <View
+                style={[
+                  styles.serverCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
                 <Text
-                  style={[styles.hint, { color: colors.textMuted, fontFamily: fonts.body }]}
+                  style={[
+                    styles.serverTitle,
+                    { color: colors.text, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  {t("authServerLabel")}
+                </Text>
+                <Text
+                  style={[
+                    styles.hint,
+                    { color: colors.textMuted, fontFamily: fonts.body },
+                  ]}
                 >
                   {t("authServerHint")}
                 </Text>
@@ -148,7 +212,7 @@ export function PhoneScreen({ navigation }: Props) {
                   style={[
                     styles.inputServer,
                     {
-                      backgroundColor: colors.card,
+                      backgroundColor: colors.bgMid,
                       borderColor: colors.border,
                       color: colors.text,
                       fontFamily: fonts.body,
@@ -171,94 +235,369 @@ export function PhoneScreen({ navigation }: Props) {
                   variant="ghost"
                   loading={testing}
                   disabled={!serverValid || testing}
+                  style={styles.testBtn}
                 />
                 {serverOk ? (
                   <Text
                     style={[
                       styles.serverOk,
-                      { color: colors.primary, fontFamily: fonts.bodyBold },
+                      { color: colors.green, fontFamily: fonts.bodyBold },
                     ]}
                   >
-                    {t("authServerOk")}
+                    ✓ {t("authServerOk")}
                   </Text>
                 ) : null}
-              </>
+              </View>
             ) : null}
 
-            <Text
-              style={[styles.label, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}
-            >
-              {t("authPhoneLabel")}
-            </Text>
-            <TextInput
+            {/* Hero Brand Section */}
+            <View style={styles.hero}>
+              <BrandMark size="hero" />
+            </View>
+
+            {/* Floating Auth Card */}
+            <View
               style={[
-                styles.input,
+                styles.authCard,
                 {
                   backgroundColor: colors.card,
                   borderColor: colors.border,
-                  color: colors.text,
-                  fontFamily: fonts.bodyBold,
                 },
               ]}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder={t("authPhonePlaceholder")}
-              placeholderTextColor={colors.textMuted}
-              keyboardType="phone-pad"
-              maxLength={15}
-            />
-            {error ? (
-              <Text style={[styles.error, { color: colors.accent, fontFamily: fonts.body }]}>
-                {error}
-              </Text>
-            ) : null}
-            <PrimaryButton
-              label={t("authSendCode")}
-              onPress={onSubmit}
-              loading={loading}
-              disabled={!valid || !serverValid}
-            />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            >
+              {/* Segmented Mode Selector */}
+              <View
+                style={[
+                  styles.tabContainer,
+                  { backgroundColor: colors.bgMid, borderColor: colors.border },
+                ]}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.tabBtn,
+                    !isSignUp && [styles.tabBtnActive, { backgroundColor: colors.primary }],
+                  ]}
+                  onPress={() => {
+                    setIsSignUp(false);
+                    setError(null);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      {
+                        color: !isSignUp ? colors.textOnPrimary : colors.textMuted,
+                        fontFamily: !isSignUp ? fonts.bodyBold : fonts.body,
+                      },
+                    ]}
+                  >
+                    Sign In
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.tabBtn,
+                    isSignUp && [styles.tabBtnActive, { backgroundColor: colors.primary }],
+                  ]}
+                  onPress={() => {
+                    setIsSignUp(true);
+                    setError(null);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      {
+                        color: isSignUp ? colors.textOnPrimary : colors.textMuted,
+                        fontFamily: isSignUp ? fonts.bodyBold : fonts.body,
+                      },
+                    ]}
+                  >
+                    Create Account
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Email Field */}
+              <View style={styles.fieldGroup}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  Email Address
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.bgMid,
+                      borderColor: colors.border,
+                      color: colors.text,
+                      fontFamily: fonts.body,
+                    },
+                  ]}
+                  value={email}
+                  onChangeText={(v) => {
+                    setEmail(v);
+                    if (error) setError(null);
+                  }}
+                  placeholder="student@quizquest.com"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              {/* Password Field */}
+              <View style={styles.fieldGroup}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  Password
+                </Text>
+                <View
+                  style={[
+                    styles.passwordWrapper,
+                    {
+                      backgroundColor: colors.bgMid,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <TextInput
+                    style={[
+                      styles.passwordInput,
+                      {
+                        color: colors.text,
+                        fontFamily: fonts.body,
+                      },
+                    ]}
+                    value={password}
+                    onChangeText={(v) => {
+                      setPassword(v);
+                      if (error) setError(null);
+                    }}
+                    placeholder="••••••••"
+                    placeholderTextColor={colors.textMuted}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeBtn}
+                    onPress={() => setShowPassword((v) => !v)}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                  >
+                    <Text
+                      style={[
+                        styles.eyeText,
+                        { color: colors.primary, fontFamily: fonts.bodyBold },
+                      ]}
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Error feedback banner */}
+              {error ? (
+                <View style={[styles.errorBanner, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}>
+                  <Text style={[styles.error, { color: colors.danger, fontFamily: fonts.bodyBold }]}>
+                    ⚠ {error}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Primary Action Button */}
+              <PrimaryButton
+                label={isSignUp ? "Create Account" : "Sign In"}
+                onPress={onSubmit}
+                loading={loading}
+                disabled={!valid || !serverValid}
+                style={styles.submitBtn}
+              />
+
+              {/* Switch Mode Footer Link */}
+              <TouchableOpacity
+                style={styles.switchModeBtn}
+                onPress={() => {
+                  setIsSignUp((v) => !v);
+                  setError(null);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.switchModeText,
+                    { color: colors.textMuted, fontFamily: fonts.body },
+                  ]}
+                >
+                  {isSignUp ? "Already have an account? " : "Don't have an account? "}
+                  <Text style={{ color: colors.primary, fontFamily: fonts.bodyBold }}>
+                    {isSignUp ? "Sign In" : "Create one"}
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Atmosphere>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
-  scroll: { flexGrow: 1, justifyContent: "flex-end" },
-  hero: {
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xs,
+  },
+  serverPill: {
+    paddingVertical: spacing.xs + 1,
+    paddingHorizontal: spacing.md,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  serverPillText: {
+    fontSize: 12,
+  },
+  scroll: {
     flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xxl,
+    justifyContent: "center",
+  },
+  hero: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: spacing.xxl,
+    paddingVertical: spacing.lg,
   },
-  form: {
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl + 24,
-    gap: spacing.md,
+  serverCard: {
+    borderRadius: radius.card,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
-  welcome: { fontSize: 24, marginBottom: spacing.sm },
-  label: { fontSize: 14 },
-  advancedToggle: { fontSize: 13, paddingVertical: spacing.xs },
-  hint: { fontSize: 12, lineHeight: 18, marginTop: -4 },
+  serverTitle: {
+    fontSize: 14,
+  },
+  hint: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
   inputServer: {
     borderRadius: radius.chip,
-    borderWidth: 2,
-    padding: spacing.md,
-    fontSize: 15,
+    borderWidth: 1,
+    padding: spacing.sm + 2,
+    fontSize: 14,
   },
-  serverOk: { fontSize: 14, textAlign: "center" },
+  testBtn: {
+    minHeight: 40,
+    paddingVertical: spacing.xs,
+  },
+  serverOk: {
+    fontSize: 13,
+    textAlign: "center",
+  },
+  authCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: spacing.xl,
+    gap: spacing.md,
+    shadowColor: "#000000",
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: spacing.xs,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabBtnActive: {
+    elevation: 2,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  tabText: {
+    fontSize: 14,
+  },
+  fieldGroup: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
   input: {
-    borderRadius: radius.chip,
-    borderWidth: 2,
-    padding: spacing.lg,
-    fontSize: 20,
-    letterSpacing: 1,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    fontSize: 16,
   },
-  error: { fontSize: 14, lineHeight: 20 },
+  passwordWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: radius.button,
+    borderWidth: 1,
+    paddingHorizontal: spacing.lg,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    fontSize: 16,
+  },
+  eyeBtn: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+  },
+  eyeText: {
+    fontSize: 13,
+  },
+  errorBanner: {
+    padding: spacing.sm + 2,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+  },
+  error: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  submitBtn: {
+    marginTop: spacing.xs,
+  },
+  switchModeBtn: {
+    alignItems: "center",
+    paddingVertical: spacing.xs,
+  },
+  switchModeText: {
+    fontSize: 14,
+  },
 });

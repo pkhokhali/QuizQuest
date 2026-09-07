@@ -10,6 +10,7 @@ import React, {
 import { getMe, TOKEN_KEY, USER_KEY } from "../api/client";
 import { User } from "../api/types";
 import { disconnectBattleSocket } from "../socket/battleSocket";
+import { registerForPushNotificationsAsync } from "../utils/push";
 
 interface AuthContextValue {
   /** True while restoring the session from storage on launch. */
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedToken && storedUser) {
           setToken(storedToken);
           setUserState(JSON.parse(storedUser) as User);
+          registerForPushNotificationsAsync();
           // Refresh in the background so grade/xp/etc. stay current.
           getMe()
             .then(({ user: fresh }) => {
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       [TOKEN_KEY, newToken],
       [USER_KEY, JSON.stringify(newUser)],
     ]);
+    registerForPushNotificationsAsync();
   }, []);
 
   const signOut = useCallback(async () => {

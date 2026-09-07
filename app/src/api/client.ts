@@ -104,10 +104,21 @@ export function verifyOtp(
   });
 }
 
+export function verifyFirebase(token: string): Promise<VerifyResponse> {
+  return request("/api/auth/verify-firebase", {
+    method: "POST",
+    body: { token },
+  });
+}
+
 // ---- Me / Home ----
 
 export function getMe(): Promise<{ user: User }> {
   return request("/api/me");
+}
+
+export function registerPushToken(token: string): Promise<{ ok: boolean }> {
+  return request("/api/me/push-token", { method: "POST", body: { token } });
 }
 
 export function updateMe(body: UpdateMeBody): Promise<{ user: User }> {
