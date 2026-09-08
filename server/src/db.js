@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import crypto from "crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "..", "data");
@@ -185,6 +186,16 @@ CREATE TABLE IF NOT EXISTS push_tokens (
 
 // Safe column migrations for existing databases
 try {
+  db.exec("ALTER TABLE users ADD COLUMN email TEXT");
+} catch {}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
+} catch {}
+try {
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email)");
+} catch {}
+
+try {
   db.exec("ALTER TABLE schools ADD COLUMN district TEXT DEFAULT 'Kathmandu'");
 } catch {}
 try {
@@ -196,6 +207,29 @@ try {
 try {
   db.exec("ALTER TABLE schools ADD COLUMN badge TEXT DEFAULT '🏫'");
 } catch {}
+
+// Ensure Play Console test account (test2@quizquest.com / password123) is always ready
+try {
+  const salt = "qq_fixed_salt_99";
+  const hash = crypto.scryptSync("password123", salt, 64).toString("hex");
+  const passwordHash = `${salt}:${hash}`;
+  const existingTestUser = db.prepare("SELECT id FROM users WHERE email = ? OR phone = ?").get("test2@quizquest.com", "test2@quizquest.com");
+
+  if (!existingTestUser) {
+    db.prepare(`
+      INSERT INTO users (phone, email, password_hash, name, role, grade, home_country, language, xp, streak, best_streak, avatar)
+      VALUES (?, ?, ?, ?, 'student', 8, 'nepal', 'en', 350, 5, 5, '{"emoji":"🦊","bg":"#7C3AED"}')
+    `).run("test2@quizquest.com", "test2@quizquest.com", passwordHash, "Play Console Reviewer");
+    console.log("Seeded Google Play test account: test2@quizquest.com / password123");
+  } else {
+    db.prepare(`
+      UPDATE users SET email = ?, password_hash = ?, grade = COALESCE(grade, 8), home_country = COALESCE(home_country, 'nepal')
+      WHERE id = ?
+    `).run("test2@quizquest.com", passwordHash, existingTestUser.id);
+  }
+} catch (err) {
+  console.error("Error setting up test account:", err);
+}
 
 // Seed default memory packs if none exist
 const packCount = db.prepare("SELECT COUNT(*) c FROM memory_packs").get().c;

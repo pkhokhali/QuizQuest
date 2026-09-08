@@ -93,6 +93,7 @@ export function serializeUser(u) {
   return {
     id: u.id,
     phone: u.phone,
+    email: u.email || (u.phone && u.phone.includes("@") ? u.phone : null),
     name: u.name,
     role: u.role,
     grade: u.grade,

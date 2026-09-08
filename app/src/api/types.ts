@@ -33,6 +33,7 @@ export interface AvatarInfo {
 export interface User {
   id: number;
   phone: string;
+  email?: string;
   name: string;
   role: "student" | "admin" | "teacher";
   grade: number | null;

@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ApiError, pingServer, verifyFirebase } from "../../api/client";
+import { ApiError, loginWithEmail, pingServer, verifyFirebase } from "../../api/client";
 import { getBaseUrl, getBuiltInBaseUrl, setBaseUrl } from "../../api/config";
 import { Atmosphere } from "../../components/Atmosphere";
 import { BrandMark } from "../../components/BrandMark";
@@ -120,17 +120,39 @@ export function PhoneScreen({ navigation }: Props) {
         return;
       }
       
-      let userCredential;
-      if (isSignUp) {
-        userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      } else {
-        userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      }
+      // 1. Direct Server Email Auth (primary & reliable for test account + all users)
+      try {
+        const res = await loginWithEmail({
+          email: email.trim(),
+          password,
+          isSignUp,
+        });
+        await signIn(res.token, res.user);
+        return;
+      } catch (backendErr: any) {
+        // If backend gave a specific 400 validation error (e.g. wrong password or user already exists), display it
+        if (backendErr instanceof ApiError && backendErr.status === 400) {
+          setError(backendErr.message);
+          return;
+        }
 
-      const idToken = await userCredential.user.getIdToken();
-      const res = await verifyFirebase(idToken);
-      
-      await signIn(res.token, res.user);
+        // 2. Firebase Auth fallback if server direct auth was unavailable
+        try {
+          let userCredential;
+          if (isSignUp) {
+            userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+          } else {
+            userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+          }
+
+          const idToken = await userCredential.user.getIdToken();
+          const res = await verifyFirebase(idToken);
+          await signIn(res.token, res.user);
+          return;
+        } catch (fbErr: any) {
+          throw backendErr || fbErr;
+        }
+      }
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 0) {
         setError(t("errorNetwork"));
@@ -417,6 +439,33 @@ export function PhoneScreen({ navigation }: Props) {
                 </View>
               ) : null}
 
+              {/* Play Store Reviewer Test Account Quick-Fill Pill */}
+              <TouchableOpacity
+                style={[
+                  styles.testCredsPill,
+                  {
+                    backgroundColor: colors.primarySoft,
+                    borderColor: colors.primary,
+                  },
+                ]}
+                onPress={() => {
+                  setEmail("test2@quizquest.com");
+                  setPassword("password123");
+                  setIsSignUp(false);
+                  setError(null);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.testCredsText,
+                    { color: colors.primary, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  🧪 Fill Test Account (test2@quizquest.com)
+                </Text>
+              </TouchableOpacity>
+
               {/* Primary Action Button */}
               <PrimaryButton
                 label={isSignUp ? "Create Account" : "Sign In"}
@@ -599,5 +648,17 @@ const styles = StyleSheet.create({
   },
   switchModeText: {
     fontSize: 14,
+  },
+  testCredsPill: {
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  testCredsText: {
+    fontSize: 12,
   },
 });

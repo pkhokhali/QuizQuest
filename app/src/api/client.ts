@@ -117,6 +117,18 @@ export function verifyFirebase(token: string): Promise<VerifyResponse> {
   });
 }
 
+export function loginWithEmail(body: {
+  email: string;
+  password: string;
+  isSignUp?: boolean;
+  name?: string;
+}): Promise<VerifyResponse> {
+  return request("/api/auth/email", {
+    method: "POST",
+    body,
+  });
+}
+
 // ---- Me / Home ----
 
 export function getMe(): Promise<{ user: User }> {

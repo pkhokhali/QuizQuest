@@ -1,10 +1,88 @@
 import { Router } from "express";
+import crypto from "crypto";
 import db from "../db.js";
 import { signToken } from "../auth.js";
 import { serializeUser } from "../util.js";
 import admin from "../firebase.js";
 
 const router = Router();
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  if (!stored) return false;
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const verify = crypto.scryptSync(password, salt, 64).toString("hex");
+  return verify === hash;
+}
+
+// Direct Email Authentication & Registration
+router.post("/email", (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const password = String(req.body.password || "");
+  const isSignUp = Boolean(req.body.isSignUp);
+  const name = typeof req.body.name === "string" ? req.body.name.trim().slice(0, 60) : "";
+
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "Please enter a valid email address" });
+  }
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters" });
+  }
+
+  // 1. Google Play Console Test Credentials Check
+  if (email === "test2@quizquest.com" && password === "password123") {
+    let user = db.prepare("SELECT * FROM users WHERE email = ? OR phone = ?").get(email, email);
+    if (!user) {
+      const salt = "qq_fixed_salt_99";
+      const hash = crypto.scryptSync("password123", salt, 64).toString("hex");
+      const passwordHash = `${salt}:${hash}`;
+      const info = db.prepare(`
+        INSERT INTO users (phone, email, password_hash, name, role, grade, home_country, language, xp, streak, best_streak, avatar)
+        VALUES (?, ?, ?, ?, 'student', 8, 'nepal', 'en', 350, 5, 5, '{"emoji":"🦊","bg":"#7C3AED"}')
+      `).run(email, email, passwordHash, "Play Console Reviewer");
+      user = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+    }
+    return res.json({ token: signToken(user), user: serializeUser(user), isNew: false });
+  }
+
+  // 2. Regular User Flow
+  let user = db.prepare("SELECT * FROM users WHERE email = ? OR phone = ?").get(email, email);
+
+  if (isSignUp) {
+    if (user) {
+      return res.status(400).json({ error: "An account with this email already exists. Please sign in instead." });
+    }
+    const hash = hashPassword(password);
+    const displayName = name || email.split("@")[0];
+    const info = db.prepare(`
+      INSERT INTO users (phone, email, password_hash, name)
+      VALUES (?, ?, ?, ?)
+    `).run(email, email, hash, displayName);
+    user = db.prepare("SELECT * FROM users WHERE id = ?").get(info.lastInsertRowid);
+    return res.json({ token: signToken(user), user: serializeUser(user), isNew: true });
+  } else {
+    // Sign in flow
+    if (!user) {
+      return res.status(400).json({ error: "No account found with this email. Tap 'Create Account' to join!" });
+    }
+    if (user.password_hash) {
+      const ok = verifyPassword(password, user.password_hash);
+      if (!ok) {
+        return res.status(400).json({ error: "Incorrect password. Please try again." });
+      }
+    } else {
+      const hash = hashPassword(password);
+      db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, user.id);
+    }
+    return res.json({ token: signToken(user), user: serializeUser(user), isNew: false });
+  }
+});
 const DEV_OTP = "123456";
 const IS_PROD = process.env.NODE_ENV === "production";
 const OTP_TTL_MS = 5 * 60 * 1000;
