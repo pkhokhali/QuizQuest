@@ -13,7 +13,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://quizquest-api.fly.dev"
+        "EXPO_PUBLIC_API_URL": "https://quiz.prabinkhokhali.com.np"
       }
     },
     "production": {
@@ -21,7 +21,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://quizquest-api.fly.dev"
+        "EXPO_PUBLIC_API_URL": "https://quiz.prabinkhokhali.com.np"
       }
     }
   },

@@ -73,7 +73,7 @@ app.get("/privacy", (req, res) => {
     <ul>
       <li><strong>Google Firebase:</strong> Secure authentication & identity management.</li>
       <li><strong>Expo:</strong> Mobile client updates and push notification infrastructure.</li>
-      <li><strong>Fly.io:</strong> Cloud backend hosting and encrypted database.</li>
+      <li><strong>Backend Hosting:</strong> Secure dedicated cloud VPS server and encrypted database.</li>
     </ul>
 
     <h2>4. Children's Privacy (COPPA & Student Safety)</h2>

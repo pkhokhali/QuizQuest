@@ -23,7 +23,7 @@ module.exports = {
     policy: "appVersion"
   },
   extra: {
-    apiUrl: process.env.EXPO_PUBLIC_API_URL || "https://quizquest-api.fly.dev",
+    apiUrl: process.env.EXPO_PUBLIC_API_URL || "https://quiz.prabinkhokhali.com.np",
     eas: {
       projectId: "8209eeb8-c465-4463-89f5-d14dd9d2188f"
     }
