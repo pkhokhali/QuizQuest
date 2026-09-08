@@ -25,17 +25,22 @@ export default function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      // 1. Sign in with Firebase
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      
-      // 2. Get the Firebase ID Token
-      const idToken = await userCredential.user.getIdToken();
-
-      // 3. Send it to our backend for verification and to get our native JWT
-      const res = await api<VerifyResponse>("/api/auth/verify-firebase", {
-        method: "POST",
-        body: { token: idToken },
-      });
+      let res: VerifyResponse;
+      try {
+        // 1. Direct Backend Auth
+        res = await api<VerifyResponse>("/api/auth/email", {
+          method: "POST",
+          body: { email: email.trim(), password },
+        });
+      } catch (directErr) {
+        // 2. Fallback to Firebase
+        const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        const idToken = await userCredential.user.getIdToken();
+        res = await api<VerifyResponse>("/api/auth/verify-firebase", {
+          method: "POST",
+          body: { token: idToken },
+        });
+      }
       
       if (res.user.role !== "admin" && res.user.role !== "teacher") {
         setError("This portal is for content admins.");
@@ -48,7 +53,6 @@ export default function LoginPage() {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        // Handle Firebase errors (e.g. auth/wrong-password, auth/user-not-found)
         setError(err.message || "Invalid email or password.");
       }
     } finally {
@@ -103,6 +107,18 @@ export default function LoginPage() {
                 {error}
               </p>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("admin@quizquest.com");
+                setPassword("password123");
+                setError(null);
+              }}
+              className="w-full rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition"
+            >
+              🔑 Fill Admin Credentials (admin@quizquest.com)
+            </button>
             
             <PrimaryButton
               type="submit"

@@ -231,6 +231,29 @@ try {
   console.error("Error setting up test account:", err);
 }
 
+// Ensure default content admin (admin@quizquest.com / password123) is always ready
+try {
+  const salt = "qq_fixed_salt_99";
+  const hash = crypto.scryptSync("password123", salt, 64).toString("hex");
+  const passwordHash = `${salt}:${hash}`;
+  const existingAdmin = db.prepare("SELECT id FROM users WHERE email = ? OR phone = ?").get("admin@quizquest.com", "admin@quizquest.com");
+
+  if (!existingAdmin) {
+    db.prepare(`
+      INSERT INTO users (phone, email, password_hash, name, role, grade, home_country, language, xp, streak, best_streak)
+      VALUES (?, ?, ?, ?, 'admin', 10, 'nepal', 'en', 1000, 10, 10)
+    `).run("admin@quizquest.com", "admin@quizquest.com", passwordHash, "Super Admin");
+    console.log("Seeded default admin: admin@quizquest.com / password123");
+  } else {
+    db.prepare(`
+      UPDATE users SET email = 'admin@quizquest.com', password_hash = ?, role = 'admin'
+      WHERE id = ?
+    `).run(passwordHash, existingAdmin.id);
+  }
+} catch (err) {
+  console.error("Error setting up admin account:", err);
+}
+
 // Seed default memory packs if none exist
 const packCount = db.prepare("SELECT COUNT(*) c FROM memory_packs").get().c;
 if (packCount === 0) {
