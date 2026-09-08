@@ -121,6 +121,176 @@ router.post("/school/leave", (req, res) => {
   res.json({ user: serializeUser(user) });
 });
 
+// Create a new school clan
+router.post("/school/create", (req, res) => {
+  const name = String(req.body.name || "").trim().slice(0, 60);
+  const district = String(req.body.district || "Kathmandu").trim().slice(0, 40);
+  if (name.length < 2) {
+    return res.status(400).json({ error: "School name must be at least 2 characters" });
+  }
+
+  // Generate clean 6-character code (e.g., SX-482 or KMC-719)
+  const letters = name.replace(/[^A-Za-z]/g, "").toUpperCase();
+  const prefix = (letters.length >= 3 ? letters.slice(0, 3) : (letters + "QQ").slice(0, 3));
+  const randNum = Math.floor(100 + Math.random() * 900);
+  let joinCode = `${prefix}-${randNum}`;
+
+  const existing = db.prepare("SELECT id FROM schools WHERE join_code = ?").get(joinCode);
+  if (existing) {
+    joinCode = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+  }
+
+  const info = db.prepare(`
+    INSERT INTO schools (name, district, join_code, creator_user_id)
+    VALUES (?, ?, ?, ?)
+  `).run(name, district, joinCode, req.user.id);
+
+  const schoolId = info.lastInsertRowid;
+  db.prepare("UPDATE users SET school_id = ? WHERE id = ?").run(schoolId, req.user.id);
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  res.json({
+    user: serializeUser(user),
+    school: {
+      id: schoolId,
+      name,
+      district,
+      joinCode,
+      membersCount: 1,
+      totalXp: user.xp,
+    },
+  });
+});
+
+// Get user's current school clan details and top members
+router.get("/school/my", (req, res) => {
+  if (!req.user.school_id) {
+    return res.json({ school: null });
+  }
+  const school = db.prepare("SELECT * FROM schools WHERE id = ?").get(req.user.school_id);
+  if (!school) {
+    return res.json({ school: null });
+  }
+
+  const members = db.prepare(`
+    SELECT id, name, avatar, grade, xp, streak
+    FROM users
+    WHERE school_id = ?
+    ORDER BY xp DESC
+    LIMIT 50
+  `).all(school.id);
+
+  const totalXp = members.reduce((sum, m) => sum + (m.xp || 0), 0);
+
+  res.json({
+    school: {
+      id: school.id,
+      name: school.name,
+      district: school.district || "Kathmandu",
+      joinCode: school.join_code,
+      verified: Boolean(school.verified),
+      badge: school.badge || "🏫",
+      membersCount: members.length,
+      totalXp,
+      members: members.map((m) => ({
+        id: m.id,
+        name: m.name || "Player",
+        avatar: JSON.parse(m.avatar || "{}"),
+        grade: m.grade,
+        xp: m.xp,
+        streak: m.streak,
+        isMe: m.id === req.user.id,
+      })),
+    },
+  });
+});
+
+// Top schools national leaderboard
+router.get("/school/leaderboard", (req, res) => {
+  const schools = db.prepare(`
+    SELECT s.id, s.name, s.district, s.join_code as joinCode, s.badge, s.verified,
+           COUNT(u.id) as membersCount,
+           COALESCE(SUM(u.xp), 0) as totalXp
+    FROM schools s
+    LEFT JOIN users u ON u.school_id = s.id
+    GROUP BY s.id
+    HAVING membersCount > 0
+    ORDER BY totalXp DESC
+    LIMIT 20
+  `).all();
+
+  res.json({
+    schools: schools.map((s, idx) => ({
+      ...s,
+      rank: idx + 1,
+      verified: Boolean(s.verified),
+    })),
+  });
+});
+
+// ---------- Memory Block Quiz Game ----------
+
+router.get("/memory/packs", (req, res) => {
+  const rows = db.prepare("SELECT * FROM memory_packs ORDER BY id ASC").all();
+  const packs = rows.map((r) => ({
+    id: r.id,
+    titleEn: r.title_en,
+    titleNe: r.title_ne,
+    subject: r.subject,
+    difficulty: r.difficulty,
+    timeLimitSec: r.time_limit_sec,
+    pairs: JSON.parse(r.pairs || "[]"),
+  }));
+  res.json({ packs });
+});
+
+router.post("/memory/submit", (req, res) => {
+  const { packId, moves, timeMs } = req.body || {};
+  if (!packId || typeof moves !== "number" || typeof timeMs !== "number") {
+    return res.status(400).json({ error: "Invalid payload" });
+  }
+
+  let stars = 1;
+  if (moves <= 10) stars = 3;
+  else if (moves <= 14) stars = 2;
+
+  const xpEarned = 30 + stars * 10;
+
+  db.prepare(`
+    INSERT INTO memory_scores (user_id, pack_id, moves, time_ms, stars, xp_earned)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(req.user.id, packId, moves, timeMs, stars, xpEarned);
+
+  db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").run(xpEarned, req.user.id);
+  db.prepare("INSERT INTO xp_events (user_id, amount, reason, date) VALUES (?, ?, 'memory_game', ?)")
+    .run(req.user.id, xpEarned, today());
+
+  const freshUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+
+  res.json({
+    stars,
+    moves,
+    timeMs,
+    xpEarned,
+    user: serializeUser(freshUser),
+  });
+});
+
+// ---------- Question Reporting ----------
+
+router.post("/question/report", (req, res) => {
+  const { questionId, reason, details } = req.body || {};
+  if (!questionId || !reason) {
+    return res.status(400).json({ error: "questionId and reason are required" });
+  }
+  db.prepare(`
+    INSERT INTO reported_questions (user_id, question_id, reason, details)
+    VALUES (?, ?, ?, ?)
+  `).run(req.user.id, questionId, String(reason).slice(0, 50), String(details || "").slice(0, 300));
+
+  res.json({ ok: true, message: "Report submitted. Thank you for keeping QuizQuest accurate!" });
+});
+
 // ---------- Home & digest ----------
 
 function publishedDigest(gradeBand) {

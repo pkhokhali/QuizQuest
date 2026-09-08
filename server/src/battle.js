@@ -143,6 +143,16 @@ export function initBattle(io) {
       removeFromQueues(user.id);
     });
 
+    socket.on("battle:bot", () => {
+      if (findBattleByUser(user.id)) return;
+      clearBotTimer(user.id);
+      removeFromQueues(user.id);
+      const band = gradeBandFor(user.grade || 8);
+      const botUser = getBotUser();
+      if (!botUser) return;
+      startBattle({ socket, user }, { socket: null, user: botUser, isBot: true }, band);
+    });
+
     socket.on("challenge:send", ({ friendUserId } = {}) => {
       const target = onlineSockets.get(Number(friendUserId));
       if (!target) return;

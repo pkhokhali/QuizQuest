@@ -19,6 +19,7 @@ export type RootStackParamList = {
   DailyQuiz: undefined;
   RevengeRound: undefined;
   BattleLive: { start: BattleStartEvent };
+  MemoryPlay: undefined;
 };
 
 declare global {

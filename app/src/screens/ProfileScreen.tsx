@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -9,8 +10,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { joinSchool, leaveSchool, updateMe } from "../api/client";
-import { Language, Subject } from "../api/types";
+import { createSchool, getMySchool, joinSchool, leaveSchool, updateMe } from "../api/client";
+import { Language, SchoolClanData, Subject } from "../api/types";
 import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Card } from "../components/Card";
@@ -44,6 +45,22 @@ export function ProfileScreen() {
   const [schoolCode, setSchoolCode] = useState("");
   const [joining, setJoining] = useState(false);
   const [schoolError, setSchoolError] = useState(false);
+  const [clanData, setClanData] = useState<SchoolClanData | null>(null);
+  const [schoolTab, setSchoolTab] = useState<"join" | "create">("join");
+  const [createSchoolName, setCreateSchoolName] = useState("");
+  const [createDistrict, setCreateDistrict] = useState("");
+  const [creatingSchool, setCreatingSchool] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  useEffect(() => {
+    if (user?.schoolName) {
+      getMySchool()
+        .then((res) => setClanData(res.school))
+        .catch(() => {});
+    } else {
+      setClanData(null);
+    }
+  }, [user?.schoolName]);
 
   if (!user) return null;
 
@@ -61,6 +78,48 @@ export function ProfileScreen() {
     } finally {
       setJoining(false);
     }
+  };
+
+  const onCreateSchool = async () => {
+    const sName = createSchoolName.trim();
+    if (!sName) return;
+    setCreatingSchool(true);
+    setCreateError("");
+    try {
+      const res = await createSchool({
+        name: sName,
+        district: createDistrict.trim() || undefined,
+      });
+      setUser(res.user);
+      setCreateSchoolName("");
+      setCreateDistrict("");
+      Alert.alert(
+        "School Clan Created! 🏫",
+        `Your school clan code is: ${res.school.joinCode}\nShare this code with your classmates to build the school leaderboard!`,
+        [
+          { text: "Done", style: "cancel" },
+          {
+            text: "Share Code",
+            onPress: () => {
+              Share.share({
+                message: `Join our school clan "${res.school.name}" on QuizQuest! Use code: ${res.school.joinCode}`,
+              });
+            },
+          },
+        ]
+      );
+    } catch (e: any) {
+      setCreateError(e?.message || "Could not create school clan");
+    } finally {
+      setCreatingSchool(false);
+    }
+  };
+
+  const shareClanCode = () => {
+    const code = clanData?.joinCode || "";
+    Share.share({
+      message: `Join our school clan "${user.schoolName}" on QuizQuest! Use code: ${code}`,
+    });
   };
 
   const onLeaveSchool = async () => {
@@ -212,26 +271,81 @@ export function ProfileScreen() {
             </TouchableOpacity>
           </Card>
 
-          {/* School / class join */}
+          {/* School / class clan */}
           <Card style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}
-            >
-              {t("profileSchool")}
-            </Text>
+            <View style={styles.schoolHeaderRow}>
+              <Text
+                style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}
+              >
+                {t("profileSchool")}
+              </Text>
+              {clanData?.verified && (
+                <View style={[styles.verifiedBadge, { backgroundColor: colors.greenSoft }]}>
+                  <Text style={[styles.verifiedBadgeText, { color: colors.green, fontFamily: fonts.bodyBold }]}>
+                    ✓ Verified
+                  </Text>
+                </View>
+              )}
+            </View>
+
             {user.schoolName ? (
-              <>
-                <View style={[styles.schoolPill, { backgroundColor: colors.greenSoft }]}>
+              <View style={styles.clanDetailsBox}>
+                <View style={[styles.schoolPill, { backgroundColor: colors.primarySoft }]}>
                   <Text
                     style={[
                       styles.schoolPillText,
-                      { color: colors.green, fontFamily: fonts.bodyBold },
+                      { color: colors.primary, fontFamily: fonts.bodyBold },
                     ]}
                   >
-                    ✓ {user.schoolName}
+                    🏫 {user.schoolName}
                   </Text>
+                  {clanData?.district ? (
+                    <Text style={[styles.clanDistrictText, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                      📍 {clanData.district}
+                    </Text>
+                  ) : null}
                 </View>
-                <TouchableOpacity onPress={onLeaveSchool} accessibilityRole="button">
+
+                {/* Clan stats row */}
+                <View style={styles.clanStatsRow}>
+                  <View style={[styles.clanStatCell, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                    <Text style={[styles.clanStatLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                      CLAN CODE
+                    </Text>
+                    <Text style={[styles.clanStatValue, { color: colors.primary, fontFamily: fonts.display }]}>
+                      {clanData?.joinCode || "—"}
+                    </Text>
+                  </View>
+                  <View style={[styles.clanStatCell, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                    <Text style={[styles.clanStatLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                      MEMBERS
+                    </Text>
+                    <Text style={[styles.clanStatValue, { color: colors.text, fontFamily: fonts.display }]}>
+                      {clanData?.membersCount ?? 1}
+                    </Text>
+                  </View>
+                  <View style={[styles.clanStatCell, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                    <Text style={[styles.clanStatLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                      TOTAL XP
+                    </Text>
+                    <Text style={[styles.clanStatValue, { color: colors.accent, fontFamily: fonts.display }]}>
+                      {clanData?.totalXp ?? user.xp}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Share invite button */}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={[styles.shareClanBtn, { backgroundColor: colors.primary }]}
+                  onPress={shareClanCode}
+                >
+                  <Text style={[styles.shareClanText, { color: colors.textOnPrimary, fontFamily: fonts.bodyBold }]}>
+                    📢 {t("profileShareClan")}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={onLeaveSchool} accessibilityRole="button" style={{ alignSelf: "center", marginTop: spacing.xs }}>
                   <Text
                     style={[
                       styles.schoolLeave,
@@ -241,51 +355,165 @@ export function ProfileScreen() {
                     {t("profileSchoolLeave")}
                   </Text>
                 </TouchableOpacity>
-              </>
+              </View>
             ) : (
               <>
-                <Text
-                  style={[styles.note, { color: colors.textMuted, fontFamily: fonts.body }]}
-                >
-                  {t("profileSchoolHint")}
-                </Text>
-                <View style={styles.schoolRow}>
-                  <TextInput
+                {/* Switcher: Join or Create */}
+                <View style={styles.clanTabSwitcher}>
+                  <TouchableOpacity
+                    onPress={() => setSchoolTab("join")}
                     style={[
-                      styles.input,
-                      styles.schoolInput,
-                      {
+                      styles.clanTabBtn,
+                      schoolTab === "join" && {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary,
+                      },
+                      schoolTab !== "join" && {
                         backgroundColor: colors.bg,
                         borderColor: colors.border,
-                        color: colors.text,
-                        fontFamily: fonts.bodyBold,
                       },
                     ]}
-                    value={schoolCode}
-                    onChangeText={(v) => {
-                      setSchoolCode(v);
-                      setSchoolError(false);
-                    }}
-                    placeholder={t("profileSchoolPlaceholder")}
-                    placeholderTextColor={colors.textMuted}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                  />
-                  <PrimaryButton
-                    label={t("profileSchoolJoin")}
-                    onPress={onJoinSchool}
-                    loading={joining}
-                    disabled={!schoolCode.trim() || joining}
-                    style={styles.schoolJoinBtn}
-                  />
-                </View>
-                {schoolError ? (
-                  <Text
-                    style={[styles.error, { color: colors.accent, fontFamily: fonts.body }]}
                   >
-                    {t("profileSchoolError")}
-                  </Text>
-                ) : null}
+                    <Text
+                      style={[
+                        styles.clanTabText,
+                        {
+                          color: schoolTab === "join" ? colors.textOnPrimary : colors.textMuted,
+                          fontFamily: fonts.bodyBold,
+                        },
+                      ]}
+                    >
+                      {t("profileSchoolJoin")}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setSchoolTab("create")}
+                    style={[
+                      styles.clanTabBtn,
+                      schoolTab === "create" && {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary,
+                      },
+                      schoolTab !== "create" && {
+                        backgroundColor: colors.bg,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.clanTabText,
+                        {
+                          color: schoolTab === "create" ? colors.textOnPrimary : colors.textMuted,
+                          fontFamily: fonts.bodyBold,
+                        },
+                      ]}
+                    >
+                      + {t("profileSchoolCreate")}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {schoolTab === "join" ? (
+                  <>
+                    <Text
+                      style={[styles.note, { color: colors.textMuted, fontFamily: fonts.body }]}
+                    >
+                      {t("profileSchoolHint")}
+                    </Text>
+                    <View style={styles.schoolRow}>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          styles.schoolInput,
+                          {
+                            backgroundColor: colors.bg,
+                            borderColor: colors.border,
+                            color: colors.text,
+                            fontFamily: fonts.bodyBold,
+                          },
+                        ]}
+                        value={schoolCode}
+                        onChangeText={(v) => {
+                          setSchoolCode(v);
+                          setSchoolError(false);
+                        }}
+                        placeholder={t("profileSchoolPlaceholder")}
+                        placeholderTextColor={colors.textMuted}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                      />
+                      <PrimaryButton
+                        label={t("profileSchoolJoin")}
+                        onPress={onJoinSchool}
+                        loading={joining}
+                        disabled={!schoolCode.trim() || joining}
+                        style={styles.schoolJoinBtn}
+                      />
+                    </View>
+                    {schoolError ? (
+                      <Text
+                        style={[styles.error, { color: colors.accent, fontFamily: fonts.body }]}
+                      >
+                        {t("profileSchoolError")}
+                      </Text>
+                    ) : null}
+                  </>
+                ) : (
+                  <View style={styles.createSchoolForm}>
+                    <Text
+                      style={[styles.note, { color: colors.textMuted, fontFamily: fonts.body }]}
+                    >
+                      {t("profileSchoolCreateDesc")}
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: colors.bg,
+                          borderColor: colors.border,
+                          color: colors.text,
+                          fontFamily: fonts.bodyBold,
+                        },
+                      ]}
+                      value={createSchoolName}
+                      onChangeText={setCreateSchoolName}
+                      placeholder={t("profileSchoolNameLabel")}
+                      placeholderTextColor={colors.textMuted}
+                      maxLength={60}
+                    />
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: colors.bg,
+                          borderColor: colors.border,
+                          color: colors.text,
+                          fontFamily: fonts.bodyBold,
+                        },
+                      ]}
+                      value={createDistrict}
+                      onChangeText={setCreateDistrict}
+                      placeholder={`${t("profileDistrictLabel")} (optional, e.g. Lalitpur)`}
+                      placeholderTextColor={colors.textMuted}
+                      maxLength={40}
+                    />
+                    {createError ? (
+                      <Text
+                        style={[styles.error, { color: colors.accent, fontFamily: fonts.body }]}
+                      >
+                        {createError}
+                      </Text>
+                    ) : null}
+                    <PrimaryButton
+                      label={t("profileCreateBtn")}
+                      onPress={onCreateSchool}
+                      loading={creatingSchool}
+                      disabled={!createSchoolName.trim() || creatingSchool}
+                    />
+                  </View>
+                )}
               </>
             )}
           </Card>
@@ -730,5 +958,75 @@ const styles = StyleSheet.create({
   },
   savedText: {
     textAlign: "center",
+  },
+  schoolHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  verifiedBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.chip,
+  },
+  verifiedBadgeText: {
+    fontSize: 11,
+  },
+  clanDetailsBox: {
+    gap: spacing.sm,
+  },
+  clanDistrictText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  clanStatsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginVertical: spacing.xs,
+  },
+  clanStatCell: {
+    flex: 1,
+    padding: spacing.sm,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  clanStatLabel: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  clanStatValue: {
+    fontSize: 16,
+    marginTop: 2,
+  },
+  shareClanBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.button,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.xs,
+  },
+  shareClanText: {
+    fontSize: 14,
+  },
+  clanTabSwitcher: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  clanTabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clanTabText: {
+    fontSize: 13,
+  },
+  createSchoolForm: {
+    gap: spacing.sm,
   },
 });

@@ -132,8 +132,46 @@ export interface MixConfig {
 export interface School {
   id: number;
   name: string;
+  district?: string;
   joinCode: string;
   studentCount: number;
+  verified?: boolean;
+  badge?: string;
+  totalXp?: number;
+}
+
+// ---- Memory Packs ----
+
+export interface MemoryPair {
+  id: number;
+  q: string;
+  a: string;
+  emoji?: string;
+}
+
+export interface MemoryPack {
+  id: number;
+  titleEn: string;
+  titleNe?: string;
+  subject: string;
+  difficulty: number;
+  timeLimitSec: number;
+  pairs: MemoryPair[];
+  createdAt?: string;
+}
+
+// ---- Reported Questions ----
+
+export interface ReportedQuestion {
+  id: number;
+  questionId: number;
+  reporterUserId: number;
+  reporterName?: string;
+  reason: string;
+  details?: string;
+  status: "open" | "resolved";
+  createdAt: string;
+  questionText?: string;
 }
 
 // ---- Analytics ----

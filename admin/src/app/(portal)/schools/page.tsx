@@ -176,8 +176,12 @@ export default function SchoolsPage() {
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/60 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 <th className="px-4 py-3">School</th>
+                <th className="px-4 py-3">District</th>
                 <th className="px-4 py-3">Join code</th>
                 <th className="px-4 py-3 text-right">Students</th>
+                <th className="px-4 py-3 text-right">Clan XP</th>
+                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -187,13 +191,66 @@ export default function SchoolsPage() {
                   className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50"
                 >
                   <td className="px-4 py-3 font-medium text-slate-700">
-                    {s.name}
+                    <div className="flex items-center gap-2">
+                      <span>{s.name}</span>
+                      {s.verified && (
+                        <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-600 border border-emerald-200">
+                          ✓ Verified
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {s.district || "—"}
                   </td>
                   <td className="px-4 py-3">
                     <JoinCodeChip code={s.joinCode} />
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-slate-600">
+                  <td className="px-4 py-3 text-right tabular-nums text-slate-600 font-semibold">
                     {s.studentCount.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-amber-600 font-bold">
+                    {(s.totalXp ?? 0).toLocaleString()} XP
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api(`/api/admin/schools/${s.id}/verify`, {
+                            method: "POST",
+                            body: { verified: !s.verified },
+                          });
+                          toast(`Updated verification for ${s.name}`, "success");
+                          reload();
+                        } catch {
+                          toast("Could not update verification status", "error");
+                        }
+                      }}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        s.verified
+                          ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {s.verified ? "Verified" : "Unverified"}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Delete ${s.name}? This will remove students from this school clan.`)) return;
+                        try {
+                          await api(`/api/admin/schools/${s.id}`, { method: "DELETE" });
+                          toast(`School ${s.name} deleted`, "success");
+                          reload();
+                        } catch {
+                          toast("Could not delete school", "error");
+                        }
+                      }}
+                      className="text-xs text-rose-500 hover:text-rose-700 font-semibold"
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}

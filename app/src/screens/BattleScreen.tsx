@@ -125,6 +125,14 @@ export function BattleScreen() {
     setQueuePosition(null);
   };
 
+  const startBotBattle = async () => {
+    if (!token) return;
+    const socket = await connectBattleSocket(token);
+    socket.emit("battle:bot");
+    setSearching(true);
+    setQueuePosition(null);
+  };
+
   const cancelQueue = async () => {
     const socket = await connectBattleSocket(token ?? "");
     socket.emit("queue:leave", {});
@@ -275,11 +283,22 @@ export function BattleScreen() {
               >
                 {t("battleQuickSub")}
               </Text>
-              <PrimaryButton
-                label={t("battleQuick")}
-                onPress={startQueue}
-                variant="accent"
-              />
+              <View style={styles.heroButtonCol}>
+                <PrimaryButton
+                  label={t("battleQuick")}
+                  onPress={startQueue}
+                  variant="accent"
+                />
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={[styles.botPracticeBtn, { borderColor: colors.primary, backgroundColor: colors.primarySoft }]}
+                  onPress={startBotBattle}
+                >
+                  <Text style={[styles.botPracticeText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                    🤖 Practice with AI Bot (Instant · 0s)
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </Card>
@@ -491,6 +510,23 @@ function createStyles(colors: ColorTokens) {
     textAlign: "center",
     lineHeight: 18,
     marginBottom: spacing.xs,
+  },
+  heroButtonCol: {
+    width: "100%",
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  botPracticeBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.button,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  botPracticeText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   searchingBox: {
     alignItems: "center",

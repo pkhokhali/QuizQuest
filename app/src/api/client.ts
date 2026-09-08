@@ -9,6 +9,12 @@ import {
   HomeData,
   Digest,
   JoinSchoolResponse,
+  CreateSchoolBody,
+  CreateSchoolResponse,
+  SchoolClanData,
+  SchoolLeaderboardItem,
+  MemoryPack,
+  SubmitMemoryResponse,
   LeaderboardResponse,
   LeaderboardScope,
   RequestOtpResponse,
@@ -129,8 +135,44 @@ export function joinSchool(joinCode: string): Promise<JoinSchoolResponse> {
   return request("/api/school/join", { method: "POST", body: { joinCode } });
 }
 
+export function createSchool(body: CreateSchoolBody): Promise<CreateSchoolResponse> {
+  return request("/api/school/create", { method: "POST", body });
+}
+
+export function getMySchool(): Promise<{ school: SchoolClanData | null }> {
+  return request("/api/school/my");
+}
+
+export function getSchoolLeaderboard(): Promise<{ schools: SchoolLeaderboardItem[] }> {
+  return request("/api/school/leaderboard");
+}
+
 export function leaveSchool(): Promise<{ user: User }> {
   return request("/api/school/leave", { method: "POST" });
+}
+
+// ---- Memory Block Quiz ----
+
+export function getMemoryPacks(): Promise<{ packs: MemoryPack[] }> {
+  return request("/api/memory/packs");
+}
+
+export function submitMemoryScore(body: {
+  packId: number;
+  moves: number;
+  timeMs: number;
+}): Promise<SubmitMemoryResponse> {
+  return request("/api/memory/submit", { method: "POST", body });
+}
+
+// ---- Question Reporting ----
+
+export function reportQuestion(body: {
+  questionId: number;
+  reason: string;
+  details?: string;
+}): Promise<{ ok: boolean; message: string }> {
+  return request("/api/question/report", { method: "POST", body });
 }
 
 export function getHome(): Promise<HomeData> {

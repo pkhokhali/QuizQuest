@@ -256,25 +256,107 @@ router.put("/mix-config", (req, res) => {
 // ---------- Schools ----------
 
 router.get("/schools", (req, res) => {
-  const rows = db.prepare("SELECT * FROM schools ORDER BY id").all();
+  const rows = db.prepare("SELECT * FROM schools ORDER BY id DESC").all();
   const schools = rows.map((s) => ({
     id: s.id,
     name: s.name,
+    district: s.district || "Kathmandu",
     joinCode: s.join_code,
+    verified: Boolean(s.verified),
+    badge: s.badge || "🏫",
     studentCount: db.prepare("SELECT COUNT(*) c FROM users WHERE school_id = ?").get(s.id).c,
+    totalXp: db.prepare("SELECT COALESCE(SUM(xp), 0) s FROM users WHERE school_id = ?").get(s.id).s,
   }));
   res.json({ schools });
 });
 
 router.post("/schools", (req, res) => {
   const name = String(req.body.name || "").trim();
+  const district = String(req.body.district || "Kathmandu").trim();
   if (!name) return res.status(400).json({ error: "School name required" });
   let joinCode;
   do {
     joinCode = "SCH-" + Math.random().toString(36).slice(2, 8).toUpperCase();
   } while (db.prepare("SELECT 1 FROM schools WHERE join_code = ?").get(joinCode));
-  const info = db.prepare("INSERT INTO schools (name, join_code) VALUES (?, ?)").run(name, joinCode);
-  res.json({ school: { id: info.lastInsertRowid, name, joinCode, studentCount: 0 } });
+  const info = db.prepare("INSERT INTO schools (name, district, join_code) VALUES (?, ?, ?)").run(name, district, joinCode);
+  res.json({ school: { id: info.lastInsertRowid, name, district, joinCode, verified: false, studentCount: 0, totalXp: 0 } });
+});
+
+router.post("/schools/:id/verify", (req, res) => {
+  const school = db.prepare("SELECT * FROM schools WHERE id = ?").get(req.params.id);
+  if (!school) return res.status(404).json({ error: "School not found" });
+  const nextVerified = school.verified ? 0 : 1;
+  db.prepare("UPDATE schools SET verified = ? WHERE id = ?").run(nextVerified, school.id);
+  res.json({ ok: true, verified: Boolean(nextVerified) });
+});
+
+router.delete("/schools/:id", (req, res) => {
+  db.prepare("UPDATE users SET school_id = NULL WHERE school_id = ?").run(req.params.id);
+  db.prepare("DELETE FROM schools WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ---------- Memory Packs CMS ----------
+
+router.get("/memory/packs", (req, res) => {
+  const rows = db.prepare("SELECT * FROM memory_packs ORDER BY id DESC").all();
+  const packs = rows.map((r) => ({
+    id: r.id,
+    titleEn: r.title_en,
+    titleNe: r.title_ne,
+    subject: r.subject,
+    difficulty: r.difficulty,
+    timeLimitSec: r.time_limit_sec,
+    pairs: JSON.parse(r.pairs || "[]"),
+    playsCount: db.prepare("SELECT COUNT(*) c FROM memory_scores WHERE pack_id = ?").get(r.id).c,
+  }));
+  res.json({ packs });
+});
+
+router.post("/memory/packs", (req, res) => {
+  const b = req.body || {};
+  if (!b.titleEn || !b.subject || !Array.isArray(b.pairs) || b.pairs.length < 3) {
+    return res.status(400).json({ error: "titleEn, subject, and at least 3 pairs are required" });
+  }
+  const info = db.prepare(`
+    INSERT INTO memory_packs (title_en, title_ne, subject, difficulty, time_limit_sec, pairs)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    String(b.titleEn).trim(),
+    b.titleNe ? String(b.titleNe).trim() : null,
+    String(b.subject).trim(),
+    Number(b.difficulty) || 1,
+    Number(b.timeLimitSec) || 60,
+    JSON.stringify(b.pairs)
+  );
+  res.json({ id: info.lastInsertRowid, ok: true });
+});
+
+router.delete("/memory/packs/:id", (req, res) => {
+  db.prepare("DELETE FROM memory_packs WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ---------- Reported Questions Queue ----------
+
+router.get("/reports", (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.id, r.user_id as userId, r.question_id as questionId, r.reason, r.details, r.status, r.created_at as createdAt,
+           u.name as reporterName,
+           q.text_en as questionText, q.subject
+    FROM reported_questions r
+    LEFT JOIN users u ON u.id = r.user_id
+    LEFT JOIN questions q ON q.id = r.question_id
+    ORDER BY r.id DESC
+    LIMIT 100
+  `).all();
+  res.json({ reports: rows });
+});
+
+router.post("/reports/:id/resolve", (req, res) => {
+  const status = req.body.status === "dismissed" ? "dismissed" : "resolved";
+  db.prepare("UPDATE reported_questions SET status = ? WHERE id = ?").run(status, req.params.id);
+  res.json({ ok: true, status });
 });
 
 // ---------- Analytics ----------

@@ -135,6 +135,43 @@ CREATE TABLE IF NOT EXISTS schools (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   join_code TEXT UNIQUE NOT NULL,
+  district TEXT DEFAULT 'Kathmandu',
+  creator_user_id INTEGER,
+  verified INTEGER NOT NULL DEFAULT 0,
+  badge TEXT DEFAULT '🏫',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS memory_packs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title_en TEXT NOT NULL,
+  title_ne TEXT,
+  subject TEXT NOT NULL,
+  difficulty INTEGER NOT NULL DEFAULT 1,
+  pairs TEXT NOT NULL,
+  time_limit_sec INTEGER NOT NULL DEFAULT 60,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS memory_scores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  pack_id INTEGER NOT NULL,
+  moves INTEGER NOT NULL,
+  time_ms INTEGER NOT NULL,
+  stars INTEGER NOT NULL DEFAULT 1,
+  xp_earned INTEGER NOT NULL DEFAULT 0,
+  date TEXT NOT NULL DEFAULT (date('now')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS reported_questions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  question_id INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  details TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -145,5 +182,81 @@ CREATE TABLE IF NOT EXISTS push_tokens (
   PRIMARY KEY (user_id, token)
 );
 `);
+
+// Safe column migrations for existing databases
+try {
+  db.exec("ALTER TABLE schools ADD COLUMN district TEXT DEFAULT 'Kathmandu'");
+} catch {}
+try {
+  db.exec("ALTER TABLE schools ADD COLUMN creator_user_id INTEGER");
+} catch {}
+try {
+  db.exec("ALTER TABLE schools ADD COLUMN verified INTEGER NOT NULL DEFAULT 0");
+} catch {}
+try {
+  db.exec("ALTER TABLE schools ADD COLUMN badge TEXT DEFAULT '🏫'");
+} catch {}
+
+// Seed default memory packs if none exist
+const packCount = db.prepare("SELECT COUNT(*) c FROM memory_packs").get().c;
+if (packCount === 0) {
+  const seedPacks = [
+    {
+      title_en: "Nepal Heritage & Wonders",
+      title_ne: "नेपालका सम्पदा र स्थलहरू",
+      subject: "nepal",
+      difficulty: 1,
+      time_limit_sec: 60,
+      pairs: JSON.stringify([
+        { id: 1, q: "Highest Peak in the World", a: "Mt. Everest (8,848.86m)", emoji: "🏔️" },
+        { id: 2, q: "Capital of Nepal", a: "Kathmandu", emoji: "🏛️" },
+        { id: 3, q: "Birthplace of Lord Buddha", a: "Lumbini", emoji: "🌸" },
+        { id: 4, q: "Deepest Lake in Nepal", a: "Shey Phoksundo", emoji: "🌊" },
+        { id: 5, q: "National Animal of Nepal", a: "Cow (गौ)", emoji: "🐄" },
+        { id: 6, q: "City of Lakes", a: "Pokhara", emoji: "⛵" },
+      ]),
+    },
+    {
+      title_en: "Science & Cosmos Match",
+      title_ne: "विज्ञान र ब्रह्माण्ड",
+      subject: "science",
+      difficulty: 1,
+      time_limit_sec: 60,
+      pairs: JSON.stringify([
+        { id: 1, q: "Chemical Formula for Water", a: "H₂O", emoji: "💧" },
+        { id: 2, q: "The Red Planet", a: "Mars", emoji: "🔴" },
+        { id: 3, q: "Speed of Light", a: "300,000 km/s", emoji: "⚡" },
+        { id: 4, q: "Plant Food Making Process", a: "Photosynthesis", emoji: "🌿" },
+        { id: 5, q: "Force Formula", a: "Mass × Acceleration", emoji: "🚀" },
+        { id: 6, q: "Earth's Natural Satellite", a: "The Moon", emoji: "🌙" },
+      ]),
+    },
+    {
+      title_en: "World Capitals & Landmarks",
+      title_ne: "विश्वका राजधानी र पहिचान",
+      subject: "geography",
+      difficulty: 2,
+      time_limit_sec: 50,
+      pairs: JSON.stringify([
+        { id: 1, q: "France", a: "Paris (Eiffel Tower)", emoji: "🗼" },
+        { id: 2, q: "Japan", a: "Tokyo", emoji: "🗾" },
+        { id: 3, q: "United Kingdom", a: "London (Big Ben)", emoji: "💂" },
+        { id: 4, q: "Egypt", a: "Cairo (Pyramids)", emoji: "🏜️" },
+        { id: 5, q: "Australia", a: "Canberra", emoji: "🦘" },
+        { id: 6, q: "India", a: "New Delhi", emoji: "🕌" },
+      ]),
+    },
+  ];
+
+  const insertPack = db.prepare(`
+    INSERT INTO memory_packs (title_en, title_ne, subject, difficulty, time_limit_sec, pairs)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  for (const p of seedPacks) {
+    insertPack.run(p.title_en, p.title_ne, p.subject, p.difficulty, p.time_limit_sec, p.pairs);
+  }
+  console.log("Seeded default memory card packs.");
+}
 
 export default db;

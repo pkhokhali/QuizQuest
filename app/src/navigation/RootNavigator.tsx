@@ -16,6 +16,7 @@ import { AwardsScreen } from "../screens/AwardsScreen";
 import { BattleLiveScreen } from "../screens/BattleLiveScreen";
 import { BattleScreen } from "../screens/BattleScreen";
 import { HomeScreen } from "../screens/HomeScreen";
+import { MemoryPlayScreen } from "../screens/MemoryPlayScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { QuizPlayScreen } from "../screens/QuizPlayScreen";
@@ -172,6 +173,11 @@ export function RootNavigator() {
             name="BattleLive"
             component={BattleLiveScreen}
             options={{ animation: "fade", gestureEnabled: false }}
+          />
+          <RootStack.Screen
+            name="MemoryPlay"
+            component={MemoryPlayScreen}
+            options={{ animation: "slide_from_bottom" }}
           />
         </RootStack.Navigator>
       )}

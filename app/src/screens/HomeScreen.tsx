@@ -132,6 +132,27 @@ export function HomeScreen() {
                     Lv. {data.user.level}
                   </Text>
                 </View>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => navigation.navigate("Profile" as never)}
+                  style={[
+                    styles.clanPill,
+                    {
+                      backgroundColor: colors.primarySoft,
+                      borderColor: colors.primary,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.clanPillText,
+                      { color: colors.primary, fontFamily: fonts.bodyBold },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    🏫 {data.user.schoolName ? data.user.schoolName : "School Clan"}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               <Text
@@ -404,6 +425,95 @@ export function HomeScreen() {
               </Card>
             </TouchableOpacity>
           )}
+
+          {/* Memory Block Quiz Mode Card */}
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={() => navigation.navigate("MemoryPlay")}
+          >
+            <Card
+              style={StyleSheet.flatten([
+                styles.memoryCard,
+                { borderColor: colors.accent, borderWidth: 1.5 },
+              ])}
+            >
+              <View style={styles.questHeaderRow}>
+                <View
+                  style={[
+                    styles.questBountyBadge,
+                    {
+                      backgroundColor: "rgba(251, 146, 60, 0.18)",
+                      borderColor: colors.accent,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.questBountyText,
+                      { color: colors.accent, fontFamily: fonts.bodyBold },
+                    ]}
+                  >
+                    🧩 {t("homeMemoryTitle").toUpperCase()} · ARCADE
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.memoryTimerPill,
+                    { backgroundColor: colors.bgMid, borderColor: colors.border },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.memoryTimerText,
+                      { color: colors.textMuted, fontFamily: fonts.bodyBold },
+                    ]}
+                  >
+                    ⏱ 60s Sprint
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.questMainContent}>
+                <View
+                  style={[
+                    styles.questIconBox,
+                    { backgroundColor: colors.bgMid, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={{ fontSize: 32 }}>🃏</Text>
+                </View>
+                <View style={styles.questBody}>
+                  <Text
+                    style={[
+                      styles.questTitle,
+                      { color: colors.text, fontFamily: fonts.display },
+                    ]}
+                  >
+                    {t("homeMemoryTitle")}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.questMeta,
+                      { color: colors.textMuted, fontFamily: fonts.body },
+                    ]}
+                  >
+                    {t("homeMemorySub")}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[styles.memoryCta, { backgroundColor: colors.accent }]}>
+                <Text
+                  style={[
+                    styles.questCtaText,
+                    { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  {t("homeMemoryPlay")} →
+                </Text>
+              </View>
+            </Card>
+          </TouchableOpacity>
 
           {/* Today's Digest Card */}
           {digest && (
@@ -725,4 +835,34 @@ const styles = StyleSheet.create({
   },
   awardIcon: { fontSize: 28 },
   awardName: { fontSize: 11, textAlign: "center" },
+  clanPill: {
+    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 10,
+    borderWidth: 1,
+    maxWidth: 160,
+  },
+  clanPillText: {
+    fontSize: 10,
+    letterSpacing: 0.3,
+  },
+  memoryCard: {
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  memoryTimerPill: {
+    paddingVertical: 3,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+  },
+  memoryTimerText: {
+    fontSize: 11,
+  },
+  memoryCta: {
+    borderRadius: radius.button,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

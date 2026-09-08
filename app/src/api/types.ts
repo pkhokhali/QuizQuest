@@ -273,3 +273,85 @@ export interface BattleEndEvent {
   xpEarned: number;
   newAwards: Award[];
 }
+
+// ---- School Clan Types ----
+
+export interface CreateSchoolBody {
+  name: string;
+  district?: string;
+}
+
+export interface CreateSchoolResponse {
+  user: User;
+  school: {
+    id: number;
+    name: string;
+    district: string;
+    joinCode: string;
+    code?: string;
+    membersCount: number;
+    totalXp: number;
+  };
+}
+
+export interface SchoolClanMember {
+  id: number;
+  name: string;
+  avatar: AvatarInfo;
+  grade?: number;
+  xp: number;
+  streak: number;
+  isMe: boolean;
+}
+
+export interface SchoolClanData {
+  id: number;
+  name: string;
+  district: string;
+  joinCode: string;
+  code?: string;
+  verified: boolean;
+  badge: string;
+  membersCount: number;
+  totalXp: number;
+  members: SchoolClanMember[];
+}
+
+export interface SchoolLeaderboardItem {
+  id: number;
+  name: string;
+  district: string;
+  joinCode: string;
+  badge: string;
+  verified: boolean;
+  membersCount: number;
+  totalXp: number;
+  rank: number;
+}
+
+// ---- Memory Block Quiz Types ----
+
+export interface MemoryPair {
+  id: number;
+  q: string;
+  a: string;
+  emoji?: string;
+}
+
+export interface MemoryPack {
+  id: number;
+  titleEn: string;
+  titleNe?: string;
+  subject: string;
+  difficulty: number;
+  timeLimitSec: number;
+  pairs: MemoryPair[];
+}
+
+export interface SubmitMemoryResponse {
+  stars: number;
+  moves: number;
+  timeMs: number;
+  xpEarned: number;
+  user: User;
+}
