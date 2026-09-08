@@ -15,7 +15,14 @@ export function getBuiltInBaseUrl(): string {
 /** Saved on the login screen — overrides the baked-in URL (same-Wi‑Fi testing). */
 export async function getBaseUrl(): Promise<string> {
   const override = await AsyncStorage.getItem(API_BASE_KEY);
-  if (override?.trim()) return override.trim().replace(/\/$/, "");
+  if (override?.trim()) {
+    const trimmed = override.trim().replace(/\/$/, "");
+    if (trimmed.includes("fly.dev")) {
+      await AsyncStorage.removeItem(API_BASE_KEY);
+      return getBuiltInBaseUrl();
+    }
+    return trimmed;
+  }
   return getBuiltInBaseUrl();
 }
 

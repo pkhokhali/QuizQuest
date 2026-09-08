@@ -78,9 +78,9 @@ export function PhoneScreen({ navigation }: Props) {
     (async () => {
       const url = await getBaseUrl();
       const builtIn = getBuiltInBaseUrl();
-      if (url && !url.includes("localhost") && !url.includes("127.0.0.1")) {
+      if (url && !url.includes("localhost") && !url.includes("127.0.0.1") && !url.includes("fly.dev")) {
         setServerUrl(url);
-      } else if (builtIn && !builtIn.includes("localhost")) {
+      } else if (builtIn && !builtIn.includes("localhost") && !builtIn.includes("fly.dev")) {
         setServerUrl(builtIn);
       }
     })();
