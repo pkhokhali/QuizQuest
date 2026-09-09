@@ -1,0 +1,112 @@
+name: Build Android App Bundle (AAB)
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      build_method:
+        description: "Build method: 'eas-local' (uses Expo remote signing credentials) or 'gradle' (native bundleRelease)"
+        required: true
+        default: "eas-local"
+        type: choice
+        options:
+          - eas-local
+          - gradle
+
+permissions:
+  contents: write # Needed to attach the AAB to tagged releases
+
+jobs:
+  build-aab:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install npm dependencies
+        run: npm ci
+        working-directory: app
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      # Option 1: EAS Local Build with managed credentials (Default)
+      - name: Build AAB via EAS Local
+        if: ${{ (github.event.inputs.build_method == 'eas-local' || github.event.inputs.build_method == '') && secrets.EXPO_TOKEN != '' }}
+        run: |
+          echo "Building production AAB using EAS local runner with Expo credentials..."
+          npx eas build --platform android --profile production --local --non-interactive --output QuizQuest.aab
+          cp QuizQuest.aab ../QuizQuest.aab
+        working-directory: app
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_API_URL: "https://quiz.prabinkhokhali.com.np"
+
+      # Option 2: Fallback to Gradle bundleRelease (if no EXPO_TOKEN or build_method is gradle)
+      - name: Build AAB via Gradle
+        if: ${{ github.event.inputs.build_method == 'gradle' || (github.event.inputs.build_method == 'eas-local' && secrets.EXPO_TOKEN == '') }}
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "::warning::EXPO_TOKEN secret is not set. Building AAB via Gradle directly. Note: For Google Play upload, ensure the signing key matches your existing Play Store upload key, or add EXPO_TOKEN to repository secrets."
+          fi
+          echo "Generating native Android project..."
+          npx expo prebuild --platform android --no-install
+          cd android
+          echo "Compiling bundleRelease..."
+          ./gradlew bundleRelease --no-daemon
+          cd ../..
+          cp app/android/app/build/outputs/bundle/release/app-release.aab QuizQuest.aab
+        working-directory: app
+        env:
+          EXPO_PUBLIC_API_URL: "https://quiz.prabinkhokhali.com.np"
+
+      - name: Verify AAB Generated
+        run: |
+          if [ ! -f QuizQuest.aab ]; then
+            echo "::error::QuizQuest.aab was not generated."
+            exit 1
+          fi
+          ls -lh QuizQuest.aab
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuizQuest-aab
+          path: QuizQuest.aab
+          retention-days: 30
+
+      # Tagged builds (git tag v1.1.0 && git push --tags) also publish the AAB
+      # as a GitHub Release for direct downloading.
+      - name: Attach AAB to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: QuizQuest.aab
