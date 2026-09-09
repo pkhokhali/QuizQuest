@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,8 +11,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ApiError, loginWithEmail, pingServer, verifyFirebase } from "../../api/client";
-import { getBaseUrl, getBuiltInBaseUrl, setBaseUrl } from "../../api/config";
+import { ApiError, loginWithEmail, verifyFirebase } from "../../api/client";
+import { getBaseUrl } from "../../api/config";
 import { Atmosphere } from "../../components/Atmosphere";
 import { BrandMark } from "../../components/BrandMark";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -23,6 +23,7 @@ import { useAuth } from "../../state/AuthContext";
 import { fonts, radius, spacing } from "../../theme";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../firebase";
+import { logLoginEvent } from "../../utils/analytics";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Phone">;
 
@@ -58,68 +59,25 @@ export function PhoneScreen({ navigation }: Props) {
   const { t } = useI18n();
   const { colors } = useTheme();
   const { signIn } = useAuth();
-  
+
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  
-  const [serverUrl, setServerUrl] = useState(getBuiltInBaseUrl());
   const [loading, setLoading] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [serverOk, setServerOk] = useState<boolean | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const valid = email.trim().length >= 5 && password.trim().length >= 6;
-  const serverValid = /^https?:\/\/.+/.test(serverUrl.trim());
-
-  useEffect(() => {
-    (async () => {
-      const url = await getBaseUrl();
-      const builtIn = getBuiltInBaseUrl();
-      if (url && !url.includes("localhost") && !url.includes("127.0.0.1") && !url.includes("fly.dev")) {
-        setServerUrl(url);
-      } else if (builtIn && !builtIn.includes("localhost") && !builtIn.includes("fly.dev")) {
-        setServerUrl(builtIn);
-      }
-    })();
-  }, []);
-
-  const onTestServer = async () => {
-    if (!serverValid) return;
-    setTesting(true);
-    setError(null);
-    setServerOk(null);
-    await setBaseUrl(serverUrl);
-    const result = await pingServer(serverUrl);
-    setTesting(false);
-    setServerOk(result.ok);
-    if (!result.ok) {
-      setError(`${t("authServerFail")} (${result.detail})`);
-    }
-  };
 
   const onSubmit = async () => {
     if (!valid) {
-      setError("Please enter a valid email and password (min 6 characters).");
-      return;
-    }
-    if (!serverValid) {
-      setError(t("errorNetwork"));
+      setError("Please enter a valid email and password (minimum 6 characters).");
       return;
     }
     setError(null);
     setLoading(true);
+
     try {
-      await setBaseUrl(serverUrl);
-      const ping = await pingServer(serverUrl);
-      if (!ping.ok) {
-        setError(`${t("authServerFail")} (${ping.detail})`);
-        setLoading(false);
-        return;
-      }
-      
       // 1. Direct Server Email Auth (primary & reliable for test account + all users)
       try {
         const res = await loginWithEmail({
@@ -128,15 +86,15 @@ export function PhoneScreen({ navigation }: Props) {
           isSignUp,
         });
         await signIn(res.token, res.user);
+        logLoginEvent("email");
         return;
       } catch (backendErr: any) {
-        // If backend gave a specific 400 validation error (e.g. wrong password or user already exists), display it
         if (backendErr instanceof ApiError && backendErr.status === 400) {
           setError(backendErr.message);
           return;
         }
 
-        // 2. Firebase Auth fallback if server direct auth was unavailable
+        // 2. Firebase Auth fallback if direct server route was unavailable
         try {
           let userCredential;
           if (isSignUp) {
@@ -148,6 +106,7 @@ export function PhoneScreen({ navigation }: Props) {
           const idToken = await userCredential.user.getIdToken();
           const res = await verifyFirebase(idToken);
           await signIn(res.token, res.user);
+          logLoginEvent("firebase_email");
           return;
         } catch (fbErr: any) {
           throw backendErr || fbErr;
@@ -166,118 +125,32 @@ export function PhoneScreen({ navigation }: Props) {
 
   return (
     <Atmosphere>
-      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
         >
-          {/* Top Bar with subtle Server Config pill */}
-          <View style={styles.topBar}>
-            <TouchableOpacity
-              style={[
-                styles.serverPill,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                },
-              ]}
-              onPress={() => setShowAdvanced((v) => !v)}
-              accessibilityRole="button"
-              accessibilityLabel={t("authServerLabel")}
-            >
-              <Text
-                style={[
-                  styles.serverPillText,
-                  { color: colors.textMuted, fontFamily: fonts.bodyBold },
-                ]}
-              >
-                ⚙ {showAdvanced ? "Close" : "Server"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <ScrollView
             contentContainerStyle={styles.scroll}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
           >
-            {/* Collapsible Server Config Box */}
-            {showAdvanced ? (
-              <View
-                style={[
-                  styles.serverCard,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.serverTitle,
-                    { color: colors.text, fontFamily: fonts.bodyBold },
-                  ]}
-                >
-                  {t("authServerLabel")}
-                </Text>
-                <Text
-                  style={[
-                    styles.hint,
-                    { color: colors.textMuted, fontFamily: fonts.body },
-                  ]}
-                >
-                  {t("authServerHint")}
-                </Text>
-                <TextInput
-                  style={[
-                    styles.inputServer,
-                    {
-                      backgroundColor: colors.bgMid,
-                      borderColor: colors.border,
-                      color: colors.text,
-                      fontFamily: fonts.body,
-                    },
-                  ]}
-                  value={serverUrl}
-                  onChangeText={(v) => {
-                    setServerUrl(v);
-                    setServerOk(null);
-                  }}
-                  placeholder={t("authServerPlaceholder")}
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                />
-                <PrimaryButton
-                  label={t("authTestServer")}
-                  onPress={onTestServer}
-                  variant="ghost"
-                  loading={testing}
-                  disabled={!serverValid || testing}
-                  style={styles.testBtn}
-                />
-                {serverOk ? (
-                  <Text
-                    style={[
-                      styles.serverOk,
-                      { color: colors.green, fontFamily: fonts.bodyBold },
-                    ]}
-                  >
-                    ✓ {t("authServerOk")}
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-
             {/* Hero Brand Section */}
-            <View style={styles.hero}>
-              <BrandMark size="hero" />
+            <View style={styles.heroSection}>
+              <View style={[styles.brandGlow, { backgroundColor: colors.primarySoft }]}>
+                <BrandMark size="hero" />
+              </View>
+              <Text style={[styles.heroTitle, { color: colors.text, fontFamily: fonts.display }]}>
+                QuizQuest
+              </Text>
+              <Text style={[styles.heroSubtitle, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                Battle your mind · Climb ranks · Level up
+              </Text>
             </View>
 
-            {/* Floating Auth Card */}
+            {/* Auth Glass Card */}
             <View
               style={[
                 styles.authCard,
@@ -287,7 +160,7 @@ export function PhoneScreen({ navigation }: Props) {
                 },
               ]}
             >
-              {/* Segmented Mode Selector */}
+              {/* Modern Segmented Tab Switcher */}
               <View
                 style={[
                   styles.tabContainer,
@@ -297,12 +170,19 @@ export function PhoneScreen({ navigation }: Props) {
                 <TouchableOpacity
                   style={[
                     styles.tabBtn,
-                    !isSignUp && [styles.tabBtnActive, { backgroundColor: colors.primary }],
+                    !isSignUp && [
+                      styles.tabBtnActive,
+                      {
+                        backgroundColor: colors.primary,
+                        shadowColor: colors.primary,
+                      },
+                    ],
                   ]}
                   onPress={() => {
                     setIsSignUp(false);
                     setError(null);
                   }}
+                  activeOpacity={0.85}
                   accessibilityRole="button"
                 >
                   <Text
@@ -317,15 +197,23 @@ export function PhoneScreen({ navigation }: Props) {
                     Sign In
                   </Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
                   style={[
                     styles.tabBtn,
-                    isSignUp && [styles.tabBtnActive, { backgroundColor: colors.primary }],
+                    isSignUp && [
+                      styles.tabBtnActive,
+                      {
+                        backgroundColor: colors.primary,
+                        shadowColor: colors.primary,
+                      },
+                    ],
                   ]}
                   onPress={() => {
                     setIsSignUp(true);
                     setError(null);
                   }}
+                  activeOpacity={0.85}
                   accessibilityRole="button"
                 >
                   <Text
@@ -344,59 +232,63 @@ export function PhoneScreen({ navigation }: Props) {
 
               {/* Email Field */}
               <View style={styles.fieldGroup}>
-                <Text
+                <View style={styles.labelRow}>
+                  <Text style={[styles.fieldLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                    EMAIL ADDRESS
+                  </Text>
+                </View>
+                <View
                   style={[
-                    styles.fieldLabel,
-                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
-                  ]}
-                >
-                  Email Address
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
+                    styles.inputContainer,
                     {
                       backgroundColor: colors.bgMid,
                       borderColor: colors.border,
-                      color: colors.text,
-                      fontFamily: fonts.body,
                     },
                   ]}
-                  value={email}
-                  onChangeText={(v) => {
-                    setEmail(v);
-                    if (error) setError(null);
-                  }}
-                  placeholder="student@quizquest.com"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
+                >
+                  <Text style={styles.inputPrefixIcon}>✉</Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        color: colors.text,
+                        fontFamily: fonts.body,
+                      },
+                    ]}
+                    value={email}
+                    onChangeText={(v) => {
+                      setEmail(v);
+                      if (error) setError(null);
+                    }}
+                    placeholder="student@quizquest.com"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
               </View>
 
               {/* Password Field */}
               <View style={styles.fieldGroup}>
-                <Text
-                  style={[
-                    styles.fieldLabel,
-                    { color: colors.textMuted, fontFamily: fonts.bodyBold },
-                  ]}
-                >
-                  Password
-                </Text>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.fieldLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                    PASSWORD
+                  </Text>
+                </View>
                 <View
                   style={[
-                    styles.passwordWrapper,
+                    styles.inputContainer,
                     {
                       backgroundColor: colors.bgMid,
                       borderColor: colors.border,
                     },
                   ]}
                 >
+                  <Text style={styles.inputPrefixIcon}>🔒</Text>
                   <TextInput
                     style={[
-                      styles.passwordInput,
+                      styles.textInput,
                       {
                         color: colors.text,
                         fontFamily: fonts.body,
@@ -407,7 +299,7 @@ export function PhoneScreen({ navigation }: Props) {
                       setPassword(v);
                       if (error) setError(null);
                     }}
-                    placeholder="••••••••"
+                    placeholder="At least 6 characters"
                     placeholderTextColor={colors.textMuted}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
@@ -433,8 +325,9 @@ export function PhoneScreen({ navigation }: Props) {
               {/* Error feedback banner */}
               {error ? (
                 <View style={[styles.errorBanner, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}>
-                  <Text style={[styles.error, { color: colors.danger, fontFamily: fonts.bodyBold }]}>
-                    ⚠ {error}
+                  <Text style={styles.errorIcon}>⚠</Text>
+                  <Text style={[styles.errorText, { color: colors.danger, fontFamily: fonts.bodyBold }]}>
+                    {error}
                   </Text>
                 </View>
               ) : null}
@@ -462,16 +355,16 @@ export function PhoneScreen({ navigation }: Props) {
                     { color: colors.primary, fontFamily: fonts.bodyBold },
                   ]}
                 >
-                  🧪 Fill Test Account (test2@quizquest.com)
+                  🔑 Play Store Demo Login: <Text style={{ textDecorationLine: "underline" }}>test2@quizquest.com</Text>
                 </Text>
               </TouchableOpacity>
 
               {/* Primary Action Button */}
               <PrimaryButton
-                label={isSignUp ? "Create Account" : "Sign In"}
+                label={isSignUp ? "Create Quest Account" : "Sign In to Quest"}
                 onPress={onSubmit}
                 loading={loading}
-                disabled={!valid || !serverValid}
+                disabled={!valid}
                 style={styles.submitBtn}
               />
 
@@ -482,6 +375,7 @@ export function PhoneScreen({ navigation }: Props) {
                   setIsSignUp((v) => !v);
                   setError(null);
                 }}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
@@ -504,123 +398,107 @@ export function PhoneScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  flex: { flex: 1 },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
+  safe: {
+    flex: 1,
   },
-  serverPill: {
-    paddingVertical: spacing.xs + 1,
-    paddingHorizontal: spacing.md,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  serverPillText: {
-    fontSize: 12,
+  flex: {
+    flex: 1,
   },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
     justifyContent: "center",
   },
-  hero: {
+  heroSection: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  serverCard: {
-    borderRadius: radius.card,
-    borderWidth: 1,
+  brandGlow: {
     padding: spacing.md,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
+    borderRadius: 36,
+    marginBottom: spacing.sm,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
   },
-  serverTitle: {
-    fontSize: 14,
-  },
-  hint: {
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  inputServer: {
-    borderRadius: radius.chip,
-    borderWidth: 1,
-    padding: spacing.sm + 2,
-    fontSize: 14,
-  },
-  testBtn: {
-    minHeight: 40,
-    paddingVertical: spacing.xs,
-  },
-  serverOk: {
-    fontSize: 13,
+  heroTitle: {
+    fontSize: 32,
+    letterSpacing: 0.5,
     textAlign: "center",
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    marginTop: spacing.xs,
+    textAlign: "center",
+    opacity: 0.9,
   },
   authCard: {
     borderRadius: 24,
     borderWidth: 1,
     padding: spacing.xl,
-    gap: spacing.md,
+    gap: spacing.lg,
     shadowColor: "#000000",
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   tabContainer: {
     flexDirection: "row",
     borderRadius: 14,
     borderWidth: 1,
     padding: 3,
-    marginBottom: spacing.xs,
   },
   tabBtn: {
     flex: 1,
-    paddingVertical: spacing.sm + 2,
+    paddingVertical: spacing.sm + 3,
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
   },
   tabBtnActive: {
-    elevation: 2,
-    shadowColor: "#000000",
+    elevation: 3,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   tabText: {
     fontSize: 14,
+    letterSpacing: 0.2,
   },
   fieldGroup: {
-    gap: 6,
+    gap: 7,
+  },
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   fieldLabel: {
-    fontSize: 12,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
+    fontSize: 11,
+    letterSpacing: 0.8,
   },
-  input: {
-    borderRadius: radius.button,
-    borderWidth: 1,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    fontSize: 16,
-  },
-  passwordWrapper: {
+  inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: radius.button,
     borderWidth: 1,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
+    minHeight: 52,
   },
-  passwordInput: {
+  inputPrefixIcon: {
+    fontSize: 16,
+    marginRight: spacing.sm,
+    opacity: 0.7,
+  },
+  textInput: {
     flex: 1,
     paddingVertical: spacing.md,
-    fontSize: 16,
+    fontSize: 15,
   },
   eyeBtn: {
     paddingVertical: spacing.xs,
@@ -630,14 +508,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   errorBanner: {
-    padding: spacing.sm + 2,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
     borderRadius: radius.chip,
     borderWidth: 1,
+    gap: spacing.sm,
   },
-  error: {
+  errorIcon: {
+    fontSize: 16,
+  },
+  errorText: {
+    flex: 1,
     fontSize: 13,
     lineHeight: 18,
-    textAlign: "center",
+  },
+  testCredsPill: {
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.button,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  testCredsText: {
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
   submitBtn: {
     marginTop: spacing.xs,
@@ -648,17 +544,5 @@ const styles = StyleSheet.create({
   },
   switchModeText: {
     fontSize: 14,
-  },
-  testCredsPill: {
-    paddingVertical: 10,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.button,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs,
-  },
-  testCredsText: {
-    fontSize: 12,
   },
 });

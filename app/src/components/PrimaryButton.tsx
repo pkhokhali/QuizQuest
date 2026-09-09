@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  View,
   ViewStyle,
 } from "react-native";
 import { useTheme } from "../state/ThemeContext";
@@ -98,10 +99,12 @@ export function PrimaryButton({
         {loading ? (
           <ActivityIndicator color={fg} size="small" />
         ) : (
-          <Text style={[styles.label, { color: fg, fontFamily: fonts.bodyBold }]}>
-            {icon ? icon : null}
-            {label}
-          </Text>
+          <View style={styles.contentRow}>
+            {icon ? <View style={styles.iconWrapper}>{icon}</View> : null}
+            <Text style={[styles.label, { color: fg, fontFamily: fonts.bodyBold }]}>
+              {label}
+            </Text>
+          </View>
         )}
       </Pressable>
     </Animated.View>
@@ -117,6 +120,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 52,
     borderWidth: 0,
+  },
+  contentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  iconWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   outlined: {
     borderWidth: 1.5,

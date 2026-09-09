@@ -1,0 +1,36 @@
+{
+  "project_info": {
+    "project_number": "22793264461",
+    "project_id": "quizquest-c1b37",
+    "storage_bucket": "quizquest-c1b37.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:22793264461:android:0e9b19c2c7f9c036342b04",
+        "android_client_info": {
+          "package_name": "com.pkhokhali.quizquest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDc5xJkvc74qnJNu-VEk7-yQYuNRpP51XY"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 1
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

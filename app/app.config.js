@@ -10,11 +10,15 @@ module.exports = {
       "expo-build-properties",
       {
         android: {
+          minSdkVersion: 24,
+          compileSdkVersion: 35,
+          targetSdkVersion: 35,
           usesCleartextTraffic: true,
         },
       },
     ],
     "./plugins/withNetworkSecurity.js",
+    "./plugins/withPlayGamesServices.js",
   ],
   updates: {
     url: "https://u.expo.dev/8209eeb8-c465-4463-89f5-d14dd9d2188f"

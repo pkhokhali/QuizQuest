@@ -32,6 +32,7 @@ import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { radius, spacing, fonts, ColorTokens } from "../theme";
+import { logPostScore, logUnlockAchievement } from "../utils/analytics";
 
 type Phase = "loading" | "error" | "empty" | "playing" | "submitting" | "results";
 
@@ -121,6 +122,14 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
         setResult(res);
         setPhase("results");
         refreshUser();
+
+        // Log Firebase Analytics events for Play Games leaderboards & achievements
+        logPostScore(res.score, mode === "daily" ? "daily_quiz_leaderboard" : "revenge_round_leaderboard");
+        if (res.newAwards && Array.isArray(res.newAwards)) {
+          for (const award of res.newAwards) {
+            logUnlockAchievement(award.code);
+          }
+        }
       } catch {
         setPhase("error");
       }
