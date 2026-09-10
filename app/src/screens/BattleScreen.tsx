@@ -13,13 +13,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { addFriend, getBattleHistory, getFriends } from "../api/client";
+import { addFriend, getBattleHistory, getFriends, getMySchool } from "../api/client";
 import {
   BattleHistoryItem,
   BattleStartEvent,
   ChallengeIncomingEvent,
   Friend,
   QueueWaitingEvent,
+  SchoolClanMember,
 } from "../api/types";
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Atmosphere } from "../components/Atmosphere";
@@ -51,6 +52,8 @@ export function BattleScreen() {
   const [addError, setAddError] = useState(false);
   const [codeShared, setCodeShared] = useState(false);
   const [challengedIds, setChallengedIds] = useState<number[]>([]);
+  const [schoolMembers, setSchoolMembers] = useState<SchoolClanMember[] | null>(null);
+  const [schoolName, setSchoolName] = useState<string | null>(null);
 
   const spin = useRef(new Animated.Value(0)).current;
 
@@ -71,17 +74,32 @@ export function BattleScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [f, h] = await Promise.all([getFriends(), getBattleHistory()]);
+      const [f, h, s] = await Promise.all([
+        getFriends(),
+        getBattleHistory(),
+        getMySchool(),
+      ]);
       setFriends(f.friends);
       setHistory(h.battles);
+      if (s.school) {
+        setSchoolName(s.school.name);
+        // Show other members (not the current user)
+        setSchoolMembers(s.school.members.filter((m) => !m.isMe));
+      } else {
+        setSchoolMembers([]);
+        setSchoolName(null);
+      }
     } catch {
       setFriends((prev) => prev ?? []);
       setHistory((prev) => prev ?? []);
+      setSchoolMembers((prev) => prev ?? []);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
+      // Reset challenged state so re-challenges work after returning from battle
+      setChallengedIds([]);
       loadData();
     }, [loadData])
   );
@@ -372,6 +390,51 @@ export function BattleScreen() {
           </View>
         )}
 
+        {/* School Members */}
+        {schoolMembers !== null && schoolMembers.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>
+              🏫 {schoolName ?? "School"} Members
+            </Text>
+            <Text style={styles.schoolSubtitle}>
+              Challenge your classmates directly — no friend code needed!
+            </Text>
+            <View style={styles.friendList}>
+              {schoolMembers.map((member) => {
+                const alreadyFriend = (friends ?? []).some(
+                  (f) => f.userId === member.id
+                );
+                return (
+                  <Card key={member.id} style={styles.friendCard}>
+                    <AvatarCircle avatar={member.avatar} size={44} />
+                    <View style={styles.friendBody}>
+                      <Text style={styles.friendName}>{member.name}</Text>
+                      <Text style={styles.friendMeta}>
+                        {member.grade ? `Grade ${member.grade} · ` : ""}
+                        ⭐ {member.xp} XP · 🔥{member.streak}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.challengeBtn,
+                        challengedIds.includes(member.id) && styles.challengeSent,
+                      ]}
+                      onPress={() => sendChallenge(member.id)}
+                      disabled={challengedIds.includes(member.id)}
+                    >
+                      <Text style={styles.challengeText}>
+                        {challengedIds.includes(member.id)
+                          ? "✓"
+                          : t("battleChallenge")}
+                      </Text>
+                    </TouchableOpacity>
+                  </Card>
+                );
+              })}
+            </View>
+          </>
+        )}
+
         {/* History */}
         <Text style={styles.sectionTitle}>{t("battleHistory")}</Text>
         {history === null ? (
@@ -547,6 +610,12 @@ function createStyles(colors: ColorTokens) {
     fontFamily: fonts.display,
     color: colors.text,
     marginTop: spacing.sm,
+  },
+  schoolSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: "600",
+    marginTop: -spacing.sm,
   },
   codeCard: {
     flexDirection: "row",

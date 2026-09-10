@@ -21,9 +21,17 @@ import { useI18n } from "../../state/LanguageContext";
 import { useTheme } from "../../state/ThemeContext";
 import { useAuth } from "../../state/AuthContext";
 import { fonts, radius, spacing } from "../../theme";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { auth } from "../../firebase";
 import { logLoginEvent } from "../../utils/analytics";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+
+// Configure Google Sign-In once at module load time
+GoogleSignin.configure({
+  // Web client ID from google-services.json (client_type: 3)
+  webClientId: "22793264461-cffq69rhg2i4ss74do5ngft8fhgvnm99.apps.googleusercontent.com",
+  offlineAccess: false,
+});
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Phone">;
 
@@ -34,7 +42,12 @@ function formatAuthError(err: any): string {
   if (code.includes("email-already-in-use") || msg.includes("email-already-in-use")) {
     return "This email is already registered. Please switch to Sign In.";
   }
-  if (code.includes("invalid-credential") || code.includes("wrong-password") || msg.includes("invalid-credential")) {
+  if (
+    code.includes("invalid-credential") ||
+    code.includes("wrong-password") ||
+    msg.includes("invalid-credential") ||
+    msg.includes("auth/invalid-credential")
+  ) {
     return "Incorrect email or password. New here? Tap 'Create Account'.";
   }
   if (code.includes("user-not-found") || msg.includes("user-not-found")) {
@@ -52,7 +65,12 @@ function formatAuthError(err: any): string {
   if (code.includes("network-request-failed") || msg.includes("network")) {
     return "Network error. Please check your internet connection.";
   }
-  return msg.replace(/^Firebase:\s*Error\s*\((.*?)\)\.?/, "$1") || "Authentication failed. Please try again.";
+
+  const clean = msg.replace(/^Firebase:\s*Error\s*\((.*?)\)\.?/, "$1");
+  if (clean.startsWith("auth/")) {
+    return "Authentication failed. Please check your details and try again.";
+  }
+  return clean || "Authentication failed. Please try again.";
 }
 
 export function PhoneScreen({ navigation }: Props) {
@@ -66,8 +84,35 @@ export function PhoneScreen({ navigation }: Props) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const valid = email.trim().length >= 5 && password.trim().length >= 6;
+
+  const onGoogleSignIn = async () => {
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const { data } = await GoogleSignin.signIn();
+      if (!data?.idToken) throw new Error("No ID token returned");
+      const credential = GoogleAuthProvider.credential(data.idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      const idToken = await userCredential.user.getIdToken();
+      const res = await verifyFirebase(idToken);
+      await signIn(res.token, res.user);
+      logLoginEvent("google");
+    } catch (err: any) {
+      if (err?.code === "SIGN_IN_CANCELLED") {
+        // user dismissed — no error
+      } else if (err?.code === "IN_PROGRESS") {
+        // already signing in
+      } else {
+        setError("Google Sign-In failed. Please try again or use email.");
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const onSubmit = async () => {
     if (!valid) {
@@ -109,7 +154,7 @@ export function PhoneScreen({ navigation }: Props) {
           logLoginEvent("firebase_email");
           return;
         } catch (fbErr: any) {
-          throw backendErr || fbErr;
+          throw fbErr || backendErr;
         }
       }
     } catch (err: any) {
@@ -332,33 +377,6 @@ export function PhoneScreen({ navigation }: Props) {
                 </View>
               ) : null}
 
-              {/* Play Store Reviewer Test Account Quick-Fill Pill */}
-              <TouchableOpacity
-                style={[
-                  styles.testCredsPill,
-                  {
-                    backgroundColor: colors.primarySoft,
-                    borderColor: colors.primary,
-                  },
-                ]}
-                onPress={() => {
-                  setEmail("test2@quizquest.com");
-                  setPassword("password123");
-                  setIsSignUp(false);
-                  setError(null);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.testCredsText,
-                    { color: colors.primary, fontFamily: fonts.bodyBold },
-                  ]}
-                >
-                  🔑 Play Store Demo Login: <Text style={{ textDecorationLine: "underline" }}>test2@quizquest.com</Text>
-                </Text>
-              </TouchableOpacity>
-
               {/* Primary Action Button */}
               <PrimaryButton
                 label={isSignUp ? "Create Quest Account" : "Sign In to Quest"}
@@ -367,6 +385,32 @@ export function PhoneScreen({ navigation }: Props) {
                 disabled={!valid}
                 style={styles.submitBtn}
               />
+
+              {/* Divider */}
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or continue with</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* Google Sign-In Button */}
+              <TouchableOpacity
+                style={styles.googleBtn}
+                onPress={onGoogleSignIn}
+                disabled={googleLoading}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in with Google"
+              >
+                {googleLoading ? (
+                  <Text style={styles.googleBtnText}>Signing in…</Text>
+                ) : (
+                  <>
+                    <Text style={styles.googleIcon}>G</Text>
+                    <Text style={styles.googleBtnText}>Sign in with Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
 
               {/* Switch Mode Footer Link */}
               <TouchableOpacity
@@ -523,20 +567,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  testCredsPill: {
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.button,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  testCredsText: {
-    fontSize: 12,
-    letterSpacing: 0.2,
-  },
   submitBtn: {
     marginTop: spacing.xs,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginVertical: spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#ffffff22",
+  },
+  dividerText: {
+    fontSize: 12,
+    color: "#ffffff66",
+    fontFamily: "System",
+  },
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: radius.chip,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  googleIcon: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#EA4335",
+  },
+  googleBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#333333",
   },
   switchModeBtn: {
     alignItems: "center",

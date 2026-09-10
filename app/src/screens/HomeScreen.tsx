@@ -10,17 +10,20 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getHome } from "../api/client";
+import { getHome, updateMe } from "../api/client";
 import { HomeData } from "../api/types";
 import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Card } from "../components/Card";
+import { CountrySelectorModal } from "../components/CountrySelectorModal";
 import { ErrorCard } from "../components/ErrorCard";
 import { LoadingView } from "../components/LoadingView";
 import { IconFlame, IconMap } from "../components/QuestIcons";
 import { StreakFlame } from "../components/StreakFlame";
+import { StreakCelebrationModal } from "../components/StreakCelebrationModal";
 import { XpBar } from "../components/XpBar";
-import { xpForLevel } from "../constants";
+import { ALL_COUNTRIES, countryFlag, countrySyllabus, xpForLevel } from "../constants";
+import { detectUserCountry } from "../utils/countryDetector";
 import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
@@ -39,6 +42,20 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [showStreakModal, setShowStreakModal] = useState(false);
+  const [showCountryModal, setShowCountryModal] = useState(false);
+
+  // Auto-detect user country if not set yet
+  useEffect(() => {
+    if (data?.user && !data.user.homeCountry) {
+      const detected = detectUserCountry();
+      updateMe({ homeCountry: detected })
+        .then(({ user: updated }) => {
+          setUser(updated);
+        })
+        .catch(() => {});
+    }
+  }, [data?.user, setUser]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -132,27 +149,66 @@ export function HomeScreen() {
                     Lv. {data.user.level}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => navigation.navigate("Profile" as never)}
-                  style={[
-                    styles.clanPill,
-                    {
-                      backgroundColor: colors.primarySoft,
-                      borderColor: colors.primary,
-                    },
-                  ]}
-                >
-                  <Text
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
                     style={[
-                      styles.clanPillText,
-                      { color: colors.primary, fontFamily: fonts.bodyBold },
+                      styles.countryPill,
+                      {
+                        backgroundColor: colors.surfaceElevated,
+                        borderColor: colors.border,
+                      },
                     ]}
-                    numberOfLines={1}
+                    onPress={() => setShowCountryModal(true)}
                   >
-                    🏫 {data.user.schoolName ? data.user.schoolName : "School Clan"}
-                  </Text>
-                </TouchableOpacity>
+                    <Text style={{ fontSize: 13 }}>
+                      {countryFlag(data.user.homeCountry || "nepal")}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.countryPillText,
+                        { color: colors.text, fontFamily: fonts.bodyBold },
+                      ]}
+                    >
+                      {t(
+                        (ALL_COUNTRIES.find(
+                          (c) => c.code === (data.user.homeCountry || "nepal")
+                        )?.labelKey as any) || "countryNepal"
+                      )}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.countrySyllabusTag,
+                        { color: colors.accent, fontFamily: fonts.body },
+                      ]}
+                    >
+                      • {countrySyllabus(data.user.homeCountry || "nepal", lang).split(" ")[0]}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 8 }}>▼</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.clanPill,
+                      {
+                        backgroundColor: colors.primarySoft,
+                        borderColor: colors.primary,
+                      },
+                    ]}
+                    onPress={() => (navigation as any).navigate("SchoolHub")}
+                  >
+                    <Text
+                      style={[
+                        styles.clanPillText,
+                        { color: colors.primary, fontFamily: fonts.bodyBold },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      🏫 {data.user.schoolName ? data.user.schoolName : "School Clan"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <Text
@@ -172,10 +228,26 @@ export function HomeScreen() {
             <AvatarCircle avatar={data.user.avatar} size={54} />
           </View>
 
+          {/* Country Syllabus Switcher Modal */}
+          <CountrySelectorModal
+            visible={showCountryModal}
+            onClose={() => setShowCountryModal(false)}
+            onCountryChanged={() => load()}
+          />
+
           {/* Player Progression & Streak HUD Card */}
+          <StreakCelebrationModal
+            visible={showStreakModal}
+            streakDays={data.user.streak || 1}
+            onClose={() => setShowStreakModal(false)}
+          />
           <Card style={styles.streakCard}>
             <View style={styles.streakTop}>
-              <View style={styles.streakLeft}>
+              <TouchableOpacity
+                style={styles.streakLeft}
+                activeOpacity={0.75}
+                onPress={() => setShowStreakModal(true)}
+              >
                 <Animated.View style={{ transform: [{ scale: pulse }] }}>
                   <StreakFlame count={data.user.streak} size={48} />
                 </Animated.View>
@@ -186,18 +258,18 @@ export function HomeScreen() {
                       { color: colors.text, fontFamily: fonts.display },
                     ]}
                   >
-                    {data.user.streak} {t("homeStreakDays")}
+                    {data.user.streak} {t("homeStreakDays")} 🔥
                   </Text>
                   <Text
                     style={[
                       styles.streakLabel,
-                      { color: colors.textMuted, fontFamily: fonts.body },
+                      { color: colors.accent, fontFamily: fonts.bodyBold },
                     ]}
                   >
-                    {t("homeStreakKeepGoing")}
+                    {lang === "ne" ? "उत्सव हेर्न थिच्नुहोस्" : "Tap for streak reward"} ✨
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
 
               <View
                 style={[
@@ -347,6 +419,89 @@ export function HomeScreen() {
                   </Text>
                 </View>
               )}
+            </Card>
+          </TouchableOpacity>
+
+          {/* Memory Blocks Mode Card */}
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={() => (navigation as any).navigate("MemoryPlay")}
+          >
+            <Card
+              style={StyleSheet.flatten([
+                styles.questCard,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  borderWidth: 1.5,
+                  marginTop: spacing.md,
+                },
+              ])}
+            >
+              <View style={styles.questMainContent}>
+                <View
+                  style={[
+                    styles.questIconBox,
+                    {
+                      backgroundColor: "rgba(251, 146, 60, 0.16)",
+                      borderColor: "#FB923C",
+                      borderWidth: 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 26 }}>🧩</Text>
+                </View>
+                <View style={styles.questBody}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text
+                      style={[
+                        styles.questTitle,
+                        { color: colors.text, fontFamily: fonts.display },
+                      ]}
+                    >
+                      {lang === "ne" ? "स्मरण ब्लकहरू" : "Memory Blocks"}
+                    </Text>
+                    <View
+                      style={{
+                        backgroundColor: "#10B981",
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontFamily: fonts.bodyBold,
+                          color: "#FFFFFF",
+                        }}
+                      >
+                        NEW
+                      </Text>
+                    </View>
+                  </View>
+                  <Text
+                    style={[
+                      styles.questMeta,
+                      { color: colors.textMuted, fontFamily: fonts.body },
+                    ]}
+                  >
+                    {lang === "ne"
+                      ? "पाठ्यक्रम जोडा मिलाउने खेल • १२+ सक्रिय प्याकहरू"
+                      : "Syllabus match & recall cards • 12+ active packs"}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.questCta, { backgroundColor: "#FB923C" }]}>
+                <Text
+                  style={[
+                    styles.questCtaText,
+                    { color: "#FFFFFF", fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  {lang === "ne" ? "अहिले खेल्नुहोस्" : "PLAY MEMORY"} ⚡
+                </Text>
+              </View>
             </Card>
           </TouchableOpacity>
 
@@ -845,6 +1000,22 @@ const styles = StyleSheet.create({
   clanPillText: {
     fontSize: 10,
     letterSpacing: 0.3,
+  },
+  countryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2.5,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+  },
+  countryPillText: {
+    fontSize: 11,
+    letterSpacing: 0.2,
+  },
+  countrySyllabusTag: {
+    fontSize: 10,
   },
   memoryCard: {
     gap: spacing.md,

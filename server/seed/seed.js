@@ -5,6 +5,8 @@ import db from "../src/db.js";
 import { generateMath } from "./generators/math.js";
 import { generateFacts } from "./generators/facts.js";
 import { CURATED } from "./data/curated.js";
+import { COUNTRY_SYLLABUS } from "./data/country_syllabus.js";
+import { MEMORY_PACKS } from "./data/memory_packs.js";
 import { GRADE_BANDS, today, daysAgo, shuffle } from "../src/util.js";
 
 const SCALE = Math.max(0.1, Number(process.env.QUESTION_SCALE) || 1);
@@ -24,7 +26,7 @@ console.log(`Seeding QuizQuest (scale ${SCALE})...`);
 const t0 = Date.now();
 
 // Wipe (idempotent reseed)
-for (const t of ["answer_log", "xp_events", "quizzes", "battles", "user_awards", "friendships", "digests", "questions", "users", "schools", "mix_config"]) {
+for (const t of ["answer_log", "xp_events", "quizzes", "battles", "user_awards", "friendships", "digests", "questions", "users", "schools", "mix_config", "memory_packs"]) {
   db.prepare(`DELETE FROM ${t}`).run();
 }
 db.prepare("DELETE FROM sqlite_sequence").run();
@@ -88,6 +90,30 @@ const curatedRows = CURATED.flatMap(
 );
 insertMany(curatedRows);
 console.log(`  curated: ${curatedRows.length}`);
+
+const countrySyllabusRows = COUNTRY_SYLLABUS.flatMap(
+  ([textEn, textNe, corr, dist, corrNe, distNe, country, subject, bands, difficulty, topic]) =>
+    bands.map((band) => {
+      const order = shuffle([0, 1, 2, 3]);
+      const en = [corr, ...dist];
+      const nes = corrNe && distNe ? [corrNe, ...distNe] : null;
+      return {
+        textEn,
+        textNe: nes ? textNe : null,
+        optionsEn: order.map((i) => en[i]),
+        optionsNe: nes ? order.map((i) => nes[i]) : null,
+        correctIndex: order.indexOf(0),
+        country,
+        subject,
+        gradeBand: band,
+        difficulty,
+        topic,
+        source: `syllabus:${country}`,
+      };
+    })
+);
+insertMany(countrySyllabusRows);
+console.log(`  country syllabus: ${countrySyllabusRows.length}`);
 
 // ---------- Mix config ----------
 for (const band of GRADE_BANDS) {
@@ -215,6 +241,23 @@ db.prepare(
   `INSERT INTO digests (date, grade_band, headline_en, headline_ne, gk_fact_en, gk_fact_ne, nepal_fact_en, nepal_fact_ne, status)
    VALUES (date('now','+1 day'), '6-8', 'DRAFT: Review before publishing — placeholder for tomorrow''s headline.', '', 'Octopuses have three hearts.', 'अक्टोपसका तीनवटा मुटु हुन्छन्।', 'Tilicho is one of the highest lakes in the world.', 'तिलिचो विश्वकै अग्ला तालहरूमध्ये एक हो।', 'draft')`
 ).run();
+
+// ---------- Memory Packs ----------
+const insertPack = db.prepare(
+  `INSERT INTO memory_packs (title_en, title_ne, subject, difficulty, pairs, time_limit_sec)
+   VALUES (?, ?, ?, ?, ?, ?)`
+);
+for (const pack of MEMORY_PACKS) {
+  insertPack.run(
+    pack.title_en,
+    pack.title_ne || null,
+    pack.subject,
+    pack.difficulty,
+    JSON.stringify(pack.pairs),
+    pack.time_limit_sec || 60
+  );
+}
+console.log(`  memory packs: ${MEMORY_PACKS.length}`);
 
 const total = db.prepare("SELECT COUNT(*) c FROM questions").get().c;
 console.log(`\nDone in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

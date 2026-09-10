@@ -31,8 +31,11 @@ import { XpBar } from "../components/XpBar";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
-import { radius, spacing, fonts, ColorTokens } from "../theme";
+import { ColorTokens, fonts, radius, spacing } from "../theme";
 import { logPostScore, logUnlockAchievement } from "../utils/analytics";
+import { SoundEffects, useSoundEnabled } from "../utils/audio";
+import { ConfettiEffect } from "../components/ConfettiEffect";
+import { VictoryAnimation } from "../components/VictoryAnimation";
 
 type Phase = "loading" | "error" | "empty" | "playing" | "submitting" | "results";
 
@@ -49,6 +52,7 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
   const { t } = useI18n();
   const navigation = useNavigation();
   const { refreshUser } = useAuth();
+  const { isSoundEnabled, toggleSound } = useSoundEnabled();
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [emptyMessage, setEmptyMessage] = useState<string | undefined>();
@@ -169,6 +173,7 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
 
   const onPick = (choice: number) => {
     if (answered || quizId === null) return;
+    SoundEffects.playCorrect();
     advance(choice);
   };
 
@@ -176,7 +181,15 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
     if (phase !== "playing" || answered) return;
 
     const deadline = questionShownAt.current + PER_QUESTION_MS;
-    const tick = () => setSecondsLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    let lastTickedSec = -1;
+    const tick = () => {
+      const remainingSec = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setSecondsLeft(remainingSec);
+      if (remainingSec !== lastTickedSec && remainingSec <= 5 && remainingSec > 0) {
+        lastTickedSec = remainingSec;
+        SoundEffects.playTick();
+      }
+    };
     tick();
     const interval = setInterval(tick, 250);
 
@@ -250,18 +263,35 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
               {t("quizProgress", { n: index + 1, total: questions.length })}
             </Text>
           </View>
-          <View style={[styles.timerPill, { backgroundColor: isUrgent ? colors.dangerSoft : colors.surfaceElevated }]}>
-            <Text
+          <View style={styles.headerRightControls}>
+            <TouchableOpacity
+              onPress={toggleSound}
               style={[
-                styles.seconds,
+                styles.soundToggleBtn,
                 {
-                  color: isUrgent ? colors.danger : colors.primary,
-                  fontFamily: fonts.bodyBold,
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
                 },
               ]}
+              activeOpacity={0.7}
+              accessibilityLabel={isSoundEnabled ? "Mute sound" : "Unmute sound"}
             >
-              ⏱ {secondsLeft ?? "-"}s
-            </Text>
+              <Text style={{ fontSize: 16 }}>{isSoundEnabled ? "🔊" : "🔇"}</Text>
+            </TouchableOpacity>
+
+            <View style={[styles.timerPill, { backgroundColor: isUrgent ? colors.dangerSoft : colors.surfaceElevated }]}>
+              <Text
+                style={[
+                  styles.seconds,
+                  {
+                    color: isUrgent ? colors.danger : colors.primary,
+                    fontFamily: fonts.bodyBold,
+                  },
+                ]}
+              >
+                ⏱ {secondsLeft ?? "-"}s
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -335,13 +365,26 @@ function ResultsView({ mode, result, questions, answers, onDone }: ResultsViewPr
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t, lang } = useI18n();
+  const [showVictoryModal, setShowVictoryModal] = useState(result.score > 0);
   const correctMap = new Map(result.correct.map((c) => [c.questionId, c.correctIndex]));
   const answerMap = new Map(answers.map((a) => [a.questionId, a.choice]));
+
+  useEffect(() => {
+    if (result.score > 0) {
+      SoundEffects.playVictory();
+    }
+    if (result.streak && result.streak >= 3) {
+      setTimeout(() => {
+        SoundEffects.playCombo();
+      }, 700);
+    }
+  }, []);
+
+  const isPerfect = result.score === result.total;
 
   return (
     <Atmosphere>
       <SafeAreaView style={styles.safe} edges={["top"]}>
-        <EmojiBurst />
         <ScrollView
           contentContainerStyle={styles.resultsContent}
           showsVerticalScrollIndicator={false}
@@ -544,6 +587,20 @@ function ResultsView({ mode, result, questions, answers, onDone }: ResultsViewPr
 
           <PrimaryButton label={t("quizBackHome")} onPress={onDone} />
         </ScrollView>
+
+        {/* Celebratory Victory Overlay Animations */}
+        {result.score > 0 && <ConfettiEffect count={50} />}
+        {result.score > 0 && <EmojiBurst />}
+        <VictoryAnimation
+          visible={showVictoryModal}
+          onAnimationComplete={() => setShowVictoryModal(false)}
+          message={isPerfect ? "PERFECT SCORE! 👑" : "VICTORY! 🏆"}
+          subMessage={
+            isPerfect
+              ? "Flawless knowledge quest!"
+              : `${result.score}/${result.total} correct • Great quest!`
+          }
+        />
       </SafeAreaView>
     </Atmosphere>
   );
@@ -574,6 +631,19 @@ function createStyles(colors: ColorTokens) {
     closeText: {
       fontSize: 20,
       fontWeight: "700",
+    },
+    headerRightControls: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    soundToggleBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
     },
     progressText: {
       fontSize: 14,

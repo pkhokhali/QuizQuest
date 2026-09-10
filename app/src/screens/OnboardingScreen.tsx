@@ -14,11 +14,12 @@ import { Chip } from "../components/Chip";
 import { Atmosphere } from "../components/Atmosphere";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ProgressDots } from "../components/ProgressDots";
-import { EXTRA_COUNTRIES, HOME_COUNTRY, SUBJECTS } from "../constants";
+import { EXTRA_COUNTRIES, HOME_COUNTRY, ALL_COUNTRIES, countryFlag, countrySyllabus, SUBJECTS } from "../constants";
+import { detectUserCountry } from "../utils/countryDetector";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
-import { radius, shadow, spacing, ColorTokens } from "../theme";
+import { fonts, radius, shadow, spacing, ColorTokens } from "../theme";
 
 const TOTAL_STEPS = 5;
 
@@ -31,6 +32,7 @@ export function OnboardingScreen() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState(user?.name ?? "");
   const [grade, setGrade] = useState<number | null>(user?.grade ?? null);
+  const [homeCountry, setHomeCountry] = useState<string>(() => user?.homeCountry || detectUserCountry());
   const [extraCountries, setExtraCountries] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [quizTime, setQuizTime] = useState<QuizTime | null>(null);
@@ -38,6 +40,7 @@ export function OnboardingScreen() {
   const [error, setError] = useState(false);
 
   const toggleExtraCountry = (code: string) => {
+    if (code === homeCountry) return; // Can't add home as extra
     setExtraCountries((prev) =>
       prev.includes(code)
         ? prev.filter((c) => c !== code)
@@ -60,7 +63,7 @@ export function OnboardingScreen() {
       case 1:
         return grade !== null;
       case 2:
-        return true; // extra countries optional
+        return true; // home country already auto-detected
       case 3:
         return subjects.length > 0;
       case 4:
@@ -83,7 +86,7 @@ export function OnboardingScreen() {
         name: name.trim(),
         language: lang,
         grade: grade ?? undefined,
-        homeCountry: HOME_COUNTRY.code,
+        homeCountry: homeCountry || "nepal",
         extraCountries,
         subjects,
         quizTime: quizTime ?? undefined,
@@ -173,22 +176,37 @@ export function OnboardingScreen() {
             <Text style={styles.stepEmoji}>🌍</Text>
             <Text style={styles.title}>{t("obCountryTitle")}</Text>
             <View style={styles.homeCountryCard}>
-              <Text style={styles.homeFlag}>{HOME_COUNTRY.flag}</Text>
-              <View>
-                <Text style={styles.homeCountryName}>{t(HOME_COUNTRY.labelKey)}</Text>
-                <Text style={styles.homeCountryTag}>{t("obCountryHome")}</Text>
+              <Text style={styles.homeFlag}>{countryFlag(homeCountry)}</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.homeCountryName}>
+                    {t(
+                      (ALL_COUNTRIES.find((c) => c.code === homeCountry)
+                        ?.labelKey as any) || "countryNepal"
+                    )}
+                  </Text>
+                  <View style={{ backgroundColor: "#10B981", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 9, color: "#FFFFFF", fontFamily: fonts.bodyBold }}>
+                      {lang === "ne" ? "स्वत: पत्ता लागेको" : "AUTO-DETECTED"}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.homeCountryTag}>
+                  {countrySyllabus(homeCountry, lang)}
+                </Text>
               </View>
             </View>
-            <Text style={styles.title2}>{t("obExtraTitle")}</Text>
-            <Text style={styles.note}>{t("obExtraNote")}</Text>
+            <Text style={styles.title2}>
+              {lang === "ne" ? "वा आफ्नो विद्यालयको देश छान्नुहोस्:" : "Or select your country's syllabus:"}
+            </Text>
             <View style={styles.countryGrid}>
-              {EXTRA_COUNTRIES.map((c) => {
-                const selected = extraCountries.includes(c.code);
+              {ALL_COUNTRIES.filter((c) => c.code !== "global").map((c) => {
+                const selected = homeCountry === c.code;
                 return (
                   <TouchableOpacity
                     key={c.code}
                     style={[styles.countryCard, selected && styles.countryCardSelected]}
-                    onPress={() => toggleExtraCountry(c.code)}
+                    onPress={() => setHomeCountry(c.code)}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.countryFlag}>{c.flag}</Text>
@@ -198,7 +216,7 @@ export function OnboardingScreen() {
                         selected && styles.countryNameSelected,
                       ]}
                     >
-                      {t(c.labelKey)}
+                      {t(c.labelKey as any)}
                     </Text>
                   </TouchableOpacity>
                 );

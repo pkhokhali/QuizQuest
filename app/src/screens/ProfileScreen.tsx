@@ -24,12 +24,14 @@ import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { PALETTES, fonts, radius, spacing } from "../theme";
+import { useSoundEnabled } from "../utils/audio";
 
 export function ProfileScreen() {
   const { t, lang, setLang } = useI18n();
   const { user, setUser, signOut } = useAuth();
   const { colors, paletteId, setPaletteId } = useTheme();
   const tabPadding = useTabScreenPadding();
+  const { isSoundEnabled, toggleSound } = useSoundEnabled();
 
   const [name, setName] = useState(user?.name ?? "");
   const [grade, setGrade] = useState<number | null>(user?.grade ?? null);
@@ -722,6 +724,39 @@ export function ProfileScreen() {
                   style={styles.langChip}
                 />
               ))}
+            </View>
+          </Card>
+
+          <Card style={styles.section}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold, marginBottom: 4 }]}>
+                  {lang === "ne" ? "ध्वनि प्रभाव (Sound Effects)" : "Sound Effects"}
+                </Text>
+                <Text style={[styles.note, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                  {isSoundEnabled ? (lang === "ne" ? "ध्वनि चालू छ" : "Sound effects are ON") : (lang === "ne" ? "ध्वनि बन्द छ" : "Sound effects are MUTED")}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={toggleSound}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: radius.chip,
+                  backgroundColor: isSoundEnabled ? colors.primarySoft : colors.surfaceElevated,
+                  borderColor: isSoundEnabled ? colors.primary : colors.border,
+                  borderWidth: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 18 }}>{isSoundEnabled ? "🔊" : "🔇"}</Text>
+                <Text style={{ color: isSoundEnabled ? colors.primary : colors.textMuted, fontFamily: fonts.bodyBold, fontSize: 13 }}>
+                  {isSoundEnabled ? "ON" : "OFF"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </Card>
 

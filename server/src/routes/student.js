@@ -231,7 +231,25 @@ router.get("/school/leaderboard", (req, res) => {
 // ---------- Memory Block Quiz Game ----------
 
 router.get("/memory/packs", (req, res) => {
-  const rows = db.prepare("SELECT * FROM memory_packs ORDER BY id ASC").all();
+  const { subject, limit = 30, offset = 0, random } = req.query;
+  let query = "SELECT * FROM memory_packs";
+  const params = [];
+  if (subject) {
+    query += " WHERE subject = ?";
+    params.push(subject);
+  }
+  // Default to random order for variety; explicit order=asc for pagination
+  const useRandom = random !== "0" && req.query.order !== "asc";
+  if (useRandom) {
+    query += " ORDER BY RANDOM() LIMIT ?";
+    params.push(Math.min(Number(limit) || 30, 120));
+  } else {
+    query += " ORDER BY id ASC LIMIT ? OFFSET ?";
+    params.push(Math.min(Number(limit) || 30, 120));
+    params.push(Number(offset) || 0);
+  }
+  const rows = db.prepare(query).all(...params);
+  const totalCount = db.prepare("SELECT COUNT(*) as c FROM memory_packs").get().c;
   const packs = rows.map((r) => ({
     id: r.id,
     titleEn: r.title_en,
@@ -241,7 +259,33 @@ router.get("/memory/packs", (req, res) => {
     timeLimitSec: r.time_limit_sec,
     pairs: JSON.parse(r.pairs || "[]"),
   }));
-  res.json({ packs });
+  res.json({ packs, totalCount });
+});
+
+router.get("/memory/packs/random", (req, res) => {
+  const { subject } = req.query;
+  let query = "SELECT * FROM memory_packs";
+  const params = [];
+  if (subject) {
+    query += " WHERE subject = ?";
+    params.push(subject);
+  }
+  query += " ORDER BY RANDOM() LIMIT 1";
+  const row = db.prepare(query).get(...params);
+  if (!row) {
+    return res.status(404).json({ error: "No packs found" });
+  }
+  res.json({
+    pack: {
+      id: row.id,
+      titleEn: row.title_en,
+      titleNe: row.title_ne,
+      subject: row.subject,
+      difficulty: row.difficulty,
+      timeLimitSec: row.time_limit_sec,
+      pairs: JSON.parse(row.pairs || "[]"),
+    },
+  });
 });
 
 router.post("/memory/submit", (req, res) => {

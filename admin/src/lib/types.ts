@@ -114,9 +114,26 @@ export interface Digest {
   nepalFactEn: string;
   nepalFactNe: string;
   status: DigestStatus;
+  pushedAt?: string | null;
+  pushCount?: number;
+  lastPushedBy?: string | null;
 }
 
-export type DigestInput = Omit<Digest, "id" | "status">;
+export interface SchedulerStatus {
+  active: boolean;
+  timezone: string;
+  scheduleHour: number;
+  scheduleMinute: number;
+  currentTime: string;
+  currentDate: string;
+  lastRunDate: string | null;
+  registeredTokens: number;
+  uniqueUsersWithPush: number;
+  todayDigestsCount: number;
+  nextRun: string;
+}
+
+export type DigestInput = Omit<Digest, "id" | "status" | "pushedAt" | "pushCount" | "lastPushedBy">;
 
 // ---- Mix config ----
 

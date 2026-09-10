@@ -4,12 +4,12 @@ import { getAuth, initializeAuth, getReactNativePersistence } from "firebase/aut
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDc5xJkvc74qnJNu-VEk7-yQYuNRpP51XY",
+  apiKey: "AIzaSyCZf6p911EQI4yhAevf8Jifl1e38vPBr4U",
   authDomain: "quizquest-c1b37.firebaseapp.com",
   projectId: "quizquest-c1b37",
   storageBucket: "quizquest-c1b37.firebasestorage.app",
   messagingSenderId: "22793264461",
-  appId: "1:22793264461:web:0e9b19c2c7f9c036342b04",
+  appId: "1:22793264461:android:9c01838a4d6d77b5342b04",
   measurementId: "G-CJJJKRBTTZ"
 };
 

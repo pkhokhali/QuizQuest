@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth.js";
 import studentRoutes from "./routes/student.js";
 import adminRoutes from "./routes/admin.js";
 import { initBattle } from "./battle.js";
+import { startDigestScheduler } from "./services/scheduler.js";
 
 const app = express();
 // Lock down origins in production via CORS_ORIGIN (comma-separated); "*" in dev.
@@ -138,4 +139,5 @@ server.listen(PORT, HOST, () => {
     console.log("LAN access:");
     for (const ip of lan) console.log(`  http://${ip}:${PORT}/`);
   }
+  startDigestScheduler();
 });

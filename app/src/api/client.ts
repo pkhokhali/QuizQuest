@@ -165,8 +165,19 @@ export function leaveSchool(): Promise<{ user: User }> {
 
 // ---- Memory Block Quiz ----
 
-export function getMemoryPacks(): Promise<{ packs: MemoryPack[] }> {
-  return request("/api/memory/packs");
+export function getMemoryPacks(params?: { subject?: string; limit?: number; offset?: number; random?: boolean }): Promise<{ packs: MemoryPack[]; totalCount?: number }> {
+  const q = new URLSearchParams();
+  if (params?.subject) q.append("subject", params.subject);
+  if (params?.limit) q.append("limit", String(params.limit));
+  if (params?.offset) q.append("offset", String(params.offset));
+  if (params?.random) q.append("random", "1");
+  const queryStr = q.toString() ? `?${q.toString()}` : "";
+  return request(`/api/memory/packs${queryStr}`);
+}
+
+export function getRandomMemoryPack(subject?: string): Promise<{ pack: MemoryPack }> {
+  const query = subject ? `?subject=${encodeURIComponent(subject)}` : "";
+  return request(`/api/memory/packs/random${query}`);
 }
 
 export function submitMemoryScore(body: {

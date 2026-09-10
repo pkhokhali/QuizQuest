@@ -88,16 +88,16 @@ const NAV_ITEMS = [
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-lg font-black text-white shadow-md shadow-indigo-200">
+    <div className="flex items-center gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-xl font-black text-white shadow-lg shadow-indigo-500/30 border border-white/20">
         Q
       </div>
       <div className="leading-tight">
-        <div className="text-base font-bold tracking-tight text-slate-800">
-          Quiz<span className="text-indigo-600">Quest</span>
+        <div className="text-lg font-extrabold tracking-tight text-white">
+          Quiz<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400">Quest</span>
         </div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          Content Portal
+        <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-300/70">
+          Admin Portal
         </div>
       </div>
     </div>
@@ -113,11 +113,6 @@ export default function PortalShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Auth state is read from localStorage only after mount. Reading it during
-  // render (e.g. via useSyncExternalStore with a null server snapshot) makes
-  // the hydration render see token=null on full page loads, and the guard
-  // effect below would bounce a signed-in user to /login before React swaps
-  // in the client snapshot.
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => {
@@ -125,7 +120,6 @@ export default function PortalShell({
     setUser(getStoredUser());
   }, []);
 
-  // Client-side auth guard: no token → back to login (undefined = still reading).
   useEffect(() => {
     if (token === null) router.replace("/login");
   }, [token, router]);
@@ -139,14 +133,14 @@ export default function PortalShell({
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-[#0b1120]">
         <span className="inline-block h-8 w-8 animate-spin rounded-full border-[3px] border-indigo-500 border-t-transparent" />
       </div>
     );
   }
 
   const nav = (
-    <nav className="flex flex-1 flex-col gap-1 px-3">
+    <nav className="flex flex-1 flex-col gap-1.5 px-3">
       {NAV_ITEMS.map((item) => {
         const active = pathname.startsWith(item.href);
         return (
@@ -156,12 +150,12 @@ export default function PortalShell({
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition ${
               active
-                ? "bg-indigo-50 text-indigo-700"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/10 text-indigo-300 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)]"
+                : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
             }`}
           >
             <svg
-              className={`h-5 w-5 ${active ? "text-indigo-600" : "text-slate-400"}`}
+              className={`h-5 w-5 ${active ? "text-indigo-400" : "text-slate-500"}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -177,23 +171,23 @@ export default function PortalShell({
   );
 
   const userChip = user && (
-    <div className="flex items-center gap-3 rounded-xl bg-slate-100/80 px-3 py-2.5">
+    <div className="flex items-center gap-3 rounded-xl bg-slate-800/60 border border-slate-700/60 px-3 py-2.5 backdrop-blur-md">
       <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg shadow-inner"
         style={{ backgroundColor: user.avatar?.bg || "#7C3AED" }}
       >
         <span>{user.avatar?.emoji || "🙂"}</span>
       </div>
       <div className="min-w-0 flex-1 leading-tight">
-        <div className="truncate text-sm font-semibold text-slate-700">
+        <div className="truncate text-sm font-semibold text-slate-200">
           {user.name || user.phone}
         </div>
-        <div className="text-xs capitalize text-slate-400">{user.role}</div>
+        <div className="text-xs capitalize text-indigo-300/70">{user.role}</div>
       </div>
       <button
         onClick={logout}
         title="Log out"
-        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white hover:text-rose-600"
+        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-500/20 hover:text-rose-400"
       >
         <svg
           className="h-5 w-5"
@@ -213,9 +207,9 @@ export default function PortalShell({
   );
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#0b1120] text-slate-100">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-800/80 bg-[#0f172a]/95 backdrop-blur-xl lg:flex">
         <div className="px-6 py-6">
           <Logo />
         </div>
@@ -224,11 +218,11 @@ export default function PortalShell({
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]/95 px-4 py-3 backdrop-blur-xl lg:hidden">
         <Logo />
         <button
           onClick={() => setMobileOpen((v) => !v)}
-          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800"
           aria-label="Toggle menu"
         >
           <svg
@@ -257,7 +251,7 @@ export default function PortalShell({
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-x-0 top-[61px] z-20 border-b border-slate-200 bg-white pb-3 shadow-lg lg:hidden">
+        <div className="fixed inset-x-0 top-[61px] z-20 border-b border-slate-800/80 bg-[#0f172a]/95 pb-3 shadow-2xl backdrop-blur-xl lg:hidden">
           <div className="py-3">{nav}</div>
           <div className="px-3">{userChip}</div>
         </div>

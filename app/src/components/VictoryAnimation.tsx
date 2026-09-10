@@ -1,92 +1,120 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View, Text } from "react-native";
+import {
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useTheme } from "../state/ThemeContext";
-import { fonts, type } from "../theme";
+import { fonts, radius, shadow } from "../theme";
 
 interface VictoryAnimationProps {
   visible: boolean;
   onAnimationComplete?: () => void;
   message?: string;
+  subMessage?: string;
 }
 
 export function VictoryAnimation({
   visible,
   onAnimationComplete,
   message = "VICTORY!",
+  subMessage = "Outstanding performance!",
 }: VictoryAnimationProps) {
   const { colors } = useTheme();
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const rotate = useRef(new Animated.Value(0)).current;
+  const trophyBounce = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(scale, {
-            toValue: 1.2,
-            duration: 600,
-            easing: Easing.elastic(1.5),
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          Animated.timing(rotate, {
-            toValue: 1,
-            duration: 800,
-            easing: Easing.out(Easing.back(2)),
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.timing(scale, {
+      Animated.parallel([
+        Animated.spring(scale, {
           toValue: 1,
-          duration: 200,
+          friction: 4,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 300,
           useNativeDriver: true,
         }),
       ]).start(() => {
+        // Continuous trophy bounce
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(trophyBounce, {
+              toValue: -15,
+              duration: 400,
+              easing: Easing.out(Easing.quad),
+              useNativeDriver: true,
+            }),
+            Animated.timing(trophyBounce, {
+              toValue: 0,
+              duration: 400,
+              easing: Easing.in(Easing.quad),
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+
         if (onAnimationComplete) {
-          setTimeout(onAnimationComplete, 1500); // hold for a bit
+          const timer = setTimeout(onAnimationComplete, 2200);
+          return () => clearTimeout(timer);
         }
       });
     } else {
       scale.setValue(0);
       opacity.setValue(0);
-      rotate.setValue(0);
+      trophyBounce.setValue(0);
     }
   }, [visible]);
 
   if (!visible) return null;
 
-  const spin = rotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["-15deg", "0deg"],
-  });
-
   return (
-    <View style={[StyleSheet.absoluteFill, styles.overlay]}>
+    <TouchableOpacity
+      activeOpacity={0.95}
+      onPress={onAnimationComplete}
+      style={[StyleSheet.absoluteFill, styles.overlay]}
+    >
       <Animated.View
         style={[
           styles.container,
           {
-            backgroundColor: colors.card,
-            borderColor: colors.accent,
-            opacity: opacity,
-            transform: [{ scale }, { rotate: spin }],
+            backgroundColor: colors.surfaceElevated,
+            borderColor: colors.gold,
+            opacity,
+            transform: [{ scale }],
           },
         ]}
       >
-        <Text style={[styles.text, { color: colors.accent }]}>✨</Text>
-        <Text style={[styles.text, { color: colors.text, marginTop: 16 }]}>
+        <Animated.Text
+          style={[
+            styles.trophy,
+            {
+              transform: [{ translateY: trophyBounce }],
+            },
+          ]}
+        >
+          🏆
+        </Animated.Text>
+        <Text style={[styles.title, { color: colors.gold, fontFamily: fonts.display }]}>
           {message}
         </Text>
-        <Text style={[styles.subtext, { color: colors.textMuted }]}>
-          Insanely great job.
+        <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: fonts.body }]}>
+          {subMessage}
         </Text>
+        <View style={[styles.tapChip, { backgroundColor: colors.primarySoft }]}>
+          <Text style={[styles.tapText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+            TAP TO VIEW RECAP ➔
+          </Text>
+        </View>
       </Animated.View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -94,31 +122,42 @@ const styles = StyleSheet.create({
   overlay: {
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
-    zIndex: 1000,
+    backgroundColor: "rgba(10, 5, 30, 0.75)",
+    zIndex: 99999,
+    elevation: 99999,
   },
   container: {
-    padding: 40,
-    borderRadius: 30,
-    borderWidth: 4,
+    width: "84%",
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    elevation: 20,
+    ...shadow.card,
   },
-  text: {
-    fontFamily: fonts.display,
-    fontSize: type.hero,
-    textAlign: "center",
-    textTransform: "uppercase",
+  trophy: {
+    fontSize: 72,
+    marginBottom: 12,
   },
-  subtext: {
-    fontFamily: fonts.body,
-    fontSize: type.body,
-    marginTop: 8,
+  title: {
+    fontSize: 28,
     textAlign: "center",
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 15,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  tapChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radius.chip,
+  },
+  tapText: {
+    fontSize: 12,
+    letterSpacing: 1,
   },
 });

@@ -6,6 +6,7 @@ module.exports = {
   ...appJson.expo,
   plugins: [
     "expo-font",
+    "expo-video",
     [
       "expo-build-properties",
       {
@@ -19,6 +20,7 @@ module.exports = {
     ],
     "./plugins/withNetworkSecurity.js",
     "./plugins/withPlayGamesServices.js",
+    "@react-native-google-signin/google-signin",
   ],
   updates: {
     url: "https://u.expo.dev/8209eeb8-c465-4463-89f5-d14dd9d2188f"

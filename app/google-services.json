@@ -7,27 +7,38 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:22793264461:android:0e9b19c2c7f9c036342b04",
+        "mobilesdk_app_id": "1:22793264461:android:9c01838a4d6d77b5342b04",
         "android_client_info": {
           "package_name": "com.pkhokhali.quizquest"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "22793264461-kp4n7prodtfdv7pffsqnpcg348eotjmi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pkhokhali.quizquest",
+            "certificate_hash": "e6804537a89c3672f2e7986fd20c84ba72591fe7"
+          }
+        },
+        {
+          "client_id": "22793264461-cffq69rhg2i4ss74do5ngft8fhgvnm99.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyDc5xJkvc74qnJNu-VEk7-yQYuNRpP51XY"
+          "current_key": "AIzaSyCZf6p911EQI4yhAevf8Jifl1e38vPBr4U"
         }
       ],
       "services": {
-        "analytics_service": {
-          "status": 1
-        },
         "appinvite_service": {
-          "status": 1,
-          "other_platform_oauth_client": []
-        },
-        "ads_service": {
-          "status": 1
+          "other_platform_oauth_client": [
+            {
+              "client_id": "22793264461-cffq69rhg2i4ss74do5ngft8fhgvnm99.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

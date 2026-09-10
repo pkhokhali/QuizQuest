@@ -14,11 +14,13 @@ import {
   BattleQuestionEvent,
   BattleRevealEvent,
 } from "../api/types";
+import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Card } from "../components/Card";
 import { EmojiBurst } from "../components/EmojiBurst";
 import { OptionButton, OptionState } from "../components/OptionButton";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { BattleSplashModal } from "../components/BattleSplashModal";
 import { getBattleSocket, getLastQuestion } from "../socket/battleSocket";
 import { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../state/AuthContext";
@@ -44,6 +46,7 @@ export function BattleLiveScreen({ route, navigation }: Props) {
   const [end, setEnd] = useState<BattleEndEvent | null>(null);
   const [opponentLeft, setOpponentLeft] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [showSplash, setShowSplash] = useState(true);
 
   const questionShownAt = useRef(Date.now());
   const countdown = useRef(new Animated.Value(1)).current;
@@ -140,6 +143,7 @@ export function BattleLiveScreen({ route, navigation }: Props) {
     const emoji = result === "win" ? "🏆" : result === "draw" ? "🤝" : "💪";
 
     return (
+      <Atmosphere>
       <SafeAreaView style={styles.safe}>
         {result === "win" && <EmojiBurst />}
         <View style={styles.endBox}>
@@ -172,6 +176,7 @@ export function BattleLiveScreen({ route, navigation }: Props) {
           />
         </View>
       </SafeAreaView>
+      </Atmosphere>
     );
   }
 
@@ -188,6 +193,18 @@ export function BattleLiveScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <BattleSplashModal
+        visible={showSplash}
+        player1={{
+          name: user?.name || "Player",
+          avatar: user?.avatar || { emoji: "🦊", bg: "#7C3AED" },
+        }}
+        player2={{
+          name: start.opponent.name,
+          avatar: start.opponent.avatar,
+        }}
+        onFinish={() => setShowSplash(false)}
+      />
       {/* Header: you vs opponent */}
       <View style={styles.header}>
         <View style={styles.player}>

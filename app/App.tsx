@@ -14,6 +14,7 @@ import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { AppSplashVideoScreen } from "./src/screens/AppSplashVideoScreen";
 import { AuthProvider } from "./src/state/AuthContext";
 import { LanguageProvider } from "./src/state/LanguageContext";
 import { ThemeProvider, useTheme } from "./src/state/ThemeContext";
@@ -29,6 +30,12 @@ function AppShell() {
     Nunito_600SemiBold,
     Nunito_800ExtraBold,
   });
+
+  const [splashFinished, setSplashFinished] = React.useState(false);
+
+  if (!splashFinished) {
+    return <AppSplashVideoScreen onFinish={() => setSplashFinished(true)} />;
+  }
 
   if (!ready || !fredokaLoaded || !nunitoLoaded) {
     return (
@@ -47,7 +54,7 @@ function AppShell() {
 
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <RootNavigator />
     </>
   );

@@ -162,6 +162,9 @@ export function serializeDigest(d) {
     nepalFactEn: d.nepal_fact_en,
     nepalFactNe: d.nepal_fact_ne,
     status: d.status,
+    pushedAt: d.pushed_at || null,
+    pushCount: d.push_count || 0,
+    lastPushedBy: d.last_pushed_by || null,
     bsDate: toBsDateString(new Date()),
   };
 }

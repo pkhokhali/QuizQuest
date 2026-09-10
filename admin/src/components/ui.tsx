@@ -69,11 +69,11 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-800 bg-[#0f172a]/60 px-6 py-16 text-center backdrop-blur-md">
       <div className="text-4xl">{icon}</div>
-      <div className="text-base font-semibold text-slate-700">{title}</div>
+      <div className="text-base font-semibold text-slate-200">{title}</div>
       {hint && <p className="max-w-sm text-sm text-slate-400">{hint}</p>}
-      {action && <div className="mt-3">{action}</div>}
+      {action && <div className="mt-4">{action}</div>}
     </div>
   );
 }
@@ -81,20 +81,20 @@ export function EmptyState({
 /* ---------- Badges ---------- */
 
 const SUBJECT_COLORS: Record<string, string> = {
-  math: "bg-sky-100 text-sky-700",
-  science: "bg-emerald-100 text-emerald-700",
-  social: "bg-amber-100 text-amber-700",
-  english: "bg-violet-100 text-violet-700",
-  nepali: "bg-rose-100 text-rose-700",
-  gk: "bg-indigo-100 text-indigo-700",
-  current: "bg-cyan-100 text-cyan-700",
+  math: "bg-sky-500/15 text-sky-300 border border-sky-500/30",
+  science: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30",
+  social: "bg-amber-500/15 text-amber-300 border border-amber-500/30",
+  english: "bg-violet-500/15 text-violet-300 border border-violet-500/30",
+  nepali: "bg-rose-500/15 text-rose-300 border border-rose-500/30",
+  gk: "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30",
+  current: "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30",
 };
 
 export function SubjectBadge({ subject }: { subject: string }) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
-        SUBJECT_COLORS[subject] ?? "bg-slate-100 text-slate-600"
+        SUBJECT_COLORS[subject] ?? "bg-slate-800 text-slate-300 border border-slate-700"
       }`}
     >
       {subject}
@@ -115,7 +115,7 @@ const COUNTRY_FLAGS: Record<string, string> = {
 
 export function CountryBadge({ country }: { country: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold capitalize text-slate-600">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 px-2.5 py-0.5 text-xs font-semibold capitalize text-slate-300 border border-slate-700">
       <span aria-hidden>{COUNTRY_FLAGS[country] ?? "🏳️"}</span>
       {country}
     </span>
@@ -125,8 +125,8 @@ export function CountryBadge({ country }: { country: string }) {
 export function StatusBadge({ status }: { status: string }) {
   const styles =
     status === "approved" || status === "published"
-      ? "bg-emerald-100 text-emerald-700"
-      : "bg-amber-100 text-amber-700";
+      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+      : "bg-amber-500/15 text-amber-300 border border-amber-500/30";
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${styles}`}
@@ -141,14 +141,14 @@ export function StatusBadge({ status }: { status: string }) {
 export function DifficultyDots({ level }: { level: number }) {
   return (
     <span
-      className="inline-flex items-center gap-0.5"
+      className="inline-flex items-center gap-1"
       title={`Difficulty ${level} of 5`}
     >
       {[1, 2, 3, 4, 5].map((i) => (
         <span
           key={i}
           className={`h-1.5 w-1.5 rounded-full ${
-            i <= level ? "bg-indigo-500" : "bg-slate-200"
+            i <= level ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]" : "bg-slate-700"
           }`}
         />
       ))}
@@ -160,13 +160,13 @@ export function DifficultyDots({ level }: { level: number }) {
 
 export function Modal({
   title,
-  onClose,
   children,
+  onClose,
   wide = false,
 }: {
   title: string;
-  onClose: () => void;
   children: ReactNode;
+  onClose: () => void;
   wide?: boolean;
 }) {
   useEffect(() => {
@@ -183,7 +183,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:p-8"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-md sm:p-8"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -191,13 +191,13 @@ export function Modal({
       <div
         className={`my-auto w-full ${
           wide ? "max-w-3xl" : "max-w-lg"
-        } rounded-2xl bg-white shadow-2xl`}
+        } rounded-2xl bg-[#0f172a] border border-slate-800 text-slate-100 shadow-2xl`}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
+        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+          <h2 className="text-lg font-bold text-white">{title}</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition"
             aria-label="Close"
           >
             <svg
@@ -242,22 +242,22 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal title={title} onClose={onCancel}>
-      <p className="text-sm text-slate-600">{message}</p>
+      <p className="text-sm text-slate-300 leading-relaxed">{message}</p>
       <div className="mt-6 flex justify-end gap-3">
         <button
           onClick={onCancel}
           disabled={busy}
-          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition"
         >
           Cancel
         </button>
         <button
           onClick={onConfirm}
           disabled={busy}
-          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60 ${
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-lg disabled:opacity-60 transition ${
             tone === "danger"
-              ? "bg-rose-600 hover:bg-rose-700"
-              : "bg-indigo-600 hover:bg-indigo-700"
+              ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/30"
+              : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30"
           }`}
         >
           {busy && (
@@ -283,7 +283,7 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
         {label}
       </span>
       {children}
@@ -293,7 +293,7 @@ export function Field({
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-300 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100";
+  "w-full rounded-xl border border-slate-700 bg-slate-800/90 px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
 
 export const selectClass = inputClass + " appearance-none";
 
@@ -306,7 +306,7 @@ export function PrimaryButton({
     <button
       {...props}
       disabled={props.disabled || busy}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 ${
         props.className ?? ""
       }`}
     >
@@ -325,7 +325,7 @@ export function SecondaryButton({
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 ${
         props.className ?? ""
       }`}
     >
