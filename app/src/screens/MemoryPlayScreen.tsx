@@ -194,7 +194,9 @@ export function MemoryPlayScreen() {
       const res = await getMemoryPacks();
       setPacks(res.packs);
       if (res.packs.length > 0) {
-        setupGame(res.packs[0]);
+        // Pick a random pack instead of always index 0
+        const rnd = res.packs[Math.floor(Math.random() * res.packs.length)];
+        setupGame(rnd);
       }
     } catch {
       // Handled in view
@@ -323,15 +325,20 @@ export function MemoryPlayScreen() {
       const res = await getRandomMemoryPack();
       if (res.pack) {
         setupGame(res.pack);
+        return;
       }
     } catch {
-      if (packs.length > 0) {
-        const rnd = packs[Math.floor(Math.random() * packs.length)];
-        setupGame(rnd);
-      }
-    } finally {
-      setLoading(false);
+      // Fallback to local pool if random endpoint fails
     }
+
+    if (packs.length > 0) {
+      // Filter out current pack to ensure variety
+      const otherPacks = packs.filter((p) => p.id !== currentPack?.id);
+      const pool = otherPacks.length > 0 ? otherPacks : packs;
+      const rnd = pool[Math.floor(Math.random() * pool.length)];
+      setupGame(rnd);
+    }
+    setLoading(false);
   };
 
   const handleGameOver = (_won: boolean) => {
