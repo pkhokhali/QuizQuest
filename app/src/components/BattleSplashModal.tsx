@@ -11,6 +11,7 @@ import {
 import { AvatarInfo } from "../api/types";
 import { useI18n } from "../state/LanguageContext";
 import { fonts, radius, shadow } from "../theme";
+import { SoundEffects } from "../utils/audio";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -41,6 +42,7 @@ export function BattleSplashModal({
   useEffect(() => {
     if (!visible) return;
 
+    SoundEffects.playBattleStart();
     setCountdown(3);
     p1Slide.setValue(-SCREEN_WIDTH);
     p2Slide.setValue(SCREEN_WIDTH);
@@ -114,6 +116,7 @@ export function BattleSplashModal({
   }, [visible]);
 
   const pulseCountdown = () => {
+    SoundEffects.playTick();
     countdownScale.setValue(1.4);
     Animated.spring(countdownScale, {
       toValue: 1,

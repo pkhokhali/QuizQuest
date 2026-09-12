@@ -27,6 +27,7 @@ import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { radius, spacing, ColorTokens } from "../theme";
+import { SoundEffects } from "../utils/audio";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BattleLive">;
 
@@ -51,12 +52,15 @@ export function BattleLiveScreen({ route, navigation }: Props) {
   const questionShownAt = useRef(Date.now());
   const countdown = useRef(new Animated.Value(1)).current;
 
+  const lastTickedSec = useRef(-1);
+
   // Socket listeners
   useEffect(() => {
     const socket = getBattleSocket();
     if (!socket) return;
 
     const onQuestion = (e: BattleQuestionEvent) => {
+      SoundEffects.playCardFlip();
       setQuestion(e);
       setChoice(null);
       setReveal(null);
@@ -65,14 +69,29 @@ export function BattleLiveScreen({ route, navigation }: Props) {
     const onReveal = (e: BattleRevealEvent) => {
       setReveal(e);
       setScores(e.scores);
+      if (e.correctIndex !== undefined) {
+        if (e.yourChoice === e.correctIndex) {
+          SoundEffects.playCorrect();
+        } else {
+          SoundEffects.playWrong();
+        }
+      }
     };
     const onEnd = (e: BattleEndEvent) => {
       setEnd(e);
       setScores(e.scores);
+      if (e.result === "win") {
+        SoundEffects.playVictory();
+      } else if (e.result === "draw") {
+        SoundEffects.playFanfare();
+      } else {
+        SoundEffects.playWrong();
+      }
       refreshUser();
     };
     const onLeft = () => {
       setOpponentLeft(true);
+      SoundEffects.playVictory();
       refreshUser();
     };
 
@@ -96,7 +115,12 @@ export function BattleLiveScreen({ route, navigation }: Props) {
 
     const tick = () => {
       const remaining = Math.max(0, question.deadlineTs - Date.now());
-      setSecondsLeft(Math.ceil(remaining / 1000));
+      const remainingSec = Math.ceil(remaining / 1000);
+      setSecondsLeft(remainingSec);
+      if (remainingSec <= 5 && remainingSec > 0 && remainingSec !== lastTickedSec.current) {
+        lastTickedSec.current = remainingSec;
+        SoundEffects.playTick();
+      }
       countdown.setValue(remaining / total);
     };
     tick();
@@ -117,11 +141,14 @@ export function BattleLiveScreen({ route, navigation }: Props) {
     };
   }, [question, reveal, start.perQuestionMs, countdown]);
 
+  const choiceRef = useRef<number | null>(null);
   const answer = (i: number) => {
     if (choice !== null || reveal || !question) return;
     const socket = getBattleSocket();
     if (!socket) return;
+    SoundEffects.playTap();
     setChoice(i);
+    choiceRef.current = i;
     socket.emit("battle:answer", {
       battleId: start.battleId,
       questionIndex: question.index,

@@ -24,6 +24,9 @@ import {
   UpdateMeBody,
   User,
   VerifyResponse,
+  DailyZipPuzzleResponse,
+  DailyZipSubmitResponse,
+  DailyZipLeaderboardResponse,
 } from "./types";
 
 export const TOKEN_KEY = "qq_token";
@@ -247,3 +250,35 @@ export function addFriend(friendCode: string): Promise<{ friend: Friend }> {
 export function getAwards(): Promise<AwardsResponse> {
   return request("/api/awards");
 }
+
+// ---- Daily Zip Puzzle & Social Nudges ----
+
+export function getDailyZipPuzzle(date?: string): Promise<DailyZipPuzzleResponse> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : "";
+  return request(`/api/zip/daily${query}`);
+}
+
+export function submitDailyZipScore(body: {
+  puzzleDate?: string;
+  timeSeconds: number;
+  moves: number;
+  stars: number;
+}): Promise<DailyZipSubmitResponse> {
+  return request("/api/zip/daily/submit", { method: "POST", body });
+}
+
+export function getDailyZipLeaderboard(date?: string): Promise<DailyZipLeaderboardResponse> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : "";
+  return request(`/api/zip/daily/leaderboard${query}`);
+}
+
+export function nudgeDailyZipFriend(
+  targetUserId: number,
+  puzzleDate?: string
+): Promise<{ ok: boolean; message: string }> {
+  return request("/api/zip/daily/nudge", {
+    method: "POST",
+    body: { targetUserId, puzzleDate },
+  });
+}
+

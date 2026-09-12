@@ -12,6 +12,7 @@ import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { fonts, radius, shadow, spacing } from "../theme";
 import { EmojiBurst } from "./EmojiBurst";
+import { SoundEffects } from "../utils/audio";
 
 interface StreakCelebrationProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export function StreakCelebrationModal({
   useEffect(() => {
     if (!visible) return;
 
+    SoundEffects.playFanfare();
     scaleAnim.setValue(0);
     Animated.spring(scaleAnim, {
       toValue: 1,

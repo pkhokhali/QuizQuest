@@ -18,6 +18,7 @@ import {
 import { composeDailyQuiz, composeRevengeRound } from "../quizComposer.js";
 import { checkAwards, awardsForUser } from "../awards.js";
 import { isOnline } from "../presence.js";
+import { sendPushToUser } from "../services/notifications.js";
 
 const BOT_PHONE = "9900000000";
 
@@ -333,6 +334,341 @@ router.post("/question/report", (req, res) => {
   `).run(req.user.id, questionId, String(reason).slice(0, 50), String(details || "").slice(0, 300));
 
   res.json({ ok: true, message: "Report submitted. Thank you for keeping QuizQuest accurate!" });
+});
+
+// ---------- Daily Zip Challenge & Social Nudge ----------
+
+function getDailyZipSpecs(dateStr) {
+  const d = new Date(dateStr + "T00:00:00Z");
+  const epoch = new Date("2026-01-01T00:00:00Z");
+  const dayNum = Math.max(1, Math.floor((d.getTime() - epoch.getTime()) / 86400000) + 1);
+  const dayOfWeek = d.getUTCDay();
+
+  // Mon/Wed/Fri: 4x4 (Easy), Tue/Thu/Sat: 5x5 (Focus), Sun: 6x6 (Master)
+  const size = dayOfWeek === 0 ? 6 : [1, 3, 5].includes(dayOfWeek) ? 4 : 5;
+  const difficulty = size === 4 ? "easy" : size === 5 ? "medium" : "hard";
+
+  let seed = (dayNum * 2654435761) >>> 0;
+  const rng = () => {
+    seed = (seed ^ (seed << 13)) >>> 0;
+    seed = (seed ^ (seed >> 17)) >>> 0;
+    seed = (seed ^ (seed << 5)) >>> 0;
+    return (seed >>> 0) / 4294967296;
+  };
+
+  const total = size * size;
+  const visited = Array.from({ length: size }, () => Array(size).fill(false));
+
+  const neighbors = (r, c) => {
+    const list = [];
+    const deltas = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    for (const [dr, dc] of deltas) {
+      const nr = r + dr;
+      const nc = c + dc;
+      if (nr >= 0 && nr < size && nc >= 0 && nc < size && !visited[nr][nc]) {
+        list.push({ row: nr, col: nc });
+      }
+    }
+    return list;
+  };
+
+  const path = [];
+  function backtrack(r, c) {
+    visited[r][c] = true;
+    path.push({ row: r, col: c });
+    if (path.length === total) return true;
+
+    const nbrs = neighbors(r, c);
+    nbrs.sort((a, b) => {
+      const degA = neighbors(a.row, a.col).length;
+      const degB = neighbors(b.row, b.col).length;
+      if (degA !== degB) return degA - degB;
+      return rng() - 0.5;
+    });
+
+    for (const n of nbrs) {
+      if (backtrack(n.row, n.col)) return true;
+    }
+    visited[r][c] = false;
+    path.pop();
+    return false;
+  }
+
+  const corners = [
+    { row: 0, col: 0 },
+    { row: 0, col: size - 1 },
+    { row: size - 1, col: 0 },
+    { row: size - 1, col: size - 1 },
+  ];
+  const start = corners[Math.floor(rng() * corners.length)];
+  if (!backtrack(start.row, start.col)) {
+    for (let r = 0; r < size; r++) {
+      if (r % 2 === 0) {
+        for (let c = 0; c < size; c++) path.push({ row: r, col: c });
+      } else {
+        for (let c = size - 1; c >= 0; c--) path.push({ row: r, col: c });
+      }
+    }
+  }
+
+  const numCheckpoints = size === 4 ? 4 : size === 5 ? 5 : 6;
+  const step = Math.floor((total - 1) / (numCheckpoints - 1));
+  const checkpoints = {};
+  let cpNum = 1;
+  checkpoints[`${path[0].row}-${path[0].col}`] = 1;
+  for (let i = 1; i < numCheckpoints - 1; i++) {
+    const cell = path[i * step];
+    cpNum++;
+    checkpoints[`${cell.row}-${cell.col}`] = cpNum;
+  }
+  const endCell = path[path.length - 1];
+  cpNum++;
+  checkpoints[`${endCell.row}-${endCell.col}`] = cpNum;
+
+  return {
+    puzzleNum: dayNum,
+    date: dateStr,
+    size,
+    difficulty,
+    totalCells: total,
+    checkpoints,
+    maxCheckpoint: cpNum,
+    solutionPath: path,
+  };
+}
+
+router.get("/zip/daily", (req, res) => {
+  const dateStr = req.query.date || today();
+  const specs = getDailyZipSpecs(dateStr);
+
+  // Check if player has already submitted for today
+  const myScoreRow = db
+    .prepare("SELECT * FROM daily_zip_scores WHERE user_id = ? AND puzzle_date = ?")
+    .get(req.user.id, dateStr);
+
+  const myScore = myScoreRow
+    ? {
+        timeSeconds: myScoreRow.time_seconds,
+        moves: myScoreRow.moves,
+        stars: myScoreRow.stars,
+        xpEarned: myScoreRow.xp_earned,
+        completedAt: myScoreRow.created_at,
+      }
+    : null;
+
+  // Fastest friend rival to beat
+  const rivalRow = db
+    .prepare(`
+      SELECT u.id, u.name, u.avatar, s.time_seconds
+      FROM daily_zip_scores s
+      JOIN users u ON s.user_id = u.id
+      JOIN friendships f ON (f.friend_id = s.user_id AND f.user_id = ?)
+      WHERE s.puzzle_date = ?
+      ORDER BY s.time_seconds ASC
+      LIMIT 1
+    `)
+    .get(req.user.id, dateStr);
+
+  const rivalToBeat = rivalRow
+    ? {
+        userId: rivalRow.id,
+        name: rivalRow.name || "Friend",
+        avatar: JSON.parse(rivalRow.avatar || "{}"),
+        timeSeconds: rivalRow.time_seconds,
+      }
+    : null;
+
+  res.json({
+    ...specs,
+    myScore,
+    rivalToBeat,
+  });
+});
+
+router.post("/zip/daily/submit", (req, res) => {
+  const { puzzleDate, timeSeconds, moves, stars = 3 } = req.body || {};
+  const dateStr = puzzleDate || today();
+
+  if (typeof timeSeconds !== "number" || typeof moves !== "number") {
+    return res.status(400).json({ error: "Invalid score payload" });
+  }
+
+  const specs = getDailyZipSpecs(dateStr);
+  const xpEarned = 40 + Math.min(3, Math.max(1, stars)) * 10;
+
+  // Keep first official daily score
+  const existing = db
+    .prepare("SELECT * FROM daily_zip_scores WHERE user_id = ? AND puzzle_date = ?")
+    .get(req.user.id, dateStr);
+
+  if (!existing) {
+    db.prepare(`
+      INSERT INTO daily_zip_scores (user_id, puzzle_date, puzzle_num, size, time_seconds, moves, stars, xp_earned)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(req.user.id, dateStr, specs.puzzleNum, specs.size, timeSeconds, moves, stars, xpEarned);
+
+    db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").run(xpEarned, req.user.id);
+    db.prepare("INSERT INTO xp_events (user_id, amount, reason, date) VALUES (?, ?, 'daily_zip', ?)")
+      .run(req.user.id, xpEarned, today());
+  }
+
+  const freshUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+
+  res.json({
+    ok: true,
+    score: {
+      puzzleDate: dateStr,
+      timeSeconds,
+      moves,
+      stars,
+      xpEarned: existing ? 0 : xpEarned,
+      isNewRecord: !existing,
+    },
+    user: serializeUser(freshUser),
+  });
+});
+
+router.get("/zip/daily/leaderboard", (req, res) => {
+  const dateStr = req.query.date || today();
+  const userId = req.user.id;
+
+  // 1. Global top 15 solvers
+  const globalRows = db
+    .prepare(`
+      SELECT u.id, u.name, u.avatar, u.xp, s.time_seconds, s.moves, s.stars, s.created_at
+      FROM daily_zip_scores s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.puzzle_date = ?
+      ORDER BY s.time_seconds ASC, s.moves ASC
+      LIMIT 15
+    `)
+    .all(dateStr);
+
+  const global = globalRows.map((r, i) => ({
+    rank: i + 1,
+    userId: r.id,
+    name: r.name || "Player",
+    avatar: JSON.parse(r.avatar || "{}"),
+    level: levelForXp(r.xp),
+    timeSeconds: r.time_seconds,
+    moves: r.moves,
+    stars: r.stars,
+    isMe: r.id === userId,
+  }));
+
+  // 2. Friends who completed today
+  const friendsRows = db
+    .prepare(`
+      SELECT u.id, u.name, u.avatar, u.xp, s.time_seconds, s.moves, s.stars, s.created_at
+      FROM daily_zip_scores s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.puzzle_date = ? AND (u.id = ? OR u.id IN (SELECT friend_id FROM friendships WHERE user_id = ?))
+      ORDER BY s.time_seconds ASC, s.moves ASC
+    `)
+    .all(dateStr, userId, userId);
+
+  const friends = friendsRows.map((r, i) => ({
+    rank: i + 1,
+    userId: r.id,
+    name: r.name || "Friend",
+    avatar: JSON.parse(r.avatar || "{}"),
+    level: levelForXp(r.xp),
+    timeSeconds: r.time_seconds,
+    moves: r.moves,
+    stars: r.stars,
+    isMe: r.id === userId,
+  }));
+
+  // 3. Friends who have NOT played yet (nudgeable)
+  const unplayedRows = db
+    .prepare(`
+      SELECT u.id, u.name, u.avatar
+      FROM friendships f
+      JOIN users u ON f.friend_id = u.id
+      WHERE f.user_id = ? AND u.id NOT IN (SELECT user_id FROM daily_zip_scores WHERE puzzle_date = ?)
+    `)
+    .all(userId, dateStr);
+
+  const nudgedIds = new Set(
+    db
+      .prepare("SELECT to_user_id FROM zip_nudges WHERE from_user_id = ? AND puzzle_date = ?")
+      .all(userId, dateStr)
+      .map((r) => r.to_user_id)
+  );
+
+  const unplayedFriends = unplayedRows.map((u) => ({
+    userId: u.id,
+    name: u.name || "Friend",
+    avatar: JSON.parse(u.avatar || "{}"),
+    canNudge: !nudgedIds.has(u.id),
+  }));
+
+  // 4. School clan members
+  let school = [];
+  if (req.user.school_id) {
+    const schoolRows = db
+      .prepare(`
+        SELECT u.id, u.name, u.avatar, u.xp, s.time_seconds, s.moves, s.stars
+        FROM daily_zip_scores s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.puzzle_date = ? AND u.school_id = ?
+        ORDER BY s.time_seconds ASC, s.moves ASC
+        LIMIT 20
+      `)
+      .all(dateStr, req.user.school_id);
+
+    school = schoolRows.map((r, i) => ({
+      rank: i + 1,
+      userId: r.id,
+      name: r.name || "Schoolmate",
+      avatar: JSON.parse(r.avatar || "{}"),
+      level: levelForXp(r.xp),
+      timeSeconds: r.time_seconds,
+      moves: r.moves,
+      stars: r.stars,
+      isMe: r.id === userId,
+    }));
+  }
+
+  res.json({ global, friends, unplayedFriends, school });
+});
+
+router.post("/zip/daily/nudge", async (req, res) => {
+  const { targetUserId, puzzleDate } = req.body || {};
+  const dateStr = puzzleDate || today();
+
+  if (!targetUserId || targetUserId === req.user.id) {
+    return res.status(400).json({ error: "Invalid target user" });
+  }
+
+  // Check rate limit: 1 nudge per friend per day
+  const existing = db
+    .prepare("SELECT id FROM zip_nudges WHERE from_user_id = ? AND to_user_id = ? AND puzzle_date = ?")
+    .get(req.user.id, targetUserId, dateStr);
+
+  if (existing) {
+    return res.status(429).json({ error: "You already nudged this friend today. Give them time to play!" });
+  }
+
+  db.prepare(`
+    INSERT INTO zip_nudges (from_user_id, to_user_id, puzzle_date)
+    VALUES (?, ?, ?)
+  `).run(req.user.id, targetUserId, dateStr);
+
+  // Send push notification asynchronously
+  const senderName = req.user.name || "A friend";
+  sendPushToUser({
+    userId: targetUserId,
+    title: `⚡ Daily Zip Challenge from ${senderName}!`,
+    body: `${senderName} completed today's Daily Zip! Think you can beat their time? Tap to play!`,
+    data: {
+      type: "zip_nudge",
+      fromUserId: req.user.id,
+      puzzleDate: dateStr,
+    },
+  }).catch(() => {});
+
+  res.json({ ok: true, message: `Nudge sent to friend! ⚡` });
 });
 
 // ---------- Home & digest ----------

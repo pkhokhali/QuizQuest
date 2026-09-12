@@ -233,6 +233,8 @@ export function MemoryPlayScreen() {
     setSecondsLeft(pack.timeLimitSec || 60);
     setGameStarted(true);
     setGameEnded(false);
+    setLoading(false);
+    processingRef.current = false;
     startTimeRef.current = Date.now();
 
     if (timerRef.current) clearInterval(timerRef.current);
@@ -327,18 +329,23 @@ export function MemoryPlayScreen() {
         setupGame(res.pack);
         return;
       }
+      if (packs.length > 0) {
+        const otherPacks = packs.filter((p) => p.id !== currentPack?.id);
+        const pool = otherPacks.length > 0 ? otherPacks : packs;
+        const rnd = pool[Math.floor(Math.random() * pool.length)];
+        setupGame(rnd);
+      }
     } catch {
       // Fallback to local pool if random endpoint fails
+      if (packs.length > 0) {
+        const otherPacks = packs.filter((p) => p.id !== currentPack?.id);
+        const pool = otherPacks.length > 0 ? otherPacks : packs;
+        const rnd = pool[Math.floor(Math.random() * pool.length)];
+        setupGame(rnd);
+      }
+    } finally {
+      setLoading(false);
     }
-
-    if (packs.length > 0) {
-      // Filter out current pack to ensure variety
-      const otherPacks = packs.filter((p) => p.id !== currentPack?.id);
-      const pool = otherPacks.length > 0 ? otherPacks : packs;
-      const rnd = pool[Math.floor(Math.random() * pool.length)];
-      setupGame(rnd);
-    }
-    setLoading(false);
   };
 
   const handleGameOver = (_won: boolean) => {
@@ -748,7 +755,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   cardEmoji: {
-    fontSize: 18,
+    fontSize: 26,
   },
   cardText: {
     textAlign: "center",
@@ -771,7 +778,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cardBackLogo: {
-    fontSize: 22,
+    fontSize: 28,
   },
   cardBackText: {
     fontSize: 9,
@@ -797,15 +804,15 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   packCardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
   },
   packCardEmoji: {
-    fontSize: 22,
+    fontSize: 25,
   },
   packCardTitle: {
     fontSize: 12,

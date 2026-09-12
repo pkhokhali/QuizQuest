@@ -356,3 +356,69 @@ export interface SubmitMemoryResponse {
   xpEarned: number;
   user: User;
 }
+
+// ---- Daily Zip Types ----
+
+export interface DailyZipPuzzleResponse {
+  puzzleNum: number;
+  date: string;
+  size: number;
+  difficulty: "easy" | "medium" | "hard";
+  totalCells: number;
+  checkpoints: Record<string, number>;
+  maxCheckpoint: number;
+  solutionPath: { row: number; col: number }[];
+  myScore: {
+    timeSeconds: number;
+    moves: number;
+    stars: number;
+    xpEarned: number;
+    completedAt: string;
+  } | null;
+  rivalToBeat: {
+    userId: number;
+    name: string;
+    avatar: AvatarInfo;
+    timeSeconds: number;
+  } | null;
+}
+
+export interface DailyZipSubmitResponse {
+  ok: boolean;
+  score: {
+    puzzleDate: string;
+    timeSeconds: number;
+    moves: number;
+    stars: number;
+    xpEarned: number;
+    isNewRecord: boolean;
+  };
+  user: User;
+}
+
+export interface ZipLeaderboardUser {
+  rank: number;
+  userId: number;
+  name: string;
+  avatar: AvatarInfo;
+  level: number;
+  timeSeconds: number;
+  moves: number;
+  stars: number;
+  isMe: boolean;
+}
+
+export interface ZipUnplayedFriend {
+  userId: number;
+  name: string;
+  avatar: AvatarInfo;
+  canNudge: boolean;
+}
+
+export interface DailyZipLeaderboardResponse {
+  global: ZipLeaderboardUser[];
+  friends: ZipLeaderboardUser[];
+  unplayedFriends: ZipUnplayedFriend[];
+  school: ZipLeaderboardUser[];
+}
+

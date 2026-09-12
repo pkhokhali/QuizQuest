@@ -28,6 +28,7 @@ import { Card } from "../components/Card";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { IconShield } from "../components/QuestIcons";
 import { connectBattleSocket, getBattleSocket } from "../socket/battleSocket";
+import { SoundEffects } from "../utils/audio";
 import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
@@ -111,8 +112,12 @@ export function BattleScreen() {
     let socket: ReturnType<typeof getBattleSocket>;
 
     const onWaiting = (e: QueueWaitingEvent) => setQueuePosition(e.position);
-    const onIncoming = (e: ChallengeIncomingEvent) => setIncoming(e);
+    const onIncoming = (e: ChallengeIncomingEvent) => {
+      SoundEffects.playMatchFound();
+      setIncoming(e);
+    };
     const onStart = (e: BattleStartEvent) => {
+      SoundEffects.playMatchFound();
       setSearching(false);
       setQueuePosition(null);
       setIncoming(null);
@@ -137,6 +142,7 @@ export function BattleScreen() {
 
   const startQueue = async () => {
     if (!token) return;
+    SoundEffects.playTap();
     const socket = await connectBattleSocket(token);
     socket.emit("queue:join", {});
     setSearching(true);
@@ -145,6 +151,7 @@ export function BattleScreen() {
 
   const startBotBattle = async () => {
     if (!token) return;
+    SoundEffects.playTap();
     const socket = await connectBattleSocket(token);
     socket.emit("battle:bot");
     setSearching(true);

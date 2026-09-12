@@ -173,7 +173,7 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
 
   const onPick = (choice: number) => {
     if (answered || quizId === null) return;
-    SoundEffects.playCorrect();
+    SoundEffects.playTap();
     advance(choice);
   };
 

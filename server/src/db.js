@@ -182,6 +182,30 @@ CREATE TABLE IF NOT EXISTS push_tokens (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, token)
 );
+
+CREATE TABLE IF NOT EXISTS daily_zip_scores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  puzzle_date TEXT NOT NULL,
+  puzzle_num INTEGER NOT NULL,
+  size INTEGER NOT NULL,
+  time_seconds INTEGER NOT NULL,
+  moves INTEGER NOT NULL,
+  stars INTEGER NOT NULL DEFAULT 1,
+  xp_earned INTEGER NOT NULL DEFAULT 50,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, puzzle_date)
+);
+CREATE INDEX IF NOT EXISTS idx_zip_date ON daily_zip_scores (puzzle_date, time_seconds ASC);
+
+CREATE TABLE IF NOT EXISTS zip_nudges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_user_id INTEGER NOT NULL,
+  to_user_id INTEGER NOT NULL,
+  puzzle_date TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (from_user_id, to_user_id, puzzle_date)
+);
 `);
 
 // Safe column migrations for existing databases

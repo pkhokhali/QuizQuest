@@ -177,3 +177,34 @@ export async function pushDigestNotification({ digest, isManual = false, adminEm
     isManual,
   };
 }
+
+/**
+ * Sends a direct push notification to a specific user (e.g. for Zip nudges).
+ */
+export async function sendPushToUser({ userId, title, body, data = {} }) {
+  const rows = db.prepare("SELECT token FROM push_tokens WHERE user_id = ? AND token != ''").all(userId);
+  if (!rows.length) return { total: 0, success: 0, failed: 0 };
+  const expoMessages = [];
+  const fcmMessages = [];
+  for (const row of rows) {
+    const t = row.token.trim();
+    if (t.startsWith("ExponentPushToken") || t.startsWith("ExpoPushToken")) {
+      expoMessages.push({ to: t, sound: "default", title, body, data });
+    } else {
+      fcmMessages.push({
+        token: t,
+        notification: { title, body },
+        data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+      });
+    }
+  }
+  const [expoRes, fcmRes] = await Promise.all([
+    sendExpoPushNotifications(expoMessages),
+    sendFcmNotifications(fcmMessages),
+  ]);
+  return {
+    total: rows.length,
+    success: expoRes.success + fcmRes.success,
+    failed: expoRes.failed + fcmRes.failed,
+  };
+}

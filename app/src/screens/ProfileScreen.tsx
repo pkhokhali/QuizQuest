@@ -24,7 +24,7 @@ import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { PALETTES, fonts, radius, spacing } from "../theme";
-import { useSoundEnabled } from "../utils/audio";
+import { SoundEffects, useSoundEnabled } from "../utils/audio";
 
 export function ProfileScreen() {
   const { t, lang, setLang } = useI18n();
@@ -518,6 +518,56 @@ export function ProfileScreen() {
                 )}
               </>
             )}
+          </Card>
+
+          {/* Sound & Haptic Effects */}
+          <Card style={styles.section}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text
+                  style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}
+                >
+                  🔊 {lang === "ne" ? "ध्वनि र कम्पन" : "Sound & Haptics"}
+                </Text>
+                <Text
+                  style={[styles.note, { color: colors.textMuted, fontFamily: fonts.body, marginTop: 2 }]}
+                >
+                  {lang === "ne"
+                    ? "क्विज, ब्याटल, जिप पहेली र बटनहरूको ध्वनि सक्रिय गर्नुहोस्"
+                    : "Game audio cues, ticks, victory fanfares, and tactile vibrations"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  const nextVal = !isSoundEnabled;
+                  toggleSound();
+                  if (nextVal) {
+                    setTimeout(() => SoundEffects.playCorrect(), 50);
+                  }
+                }}
+                style={[
+                  {
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: radius.chip,
+                    borderWidth: 1.5,
+                    backgroundColor: isSoundEnabled ? colors.primary : colors.surface,
+                    borderColor: isSoundEnabled ? colors.primary : colors.border,
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={{
+                    color: isSoundEnabled ? "#FFFFFF" : colors.textMuted,
+                    fontFamily: fonts.bodyBold,
+                    fontSize: 13,
+                  }}
+                >
+                  {isSoundEnabled ? "ON 🔊" : "OFF 🔇"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </Card>
 
           {/* Theme preference */}

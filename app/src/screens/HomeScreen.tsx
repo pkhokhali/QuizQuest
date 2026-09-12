@@ -443,13 +443,16 @@ export function HomeScreen() {
                   style={[
                     styles.questIconBox,
                     {
+                      width: 64,
+                      height: 64,
+                      borderRadius: 18,
                       backgroundColor: "rgba(251, 146, 60, 0.16)",
                       borderColor: "#FB923C",
-                      borderWidth: 1,
+                      borderWidth: 1.5,
                     },
                   ]}
                 >
-                  <Text style={{ fontSize: 26 }}>🧩</Text>
+                  <Text style={{ fontSize: 36 }}>🧩</Text>
                 </View>
                 <View style={styles.questBody}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -500,6 +503,90 @@ export function HomeScreen() {
                   ]}
                 >
                   {lang === "ne" ? "अहिले खेल्नुहोस्" : "PLAY MEMORY"} ⚡
+                </Text>
+              </View>
+            </Card>
+          </TouchableOpacity>
+
+          {/* Zip Path Puzzle Mode Card */}
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={() => (navigation as any).navigate("ZipPlay")}
+          >
+            <Card
+              style={StyleSheet.flatten([
+                styles.questCard,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  borderWidth: 1.5,
+                  marginTop: spacing.md,
+                },
+              ])}
+            >
+              <View style={styles.questMainContent}>
+                <View
+                  style={[
+                    styles.questIconBox,
+                    {
+                      width: 64,
+                      height: 64,
+                      borderRadius: 18,
+                      backgroundColor: "rgba(124, 58, 237, 0.16)",
+                      borderColor: "#8B5CF6",
+                      borderWidth: 1.5,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 34 }}>⚡</Text>
+                </View>
+                <View style={styles.questBody}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text
+                      style={[
+                        styles.questTitle,
+                        { color: colors.text, fontFamily: fonts.display },
+                      ]}
+                    >
+                      {t("homeZipTitle")}
+                    </Text>
+                    <View
+                      style={{
+                        backgroundColor: "#8B5CF6",
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontFamily: fonts.bodyBold,
+                          color: "#FFFFFF",
+                        }}
+                      >
+                        NEW
+                      </Text>
+                    </View>
+                  </View>
+                  <Text
+                    style={[
+                      styles.questMeta,
+                      { color: colors.textMuted, fontFamily: fonts.body },
+                    ]}
+                  >
+                    {t("homeZipSub")}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.questCta, { backgroundColor: "#7C3AED" }]}>
+                <Text
+                  style={[
+                    styles.questCtaText,
+                    { color: "#FFFFFF", fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  {t("homeZipPlay")} 🧩
                 </Text>
               </View>
             </Card>
@@ -581,94 +668,6 @@ export function HomeScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Memory Block Quiz Mode Card */}
-          <TouchableOpacity
-            activeOpacity={0.88}
-            onPress={() => navigation.navigate("MemoryPlay")}
-          >
-            <Card
-              style={StyleSheet.flatten([
-                styles.memoryCard,
-                { borderColor: colors.accent, borderWidth: 1.5 },
-              ])}
-            >
-              <View style={styles.questHeaderRow}>
-                <View
-                  style={[
-                    styles.questBountyBadge,
-                    {
-                      backgroundColor: "rgba(251, 146, 60, 0.18)",
-                      borderColor: colors.accent,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.questBountyText,
-                      { color: colors.accent, fontFamily: fonts.bodyBold },
-                    ]}
-                  >
-                    🧩 {t("homeMemoryTitle").toUpperCase()} · ARCADE
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.memoryTimerPill,
-                    { backgroundColor: colors.bgMid, borderColor: colors.border },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.memoryTimerText,
-                      { color: colors.textMuted, fontFamily: fonts.bodyBold },
-                    ]}
-                  >
-                    ⏱ 60s Sprint
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.questMainContent}>
-                <View
-                  style={[
-                    styles.questIconBox,
-                    { backgroundColor: colors.bgMid, borderColor: colors.border },
-                  ]}
-                >
-                  <Text style={{ fontSize: 32 }}>🃏</Text>
-                </View>
-                <View style={styles.questBody}>
-                  <Text
-                    style={[
-                      styles.questTitle,
-                      { color: colors.text, fontFamily: fonts.display },
-                    ]}
-                  >
-                    {t("homeMemoryTitle")}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.questMeta,
-                      { color: colors.textMuted, fontFamily: fonts.body },
-                    ]}
-                  >
-                    {t("homeMemorySub")}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.memoryCta, { backgroundColor: colors.accent }]}>
-                <Text
-                  style={[
-                    styles.questCtaText,
-                    { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
-                  ]}
-                >
-                  {t("homeMemoryPlay")} →
-                </Text>
-              </View>
-            </Card>
-          </TouchableOpacity>
 
           {/* Today's Digest Card */}
           {digest && (
