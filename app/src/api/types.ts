@@ -362,9 +362,12 @@ export interface SubmitMemoryResponse {
 export interface DailyZipPuzzleResponse {
   puzzleNum: number;
   date: string;
-  size: number;
+  size: number | { rows: number; cols: number };
   difficulty: "easy" | "medium" | "hard";
   totalCells: number;
+  numbers?: Record<string, number>;
+  walls?: { between: [string, string] }[];
+  solution?: string[];
   checkpoints: Record<string, number>;
   maxCheckpoint: number;
   solutionPath: { row: number; col: number }[];

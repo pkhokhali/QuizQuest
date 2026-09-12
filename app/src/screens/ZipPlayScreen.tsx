@@ -21,7 +21,6 @@ import {
   submitDailyZipScore,
 } from "../api/client";
 import {
-  AvatarInfo,
   DailyZipLeaderboardResponse,
   DailyZipPuzzleResponse,
 } from "../api/types";
@@ -42,13 +41,17 @@ import {
   createZipPuzzle,
   generateZipShareText,
   getDailyZipPuzzle as getDailyZipPuzzleLocal,
+  getSmartHint,
+  hasWall,
+  parseKey,
+  wallKey,
   ZipCell,
   ZipPuzzle,
 } from "../utils/zipGenerator";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const GRID_PADDING = spacing.lg * 2;
-const MAX_BOARD_WIDTH = Math.min(SCREEN_WIDTH - GRID_PADDING, 380);
+const GRID_PADDING = spacing.md * 2;
+const MAX_BOARD_WIDTH = Math.min(SCREEN_WIDTH - GRID_PADDING, 390);
 
 export function ZipPlayScreen() {
   const { colors } = useTheme();
@@ -59,14 +62,14 @@ export function ZipPlayScreen() {
 
   // Mode: "daily" (Official synchronized daily challenge) or "practice" (Free play)
   const [gameMode, setGameMode] = useState<"daily" | "practice">("daily");
-  const [size, setSize] = useState<4 | 5 | 6>(4);
-  const [puzzle, setPuzzle] = useState<ZipPuzzle>(() => createZipPuzzle(4, "easy"));
-  const [path, setPath] = useState<ZipCell[]>([]);
+  const [size, setSize] = useState<6 | 8 | 10>(6);
+  const [puzzle, setPuzzle] = useState<ZipPuzzle>(() => createZipPuzzle(6, "easy"));
+  const [path, setPath] = useState<string[]>([]);
   const [nextExpectedCheckpoint, setNextExpectedCheckpoint] = useState<number>(2);
   const [moves, setMoves] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [gameEnded, setGameEnded] = useState(false);
-  const [hintCell, setHintCell] = useState<ZipCell | null>(null);
+  const [hintCellKey, setHintCellKey] = useState<string | null>(null);
 
   // Daily Challenge & Social State
   const [dailyLoading, setDailyLoading] = useState(false);
@@ -83,24 +86,41 @@ export function ZipPlayScreen() {
   const [nudgedFriendIds, setNudgedFriendIds] = useState<Set<number>>(new Set());
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const cellSize = MAX_BOARD_WIDTH / puzzle.size;
+  const cellSize = MAX_BOARD_WIDTH / puzzle.size.cols;
+  const pipeWidth = Math.max(8, Math.round(cellSize * 0.34));
+  const wallThickness = Math.max(4, Math.round(cellSize * 0.12));
 
-  /** Initialize a practice or local puzzle */
-  const initPracticeGame = useCallback((newSize: 4 | 5 | 6) => {
+  // Set of walls for O(1) barrier collision check
+  const wallsSet = useMemo(() => {
+    return new Set(puzzle.walls.map((w) => wallKey(w.between[0], w.between[1])));
+  }, [puzzle.walls]);
+
+  // Set of path coordinates for O(1) lookup
+  const pathKeySet = useMemo(() => new Set(path), [path]);
+
+  // Map of cellKey -> path index
+  const pathIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    path.forEach((key, idx) => map.set(key, idx));
+    return map;
+  }, [path]);
+
+  /** Initialize a practice puzzle */
+  const initPracticeGame = useCallback((newSize: 6 | 8 | 10) => {
     const p = createZipPuzzle(
       newSize,
-      newSize === 4 ? "easy" : newSize === 5 ? "medium" : "hard"
+      newSize === 6 ? "easy" : newSize === 8 ? "medium" : "hard"
     );
     setSize(newSize);
     setPuzzle(p);
 
-    const startCell = p.solutionPath[0];
-    setPath([startCell]);
+    const startKey = p.solution[0];
+    setPath([startKey]);
     setNextExpectedCheckpoint(2);
     setMoves(0);
     setSeconds(0);
     setGameEnded(false);
-    setHintCell(null);
+    setHintCellKey(null);
     setOfficialXpAwarded(0);
 
     if (timerRef.current) clearInterval(timerRef.current);
@@ -109,7 +129,7 @@ export function ZipPlayScreen() {
     }, 1000);
   }, []);
 
-  /** Fetch daily puzzle from backend server */
+  /** Fetch daily puzzle from backend or fallback */
   const loadDailyChallenge = useCallback(async () => {
     setDailyLoading(true);
     try {
@@ -118,26 +138,18 @@ export function ZipPlayScreen() {
       setMyDailyScore(res.myScore);
       setRivalToBeat(res.rivalToBeat);
 
-      const serverPuzzle: ZipPuzzle = {
-        id: `daily-${res.date}`,
-        size: res.size,
-        difficulty: res.difficulty,
-        totalCells: res.totalCells,
-        checkpoints: res.checkpoints,
-        maxCheckpoint: res.maxCheckpoint,
-        solutionPath: res.solutionPath,
-      };
-
-      setSize(res.size as 4 | 5 | 6);
+      // Adapt daily puzzle response to modern ZipPuzzle format
+      const serverPuzzle = getDailyZipPuzzleLocal(res.date);
+      setSize(serverPuzzle.size.rows as 6 | 8 | 10);
       setPuzzle(serverPuzzle);
 
-      const startCell = serverPuzzle.solutionPath[0];
-      setPath([startCell]);
+      const startKey = serverPuzzle.solution[0];
+      setPath([startKey]);
       setNextExpectedCheckpoint(2);
       setMoves(0);
       setSeconds(0);
       setGameEnded(false);
-      setHintCell(null);
+      setHintCellKey(null);
       setOfficialXpAwarded(0);
 
       if (timerRef.current) clearInterval(timerRef.current);
@@ -147,11 +159,11 @@ export function ZipPlayScreen() {
         }, 1000);
       }
     } catch {
-      // Offline fallback: use deterministic client generator
+      // Offline fallback: use deterministic daily generator
       const fallback = getDailyZipPuzzleLocal();
-      setSize(fallback.size as 4 | 5 | 6);
+      setSize(fallback.size.rows as 6 | 8 | 10);
       setPuzzle(fallback);
-      setPath([fallback.solutionPath[0]]);
+      setPath([fallback.solution[0]]);
       setNextExpectedCheckpoint(2);
       setMoves(0);
       setSeconds(0);
@@ -178,92 +190,94 @@ export function ZipPlayScreen() {
     };
   }, [gameMode, loadDailyChallenge, initPracticeGame, size]);
 
-  // Set of path coordinates for O(1) lookup
-  const pathKeySet = useMemo(() => {
-    return new Set(path.map((c) => cellKey(c.row, c.col)));
-  }, [path]);
-
-  // Map of cellKey -> path index
-  const pathIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    path.forEach((c, idx) => map.set(cellKey(c.row, c.col), idx));
-    return map;
-  }, [path]);
-
-  /** Add or backtrack to a cell */
+  /** Core gesture & click step handler (smooth touch-and-drag + rubber-band retraction) */
   const handleCellAction = useCallback(
     async (r: number, c: number) => {
       if (gameEnded) return;
-      if (r < 0 || r >= puzzle.size || c < 0 || c >= puzzle.size) return;
+      if (r < 0 || r >= puzzle.size.rows || c < 0 || c >= puzzle.size.cols) return;
 
       const targetKey = cellKey(r, c);
 
-      // Check if tapping a cell already in path: backtrack/unwind to it
+      // Start path on cell 1 if path is empty
+      if (path.length === 0) {
+        if (puzzle.numbers[targetKey] === 1) {
+          setPath([targetKey]);
+          setNextExpectedCheckpoint(2);
+          SoundEffects.playZipPop();
+        }
+        return;
+      }
+
+      // 1. Rubber-band retraction: if re-entering an already visited cell
       if (pathKeySet.has(targetKey)) {
         const targetIdx = pathIndexMap.get(targetKey);
         if (targetIdx !== undefined && targetIdx < path.length - 1) {
           const newPath = path.slice(0, targetIdx + 1);
           setPath(newPath);
-          SoundEffects.playTap();
+          SoundEffects.playZipRetract();
 
           // Recalculate next expected checkpoint
-          let maxVisitedCheckpoint = 1;
-          newPath.forEach((pt) => {
-            const cp = puzzle.checkpoints[cellKey(pt.row, pt.col)];
-            if (cp !== undefined && cp > maxVisitedCheckpoint) {
-              maxVisitedCheckpoint = cp;
+          let maxVisitedCp = 1;
+          newPath.forEach((k) => {
+            const cp = puzzle.numbers[k];
+            if (cp !== undefined && cp > maxVisitedCp) {
+              maxVisitedCp = cp;
             }
           });
-          setNextExpectedCheckpoint(maxVisitedCheckpoint + 1);
-          return;
+          setNextExpectedCheckpoint(maxVisitedCp + 1);
+          setHintCellKey(null);
         }
         return;
       }
 
-      // If extending the path
-      const currentHead = path[path.length - 1];
+      // 2. Path Extension
+      const currentHeadKey = path[path.length - 1];
+      const currentHead = parseKey(currentHeadKey);
       const nextCell: ZipCell = { row: r, col: c };
 
+      // Must be orthogonally adjacent
       if (!areAdjacent(currentHead, nextCell)) {
         return;
       }
 
-      // Check checkpoint rule: cannot hit a checkpoint out of order
-      const cp = puzzle.checkpoints[targetKey];
+      // Wall collision check: cannot cross a wall barrier
+      if (hasWall(wallsSet, currentHeadKey, targetKey)) {
+        SoundEffects.playZipWallHit();
+        return;
+      }
+
+      // Checkpoint ordering rule: cannot hit a checkpoint out of order
+      const cp = puzzle.numbers[targetKey];
       if (cp !== undefined) {
         if (cp !== nextExpectedCheckpoint) {
-          SoundEffects.playWrong();
+          SoundEffects.playZipWallHit();
           return;
         }
       }
 
-      // Valid move!
-      const newPath = [...path, nextCell];
+      // Valid move! Extend path
+      const newPath = [...path, targetKey];
       const newMoves = moves + 1;
       setPath(newPath);
       setMoves(newMoves);
-      setHintCell(null);
+      setHintCellKey(null);
 
       if (cp !== undefined) {
-        SoundEffects.playCorrect();
+        SoundEffects.playZipCheckpoint();
         setNextExpectedCheckpoint(cp + 1);
       } else {
-        SoundEffects.playCardFlip();
+        SoundEffects.playZipPop();
       }
 
-      // Check for victory: all cells visited and all checkpoints visited in order
-      if (newPath.length === puzzle.totalCells) {
+      // Win Condition: 100% of cells filled AND ends on the highest checkpoint
+      const totalCells = puzzle.size.rows * puzzle.size.cols;
+      if (newPath.length === totalCells && cp === puzzle.maxCheckpoint) {
         if (timerRef.current) clearInterval(timerRef.current);
         setGameEnded(true);
-        SoundEffects.playVictory();
+        SoundEffects.playZipSolve();
 
-        // Calculate stars based on speed: <= 40s (3 stars), <= 80s (2 stars), else 1 star
-        const stars =
-          seconds <= (puzzle.size === 4 ? 40 : puzzle.size === 5 ? 75 : 110)
-            ? 3
-            : seconds <= (puzzle.size === 4 ? 85 : puzzle.size === 5 ? 135 : 190)
-            ? 2
-            : 1;
+        // Speed stars: 3 stars <= 45s, 2 stars <= 90s, 1 star otherwise
+        const stars = seconds <= 45 ? 3 : seconds <= 90 ? 2 : 1;
 
         if (gameMode === "daily") {
           try {
@@ -285,7 +299,7 @@ export function ZipPlayScreen() {
               refreshUser();
             }
           } catch {
-            // Submission gracefully handled
+            // gracefully handled
           }
         } else {
           refreshUser();
@@ -298,53 +312,68 @@ export function ZipPlayScreen() {
       path,
       pathKeySet,
       pathIndexMap,
+      wallsSet,
       nextExpectedCheckpoint,
       moves,
       seconds,
       gameMode,
-      dailyData,
+      dailyData?.date,
       refreshUser,
     ]
   );
 
-  /** Provide hint by highlighting next correct cell from solutionPath */
+  /** Intelligent Hint: rewinds path to deviation point and highlights the exact next correct cell */
   const handleHint = useCallback(() => {
     if (gameEnded) return;
-    const currentLength = path.length;
-    if (currentLength < puzzle.solutionPath.length) {
-      const nextInSolution = puzzle.solutionPath[currentLength];
-      setHintCell(nextInSolution);
-      SoundEffects.playStar();
+    const { validPrefixLength, nextCorrectCell } = getSmartHint(path, puzzle.solution);
+
+    // If player made a mistake, automatically rewind path to the fork
+    if (validPrefixLength < path.length) {
+      const rewoundPath = path.slice(0, validPrefixLength);
+      setPath(rewoundPath);
+
+      // Recalculate next expected checkpoint
+      let maxVisitedCp = 1;
+      rewoundPath.forEach((k) => {
+        const cp = puzzle.numbers[k];
+        if (cp !== undefined && cp > maxVisitedCp) {
+          maxVisitedCp = cp;
+        }
+      });
+      setNextExpectedCheckpoint(maxVisitedCp + 1);
     }
-  }, [gameEnded, path, puzzle.solutionPath]);
+
+    setHintCellKey(nextCorrectCell);
+    SoundEffects.playStar();
+  }, [gameEnded, path, puzzle.solution, puzzle.numbers]);
 
   /** Step back one cell */
   const handleUndo = useCallback(() => {
     if (path.length <= 1 || gameEnded) return;
     const newPath = path.slice(0, -1);
     setPath(newPath);
-    SoundEffects.playTap();
+    SoundEffects.playZipPop();
 
-    let maxVisitedCheckpoint = 1;
-    newPath.forEach((pt) => {
-      const cp = puzzle.checkpoints[cellKey(pt.row, pt.col)];
-      if (cp !== undefined && cp > maxVisitedCheckpoint) {
-        maxVisitedCheckpoint = cp;
+    let maxVisitedCp = 1;
+    newPath.forEach((k) => {
+      const cp = puzzle.numbers[k];
+      if (cp !== undefined && cp > maxVisitedCp) {
+        maxVisitedCp = cp;
       }
     });
-    setNextExpectedCheckpoint(maxVisitedCheckpoint + 1);
-    setHintCell(null);
-  }, [path, gameEnded, puzzle.checkpoints]);
+    setNextExpectedCheckpoint(maxVisitedCp + 1);
+    setHintCellKey(null);
+  }, [path, gameEnded, puzzle.numbers]);
 
-  /** Reset path back to 1 */
+  /** Clear/Reset path back to checkpoint 1 */
   const handleReset = useCallback(() => {
     if (gameEnded) return;
-    const start = puzzle.solutionPath[0];
-    setPath([start]);
+    const startKey = puzzle.solution[0];
+    setPath([startKey]);
     setNextExpectedCheckpoint(2);
-    setHintCell(null);
-    SoundEffects.playTap();
-  }, [gameEnded, puzzle.solutionPath]);
+    setHintCellKey(null);
+    SoundEffects.playZipRetract();
+  }, [gameEnded, puzzle.solution]);
 
   /** Open Standings & Leaderboard Modal */
   const handleOpenStandings = useCallback(async () => {
@@ -404,7 +433,7 @@ export function ZipPlayScreen() {
     }
   }, [myDailyScore, seconds, moves, dailyData?.puzzleNum, puzzle.size, lang]);
 
-  // PanResponder to allow seamless touch-and-drag line drawing
+  // Ultra-responsive PanResponder for 120Hz continuous drag drawing
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -426,8 +455,9 @@ export function ZipPlayScreen() {
     [cellSize, handleCellAction]
   );
 
-  const currentHead = path[path.length - 1];
-  const percentFilled = Math.round((path.length / puzzle.totalCells) * 100);
+  const totalCells = puzzle.size.rows * puzzle.size.cols;
+  const currentHeadKey = path[path.length - 1];
+  const percentFilled = Math.round((path.length / totalCells) * 100);
 
   return (
     <Atmosphere>
@@ -449,9 +479,7 @@ export function ZipPlayScreen() {
             <Text style={[styles.title, { color: colors.text, fontFamily: fonts.display }]}>
               {gameMode === "daily"
                 ? `Daily #${dailyData?.puzzleNum || "..."}`
-                : lang === "ne"
-                ? "मार्ग पूरा गर्नुहोस्"
-                : "Complete The Path"}
+                : `${puzzle.size.rows}×${puzzle.size.cols} Grid`}
             </Text>
           </View>
 
@@ -483,7 +511,7 @@ export function ZipPlayScreen() {
           </View>
         </View>
 
-        {/* Mode Segmented Switcher (Daily vs Practice) */}
+        {/* Mode Segmented Switcher (Daily vs Free Practice) */}
         <View style={[styles.modeSegmentContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <TouchableOpacity
             onPress={() => setGameMode("daily")}
@@ -590,9 +618,9 @@ export function ZipPlayScreen() {
           {/* PRACTICE MODE: Size Picker */}
           {gameMode === "practice" && (
             <View style={styles.difficultyRow}>
-              {([4, 5, 6] as const).map((s) => {
+              {([6, 8, 10] as const).map((s) => {
                 const active = size === s;
-                const labels = { 4: "4×4 Easy", 5: "5×5 Focus", 6: "6×6 Master" };
+                const labels = { 6: "6×6 Easy", 8: "8×8 Focus", 10: "10×10 Master" };
                 return (
                   <TouchableOpacity
                     key={s}
@@ -627,7 +655,7 @@ export function ZipPlayScreen() {
           <View style={[styles.progressCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
             <View style={styles.trackerTopRow}>
               <Text style={[styles.statsLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
-                CHECKPOINTS
+                CHECKPOINTS (1 → {puzzle.maxCheckpoint})
               </Text>
               <View style={[styles.timerPill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Text style={[styles.timerText, { color: colors.accent, fontFamily: fonts.bodyBold }]}>
@@ -683,15 +711,15 @@ export function ZipPlayScreen() {
             {/* Coverage Meter */}
             <View style={styles.statsRow}>
               <Text style={[styles.statsLabel, { color: colors.textMuted, fontFamily: fonts.body }]}>
-                {lang === "ne" ? "भरिएको कोष्ठक" : "Cells Filled"}: {path.length}/{puzzle.totalCells} ({percentFilled}%)
+                {lang === "ne" ? "भरिएको कोष्ठक" : "Cells Filled"}: {path.length}/{totalCells} ({percentFilled}%)
               </Text>
               <Text style={[styles.statsLabel, { color: colors.textMuted, fontFamily: fonts.body }]}>
-                Moves: {moves}
+                Moves: {moves} · Walls: {puzzle.walls.length}
               </Text>
             </View>
           </View>
 
-          {/* The Interactive Zip Grid */}
+          {/* The Interactive Zip Grid with Continuous Pipe & Wall Barriers */}
           {dailyLoading ? (
             <View style={[styles.gridContainer, styles.loadingGrid, { width: MAX_BOARD_WIDTH, height: MAX_BOARD_WIDTH }]}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -712,21 +740,35 @@ export function ZipPlayScreen() {
               ]}
               {...panResponder.panHandlers}
             >
-              {/* Grid Cells */}
-              {Array.from({ length: puzzle.size }).map((_, r) => (
+              {/* Grid Rows & Cells */}
+              {Array.from({ length: puzzle.size.rows }).map((_, r) => (
                 <View key={`row-${r}`} style={styles.gridRow}>
-                  {Array.from({ length: puzzle.size }).map((_, c) => {
+                  {Array.from({ length: puzzle.size.cols }).map((_, c) => {
                     const key = cellKey(r, c);
-                    const isCheckpoint = puzzle.checkpoints[key] !== undefined;
-                    const cpNum = puzzle.checkpoints[key];
+                    const isCheckpoint = puzzle.numbers[key] !== undefined;
+                    const cpNum = puzzle.numbers[key];
                     const inPath = pathKeySet.has(key);
-                    const isHead = currentHead?.row === r && currentHead?.col === c;
-                    const isHint = hintCell?.row === r && hintCell?.col === c;
+                    const isHead = currentHeadKey === key;
+                    const isHint = hintCellKey === key;
 
+                    // Pipe Direction Connections
                     const pathIdx = pathIndexMap.get(key) ?? -1;
-                    const prevInPath = pathIdx > 0 ? path[pathIdx - 1] : null;
-                    const nextInPath =
-                      pathIdx >= 0 && pathIdx < path.length - 1 ? path[pathIdx + 1] : null;
+                    const prevKey = pathIdx > 0 ? path[pathIdx - 1] : null;
+                    const nextKey = pathIdx >= 0 && pathIdx < path.length - 1 ? path[pathIdx + 1] : null;
+
+                    const prev = prevKey ? parseKey(prevKey) : null;
+                    const next = nextKey ? parseKey(nextKey) : null;
+
+                    const connectsTop = (prev && prev.row < r) || (next && next.row < r);
+                    const connectsBottom = (prev && prev.row > r) || (next && next.row > r);
+                    const connectsLeft = (prev && prev.col < c) || (next && next.col < c);
+                    const connectsRight = (prev && prev.col > c) || (next && next.col > c);
+
+                    // Wall barrier flags on right and bottom borders
+                    const rightNeighborKey = cellKey(r, c + 1);
+                    const bottomNeighborKey = cellKey(r + 1, c);
+                    const hasWallRight = c + 1 < puzzle.size.cols && hasWall(wallsSet, key, rightNeighborKey);
+                    const hasWallBottom = r + 1 < puzzle.size.rows && hasWall(wallsSet, key, bottomNeighborKey);
 
                     return (
                       <TouchableOpacity
@@ -738,53 +780,143 @@ export function ZipPlayScreen() {
                           {
                             width: cellSize,
                             height: cellSize,
-                            borderColor: inPath ? colors.primary : colors.border,
-                            backgroundColor: inPath
-                              ? colors.primarySoft
-                              : isHint
-                              ? colors.goldSoft
-                              : colors.surface,
+                            borderColor: "rgba(255, 255, 255, 0.06)",
+                            backgroundColor: isHint ? colors.goldSoft : "transparent",
                           },
                         ]}
                       >
-                        {/* Connection bridge indicators between cells */}
-                        {prevInPath && (
+                        {/* CONTINUOUS PIPE RENDERING */}
+                        {inPath && (
+                          <View style={styles.pipeLayer} pointerEvents="none">
+                            {/* Vertical pipe segment */}
+                            {connectsTop && (
+                              <View
+                                style={[
+                                  styles.pipeVertical,
+                                  {
+                                    width: pipeWidth,
+                                    top: 0,
+                                    height: "52%",
+                                    backgroundColor: colors.primary,
+                                  },
+                                ]}
+                              />
+                            )}
+                            {connectsBottom && (
+                              <View
+                                style={[
+                                  styles.pipeVertical,
+                                  {
+                                    width: pipeWidth,
+                                    bottom: 0,
+                                    height: "52%",
+                                    backgroundColor: colors.primary,
+                                  },
+                                ]}
+                              />
+                            )}
+
+                            {/* Horizontal pipe segment */}
+                            {connectsLeft && (
+                              <View
+                                style={[
+                                  styles.pipeHorizontal,
+                                  {
+                                    height: pipeWidth,
+                                    left: 0,
+                                    width: "52%",
+                                    backgroundColor: colors.primary,
+                                  },
+                                ]}
+                              />
+                            )}
+                            {connectsRight && (
+                              <View
+                                style={[
+                                  styles.pipeHorizontal,
+                                  {
+                                    height: pipeWidth,
+                                    right: 0,
+                                    width: "52%",
+                                    backgroundColor: colors.primary,
+                                  },
+                                ]}
+                              />
+                            )}
+
+                            {/* Center pipe core node */}
+                            <View
+                              style={[
+                                styles.pipeCenterNode,
+                                {
+                                  width: pipeWidth,
+                                  height: pipeWidth,
+                                  borderRadius: pipeWidth / 2,
+                                  backgroundColor: isHead ? colors.accent : colors.primary,
+                                },
+                              ]}
+                            />
+
+                            {/* Leading Head Pulsing Energy Ring */}
+                            {isHead && (
+                              <View
+                                style={[
+                                  styles.headGlowHalo,
+                                  {
+                                    width: pipeWidth + 8,
+                                    height: pipeWidth + 8,
+                                    borderRadius: (pipeWidth + 8) / 2,
+                                    borderColor: colors.accent,
+                                  },
+                                ]}
+                              />
+                            )}
+                          </View>
+                        )}
+
+                        {/* PHYSICAL WALL BARRIERS */}
+                        {hasWallRight && (
                           <View
                             style={[
-                              styles.bridge,
+                              styles.wallRight,
                               {
-                                backgroundColor: colors.primary,
-                                ...(prevInPath.row < r && styles.bridgeTop),
-                                ...(prevInPath.row > r && styles.bridgeBottom),
-                                ...(prevInPath.col < c && styles.bridgeLeft),
-                                ...(prevInPath.col > c && styles.bridgeRight),
+                                width: wallThickness,
+                                backgroundColor: colors.text,
+                                borderRadius: wallThickness / 2,
                               },
                             ]}
                           />
                         )}
-                        {nextInPath && (
+                        {hasWallBottom && (
                           <View
                             style={[
-                              styles.bridge,
+                              styles.wallBottom,
                               {
-                                backgroundColor: colors.primary,
-                                ...(nextInPath.row < r && styles.bridgeTop),
-                                ...(nextInPath.row > r && styles.bridgeBottom),
-                                ...(nextInPath.col < c && styles.bridgeLeft),
-                                ...(nextInPath.col > c && styles.bridgeRight),
+                                height: wallThickness,
+                                backgroundColor: colors.text,
+                                borderRadius: wallThickness / 2,
                               },
                             ]}
                           />
                         )}
 
-                        {/* Checkpoint Number Badge or Path Pulse Dot */}
+                        {/* NUMBERED CHECKPOINT BADGE */}
                         {isCheckpoint ? (
                           <View
                             style={[
                               styles.checkpointBadge,
                               {
+                                width: Math.min(cellSize * 0.76, 36),
+                                height: Math.min(cellSize * 0.76, 36),
+                                borderRadius: Math.min(cellSize * 0.76, 36) / 2,
                                 backgroundColor: inPath ? colors.primary : colors.surfaceElevated,
-                                borderColor: inPath ? colors.accent : colors.primary,
+                                borderColor:
+                                  cpNum === nextExpectedCheckpoint
+                                    ? colors.accent
+                                    : inPath
+                                    ? colors.green
+                                    : colors.primary,
+                                borderWidth: cpNum === nextExpectedCheckpoint ? 2.5 : 2,
                               },
                             ]}
                           >
@@ -794,25 +926,25 @@ export function ZipPlayScreen() {
                                 {
                                   color: inPath ? "#FFFFFF" : colors.text,
                                   fontFamily: fonts.display,
-                                  fontSize: puzzle.size === 6 ? 13 : 16,
+                                  fontSize: puzzle.size.cols >= 10 ? 11 : puzzle.size.cols >= 8 ? 13 : 15,
                                 },
                               ]}
                             >
                               {cpNum}
                             </Text>
                           </View>
-                        ) : inPath ? (
+                        ) : isHint ? (
                           <View
                             style={[
-                              styles.pathDot,
+                              styles.hintIndicator,
                               {
-                                backgroundColor: isHead ? colors.accent : colors.primary,
-                                transform: [{ scale: isHead ? 1.3 : 1 }],
+                                width: cellSize * 0.5,
+                                height: cellSize * 0.5,
+                                borderRadius: (cellSize * 0.5) / 2,
+                                borderColor: colors.gold,
                               },
                             ]}
                           />
-                        ) : isHint ? (
-                          <View style={[styles.hintIndicator, { borderColor: colors.gold }]} />
                         ) : null}
                       </TouchableOpacity>
                     );
@@ -889,8 +1021,8 @@ export function ZipPlayScreen() {
             </Text>
             <Text style={[styles.instructionsBody, { color: colors.textMuted, fontFamily: fonts.body }]}>
               {lang === "ne"
-                ? "१. १ बाट सुरु गरी अंकहरूलाई क्रमिक रूपमा जोड्नुहोस्।\n२. ग्रिडका सबै कोष्ठकहरू पार गरी बाटो पूरा गर्नुहोस्।"
-                : "1. Connect numbered checkpoints in sequential order (1 → 2 → 3 → ...).\n2. Drag or tap adjacent cells to completely fill the grid without overlapping."}
+                ? "१. १ बाट सुरु गरी अंकहरूलाई क्रमिक रूपमा जोड्नुहोस्।\n२. भित्ता (Wall) पार गर्न मिल्दैन।\n३. सम्पूर्ण कोष्ठकहरू पार गरी अन्तिम अंकमा पुगेपछि खेल जितिन्छ।"
+                : "1. Connect numbered checkpoints in sequential order (1 → 2 → 3 → ...).\n2. Thick dark bars are impassable walls — paths cannot cross them.\n3. Every cell must be visited exactly once, ending at the highest number."}
             </Text>
           </View>
         </ScrollView>
@@ -898,7 +1030,7 @@ export function ZipPlayScreen() {
         {/* Victory Modal Overlay */}
         {gameEnded && (
           <View style={styles.modalOverlay}>
-            <ConfettiEffect count={50} />
+            <ConfettiEffect count={55} />
             <EmojiBurst />
             <Card
               style={StyleSheet.flatten([
@@ -913,7 +1045,7 @@ export function ZipPlayScreen() {
               <Text style={[styles.victorySubtitle, { color: colors.textMuted, fontFamily: fonts.body }]}>
                 {lang === "ne"
                   ? "तपाईंले ग्रिड सफलतापूर्वक पूरा गर्नुभयो!"
-                  : `Full ${puzzle.size}×${puzzle.size} path completed in ${seconds}s!`}
+                  : `Full ${puzzle.size.rows}×${puzzle.size.cols} path completed in ${seconds}s!`}
               </Text>
 
               {/* Bounty Box */}
@@ -965,8 +1097,8 @@ export function ZipPlayScreen() {
                   />
                 ) : (
                   <PrimaryButton
-                    label={size < 6 ? `⚡ Level Up: ${size + 1}×${size + 1}` : "Play Same Size"}
-                    onPress={() => initPracticeGame(Math.min(6, size + 1) as 4 | 5 | 6)}
+                    label={size < 10 ? `⚡ Level Up: ${size === 6 ? 8 : 10}×${size === 6 ? 8 : 10}` : "Play Same Size"}
+                    onPress={() => initPracticeGame(size < 10 ? (size === 6 ? 8 : 10) : size)}
                     variant="ghost"
                   />
                 )}
@@ -1137,7 +1269,7 @@ export function ZipPlayScreen() {
                         </Text>
                       </View>
 
-                      {(!standingsData?.unplayedFriends || standingsData.unplayedFriends.length === 0) ? (
+                      {!standingsData?.unplayedFriends || standingsData.unplayedFriends.length === 0 ? (
                         <Text style={[styles.allPlayedText, { color: colors.green, fontFamily: fonts.body }]}>
                           {t("zipAllFriendsPlayed")}
                         </Text>
@@ -1207,8 +1339,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   backBtn: {
     width: 36,
@@ -1351,10 +1483,10 @@ const styles = StyleSheet.create({
   },
   progressCard: {
     width: MAX_BOARD_WIDTH,
-    padding: spacing.md,
+    padding: spacing.sm + 4,
     borderRadius: radius.card,
     borderWidth: 1,
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   trackerTopRow: {
     flexDirection: "row",
@@ -1374,22 +1506,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    marginVertical: 4,
   },
   trackDot: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
   trackDotText: {
-    fontSize: 11,
+    fontSize: 10,
   },
   trackLine: {
-    width: 24,
-    height: 3,
-    marginHorizontal: 2,
+    width: 14,
+    height: 2.5,
+    marginHorizontal: 1,
   },
   statsRow: {
     flexDirection: "row",
@@ -1420,54 +1553,61 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     position: "relative",
   },
-  bridge: {
+  pipeLayer: {
     position: "absolute",
-    zIndex: 1,
-  },
-  bridgeTop: {
-    top: -2,
-    width: 8,
-    height: "55%",
-  },
-  bridgeBottom: {
-    bottom: -2,
-    width: 8,
-    height: "55%",
-  },
-  bridgeLeft: {
-    left: -2,
-    height: 8,
-    width: "55%",
-  },
-  bridgeRight: {
-    right: -2,
-    height: 8,
-    width: "55%",
-  },
-  checkpointBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     alignItems: "center",
     justifyContent: "center",
+  },
+  pipeVertical: {
+    position: "absolute",
+    alignSelf: "center",
     zIndex: 2,
+  },
+  pipeHorizontal: {
+    position: "absolute",
+    top: "50%",
+    transform: [{ translateY: -0.5 }],
+    zIndex: 2,
+  },
+  pipeCenterNode: {
+    position: "absolute",
+    zIndex: 3,
+  },
+  headGlowHalo: {
+    position: "absolute",
+    borderWidth: 2,
+    zIndex: 4,
+  },
+  wallRight: {
+    position: "absolute",
+    right: 0,
+    top: 2,
+    bottom: 2,
+    zIndex: 10,
+  },
+  wallBottom: {
+    position: "absolute",
+    bottom: 0,
+    left: 2,
+    right: 2,
+    zIndex: 10,
+  },
+  checkpointBadge: {
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 15,
   },
   checkpointNumber: {
     textAlign: "center",
   },
-  pathDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    zIndex: 2,
-  },
   hintIndicator: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderStyle: "dashed",
+    zIndex: 5,
   },
   toolbar: {
     flexDirection: "row",

@@ -414,23 +414,64 @@ function getDailyZipSpecs(dateStr) {
   const numCheckpoints = size === 4 ? 4 : size === 5 ? 5 : 6;
   const step = Math.floor((total - 1) / (numCheckpoints - 1));
   const checkpoints = {};
+  const numbers = {};
   let cpNum = 1;
+
   checkpoints[`${path[0].row}-${path[0].col}`] = 1;
+  numbers[`${path[0].row},${path[0].col}`] = 1;
+
   for (let i = 1; i < numCheckpoints - 1; i++) {
     const cell = path[i * step];
     cpNum++;
     checkpoints[`${cell.row}-${cell.col}`] = cpNum;
+    numbers[`${cell.row},${cell.col}`] = cpNum;
   }
   const endCell = path[path.length - 1];
   cpNum++;
   checkpoints[`${endCell.row}-${endCell.col}`] = cpNum;
+  numbers[`${endCell.row},${endCell.col}`] = cpNum;
+
+  // Strategic wall barriers
+  const walls = [];
+  const wallsSet = new Set();
+  const pathIndexMap = new Map();
+  path.forEach((p, idx) => pathIndexMap.set(`${p.row},${p.col}`, idx));
+
+  for (let i = 0; i < path.length; i++) {
+    if (walls.length >= (size === 6 ? 4 : size === 8 ? 6 : 8)) break;
+    const p = path[i];
+    const deltas = [
+      [1, 0],
+      [0, 1],
+    ];
+    for (const [dr, dc] of deltas) {
+      const nr = p.row + dr;
+      const nc = p.col + dc;
+      if (nr < size && nc < size) {
+        const neighborKey = `${nr},${nc}`;
+        const idxA = i;
+        const idxB = pathIndexMap.get(neighborKey) ?? 0;
+        if (Math.abs(idxA - idxB) > 3) {
+          const currentKey = `${p.row},${p.col}`;
+          const wKey = currentKey < neighborKey ? `${currentKey}|${neighborKey}` : `${neighborKey}|${currentKey}`;
+          if (!wallsSet.has(wKey)) {
+            wallsSet.add(wKey);
+            walls.push({ between: [currentKey, neighborKey] });
+          }
+        }
+      }
+    }
+  }
 
   return {
     puzzleNum: dayNum,
     date: dateStr,
-    size,
+    size: { rows: size, cols: size },
     difficulty,
     totalCells: total,
+    numbers,
+    walls,
+    solution: path.map((p) => `${p.row},${p.col}`),
     checkpoints,
     maxCheckpoint: cpNum,
     solutionPath: path,

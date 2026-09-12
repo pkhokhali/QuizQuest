@@ -280,6 +280,56 @@ export const SoundEffects = {
       }
     } catch {}
   },
+
+  /** Zip Game: Subtle tactile pop on advancing one cell */
+  playZipPop: () => {
+    playSoundSafely("tick");
+    try {
+      if (Platform.OS !== "web") {
+        Vibration.vibrate(8);
+      }
+    } catch {}
+  },
+
+  /** Zip Game: Fluid zip/whoosh sound on rubber-band retracting path */
+  playZipRetract: () => {
+    playSoundSafely("cardFlip");
+    try {
+      if (Platform.OS !== "web") {
+        Vibration.vibrate(14);
+      }
+    } catch {}
+  },
+
+  /** Zip Game: Ascending bell chime upon reaching ordered checkpoint */
+  playZipCheckpoint: () => {
+    playSoundSafely("star");
+    try {
+      if (Platform.OS !== "web") {
+        Vibration.vibrate(28);
+      }
+    } catch {}
+  },
+
+  /** Zip Game: Muted barrier bump when hitting wall or invalid move */
+  playZipWallHit: () => {
+    playSoundSafely("wrong");
+    try {
+      if (Platform.OS !== "web") {
+        Vibration.vibrate(18);
+      }
+    } catch {}
+  },
+
+  /** Zip Game: Grand victory fanfare when path is 100% complete */
+  playZipSolve: () => {
+    playSoundSafely("victory");
+    try {
+      if (Platform.OS !== "web") {
+        Vibration.vibrate([0, 50, 40, 70, 40, 120]);
+      }
+    } catch {}
+  },
 };
 
 /** React hook to reactively track and toggle sound across any screen */
