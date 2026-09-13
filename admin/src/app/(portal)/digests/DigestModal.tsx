@@ -70,7 +70,12 @@ export default function DigestModal({
           method: "PUT",
           body: form,
         });
-        toast("Digest updated.", "success");
+        toast(
+          digest.status === "published"
+            ? "Digest updated — live changes active immediately for students."
+            : "Digest updated.",
+          "success"
+        );
       } else {
         await api<{ digest: Digest }>("/api/admin/digests", {
           method: "POST",

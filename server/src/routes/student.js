@@ -732,6 +732,20 @@ function publishedDigest(gradeBand) {
     }
   }
 
+  // Fallback 1: Any published digest for today
+  if (!row) {
+    row = db
+      .prepare("SELECT * FROM digests WHERE date = ? AND status = 'published' ORDER BY id DESC")
+      .get(todayStr);
+  }
+
+  // Fallback 2: Most recent published digest in the system
+  if (!row) {
+    row = db
+      .prepare("SELECT * FROM digests WHERE status = 'published' ORDER BY date DESC, id DESC")
+      .get();
+  }
+
   return row;
 }
 

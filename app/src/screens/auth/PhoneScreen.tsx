@@ -539,28 +539,6 @@ export function PhoneScreen({ navigation }: Props) {
                   </Text>
                 </Text>
               </TouchableOpacity>
-
-              {/* Quick Demo Reviewer Helper */}
-              <TouchableOpacity
-                style={[
-                  styles.demoPill,
-                  {
-                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.04)" : "#F1F5F9",
-                    borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "#E2E8F0",
-                  },
-                ]}
-                onPress={() => {
-                  setEmail("test2@quizquest.com");
-                  setPassword("password123");
-                  setIsSignUp(false);
-                  setError(null);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.demoPillText, { color: colors.textMuted, fontFamily: fonts.body }]}>
-                  🔑 Demo Student: <Text style={{ color: colors.primary, fontFamily: fonts.bodyBold }}>test2@quizquest.com</Text>
-                </Text>
-              </TouchableOpacity>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -789,16 +767,5 @@ const styles = StyleSheet.create({
   switchModeText: {
     fontSize: 13,
   },
-  demoPill: {
-    paddingVertical: 8,
-    paddingHorizontal: spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  demoPillText: {
-    fontSize: 11,
-    letterSpacing: 0.2,
-  },
 });
+

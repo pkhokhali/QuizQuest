@@ -488,36 +488,28 @@ export default function DigestsPage() {
                       Push
                     </button>
 
-                    {isDraft ? (
-                      <>
-                        <button
-                          onClick={() => setDeleting(d)}
-                          className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition"
-                        >
-                          Delete
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditing(d);
-                            setEditorOpen(true);
-                          }}
-                          className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => setApproving(d)}
-                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 transition shadow-md shadow-emerald-600/30"
-                        >
-                          Approve &amp; Publish
-                        </button>
-                      </>
-                    ) : (
+                    <button
+                      onClick={() => setDeleting(d)}
+                      className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditing(d);
+                        setEditorOpen(true);
+                      }}
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition"
+                      title={isDraft ? "Edit draft" : "Edit live published digest"}
+                    >
+                      Edit
+                    </button>
+                    {isDraft && (
                       <button
-                        onClick={() => setDeleting(d)}
-                        className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition"
+                        onClick={() => setApproving(d)}
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 transition shadow-md shadow-emerald-600/30"
                       >
-                        Delete
+                        Approve &amp; Publish
                       </button>
                     )}
                   </div>

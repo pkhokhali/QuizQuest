@@ -10,25 +10,38 @@ export function gradeBandFor(grade) {
   return "11-12";
 }
 
-export function today() {
+const TIMEZONE = process.env.DIGEST_TIMEZONE || "Asia/Kathmandu";
+
+export function today(tz = TIMEZONE) {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(d);
 }
 
-export function daysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export function daysAgo(n, tz = TIMEZONE) {
+  const todayStr = today(tz);
+  const [y, m, day] = todayStr.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1, day));
+  target.setUTCDate(target.getUTCDate() - n);
+  return target.toISOString().slice(0, 10);
 }
 
 /** Monday of the current week, YYYY-MM-DD (weekly leaderboard window). */
-export function weekStart() {
-  const d = new Date();
-  const day = d.getDay(); // 0=Sun
-  const diff = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - diff);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export function weekStart(tz = TIMEZONE) {
+  const todayStr = today(tz);
+  const [y, m, day] = todayStr.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1, day));
+  const dayOfWeek = target.getUTCDay(); // 0=Sun
+  const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  target.setUTCDate(target.getUTCDate() - diff);
+  return target.toISOString().slice(0, 10);
 }
+
 
 export function levelForXp(xp) {
   return Math.floor(Math.sqrt(Math.max(0, xp) / 50)) + 1;
