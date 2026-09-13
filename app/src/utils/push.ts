@@ -74,12 +74,12 @@ export async function scheduleDailyReminders() {
       }
     }
 
-    // 1. Morning QuizQuest Reminder (7:30 AM)
+    // 1. Morning QuizQuest & Daily Digest Reminder (7:30 AM)
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily_quizquest_morning',
       content: {
-        title: '☀️ Time for QuizQuest!',
-        body: "Answer today's questions, protect your daily streak 🔥 and earn XP!",
+        title: '☀️ Daily Digest & Morning Quest!',
+        body: "Today's 3 Did-You-Know facts & daily quiz are ready! Learn, protect your streak 🔥 and earn XP.",
         sound: 'default',
         data: { screen: 'Home' },
       },

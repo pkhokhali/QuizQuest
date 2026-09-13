@@ -122,6 +122,25 @@ export interface JoinSchoolResponse {
 
 export type DailyQuizStatus = "not_started" | "in_progress" | "completed";
 
+export interface RiddleData {
+  id: number;
+  riddleEn: string;
+  riddleNe: string;
+  answerEn: string;
+  answerNe: string;
+  hint1En?: string;
+  hint1Ne?: string;
+  hint2En?: string;
+  hint2Ne?: string;
+  hint3En?: string;
+  hint3Ne?: string;
+  category: string;
+  difficulty: number;
+  date: string;
+  solved: boolean;
+  xpEarned: number;
+}
+
 export interface HomeData {
   user: User;
   dailyQuiz: {
@@ -130,6 +149,7 @@ export interface HomeData {
     total: number;
   };
   digest: Digest | null;
+  riddle?: RiddleData | null;
   revengeAvailable: boolean;
   recentAwards: Award[];
   weeklyXp: number;

@@ -58,7 +58,7 @@ const insertMany = db.transaction((rows) => {
 });
 
 console.log("Generating math templates...");
-const math = generateMath(SCALE * 4); // volume driver
+const math = generateMath(SCALE * 7); // volume driver
 insertMany(math);
 console.log(`  math: ${math.length}`);
 

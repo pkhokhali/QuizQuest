@@ -4,13 +4,15 @@ import {
   Animated,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getHome, updateMe } from "../api/client";
+import { getHome, updateMe, solveDailyRiddle } from "../api/client";
+import { SoundEffects } from "../utils/audio";
 import { HomeData } from "../api/types";
 import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
@@ -44,6 +46,50 @@ export function HomeScreen() {
   const [failed, setFailed] = useState(false);
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [showCountryModal, setShowCountryModal] = useState(false);
+  const [revealedHints, setRevealedHints] = useState<number[]>([]);
+  const [answerRevealed, setAnswerRevealed] = useState(false);
+  const [riddleSolved, setRiddleSolved] = useState(false);
+  const [solvingRiddle, setSolvingRiddle] = useState(false);
+
+  useEffect(() => {
+    if (data?.riddle?.solved) {
+      setRiddleSolved(true);
+      setAnswerRevealed(true);
+    }
+  }, [data?.riddle?.solved]);
+
+  const handleSolveRiddle = async (riddleId: number) => {
+    if (riddleSolved || solvingRiddle) return;
+    setSolvingRiddle(true);
+    SoundEffects.playCorrect();
+    try {
+      const res = await solveDailyRiddle(riddleId);
+      setRiddleSolved(true);
+      if (res.totalXp && user) {
+        setUser({ ...user, xp: res.totalXp });
+      }
+    } catch {
+      // Non-fatal
+    } finally {
+      setSolvingRiddle(false);
+    }
+  };
+
+  const handleShareRiddle = async (riddleText: string) => {
+    try {
+      SoundEffects.playTap();
+      await Share.share({
+        message: `🧩 QuizQuest Daily Riddle / गाउँखाने कथा:\n\n"${riddleText}"\n\nCan you guess the answer? Play QuizQuest & earn +15 XP! 🔥\nhttps://quizquest.com`,
+      });
+    } catch {}
+  };
+
+  const toggleHint = (index: number) => {
+    SoundEffects.playTap();
+    setRevealedHints((prev) =>
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
+    );
+  };
 
   // Auto-detect user country if not set yet
   useEffect(() => {
@@ -747,6 +793,149 @@ export function HomeScreen() {
             </Card>
           )}
 
+          {/* Today's Daily Riddle / Gaunkhane Katha Card */}
+          {data.riddle && (
+            <Card style={styles.riddleCard}>
+              <View style={styles.riddleHeader}>
+                <View style={styles.riddleBadge}>
+                  <Text style={[styles.riddleBadgeText, { color: "#F59E0B", fontFamily: fonts.bodyBold }]}>
+                    🧩 DAILY RIDDLE · {lang === "ne" ? "गाउँखाने कथा" : "BRAIN TEASER"}
+                  </Text>
+                </View>
+                <View style={[styles.riddleCatPill, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                  <Text style={[styles.riddleCatText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                    {data.riddle.category.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={[styles.riddleQuestion, { color: colors.text, fontFamily: fonts.displayMed }]}>
+                "{lang === "ne" && data.riddle.riddleNe ? data.riddle.riddleNe : data.riddle.riddleEn}"
+              </Text>
+
+              {/* Progressive Hints */}
+              <View style={styles.hintsRow}>
+                {[1, 2, 3].map((num) => {
+                  const isRevealed = revealedHints.includes(num);
+                  return (
+                    <TouchableOpacity
+                      key={num}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.hintChip,
+                        {
+                          backgroundColor: isRevealed ? colors.primarySoft : colors.bgMid,
+                          borderColor: isRevealed ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => toggleHint(num)}
+                    >
+                      <Text style={[styles.hintChipText, { color: isRevealed ? colors.primary : colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                        💡 {lang === "ne" ? `संकेत ${num}` : `Hint ${num}`} {isRevealed ? "▼" : "▶"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Hint expanded details */}
+              {revealedHints.map((num) => {
+                const hintText =
+                  num === 1
+                    ? (lang === "ne" && data.riddle?.hint1Ne ? data.riddle.hint1Ne : data.riddle?.hint1En)
+                    : num === 2
+                    ? (lang === "ne" && data.riddle?.hint2Ne ? data.riddle.hint2Ne : data.riddle?.hint2En)
+                    : (lang === "ne" && data.riddle?.hint3Ne ? data.riddle.hint3Ne : data.riddle?.hint3En);
+
+                if (!hintText) return null;
+                return (
+                  <View key={num} style={[styles.hintBox, { backgroundColor: colors.bgMid, borderColor: colors.border }]}>
+                    <Text style={[styles.hintBoxTitle, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                      💡 {lang === "ne" ? `संकेत ${num}:` : `Clue ${num}:`}
+                    </Text>
+                    <Text style={[styles.hintBoxText, { color: colors.text, fontFamily: fonts.body }]}>
+                      {hintText}
+                    </Text>
+                  </View>
+                );
+              })}
+
+              {/* Solution Area */}
+              {answerRevealed ? (
+                <View style={[styles.answerContainer, { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: colors.green }]}>
+                  <Text style={[styles.answerLabel, { color: colors.green, fontFamily: fonts.bodyBold }]}>
+                    🎯 {lang === "ne" ? "उत्तर / समाधान:" : "Answer / Solution:"}
+                  </Text>
+                  <Text style={[styles.answerText, { color: colors.text, fontFamily: fonts.display }]}>
+                    {lang === "ne" && data.riddle.answerNe ? data.riddle.answerNe : data.riddle.answerEn}
+                  </Text>
+
+                  <View style={styles.riddleActionButtons}>
+                    {data.riddle.solved || riddleSolved ? (
+                      <View style={[styles.solvedBadge, { backgroundColor: colors.green }]}>
+                        <Text style={[styles.solvedBadgeText, { color: "#FFFFFF", fontFamily: fonts.bodyBold }]}>
+                          ✓ SOLVED · +15 XP EARNED 🎉
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        disabled={solvingRiddle}
+                        style={[styles.claimXpBtn, { backgroundColor: colors.green }]}
+                        onPress={() => handleSolveRiddle(data.riddle!.id)}
+                      >
+                        <Text style={[styles.claimXpText, { color: "#FFFFFF", fontFamily: fonts.bodyBold }]}>
+                          {solvingRiddle ? "Claiming..." : "✨ I Solved It! (+15 XP)"}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={[styles.shareRiddleBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+                      onPress={() =>
+                        handleShareRiddle(
+                          lang === "ne" && data.riddle?.riddleNe ? data.riddle.riddleNe : data.riddle?.riddleEn || ""
+                        )
+                      }
+                    >
+                      <Text style={[styles.shareRiddleText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
+                        📤 {lang === "ne" ? "साथीलाई सोध्नुहोस्" : "Challenge Friends"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.riddleRevealRow}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={[styles.revealAnswerBtn, { backgroundColor: "#F59E0B" }]}
+                    onPress={() => {
+                      SoundEffects.playCardFlip();
+                      setAnswerRevealed(true);
+                    }}
+                  >
+                    <Text style={[styles.revealAnswerText, { color: "#FFFFFF", fontFamily: fonts.bodyBold }]}>
+                      🔍 {lang === "ne" ? "उत्तर हेर्नुहोस् (+15 XP)" : "Reveal Solution (+15 XP)"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[styles.shareRiddleSmallBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+                    onPress={() =>
+                      handleShareRiddle(
+                        lang === "ne" && data.riddle?.riddleNe ? data.riddle.riddleNe : data.riddle?.riddleEn || ""
+                      )
+                    }
+                  >
+                    <Text style={{ fontSize: 16 }}>📤</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </Card>
+          )}
+
           {/* Recent Awards Carousel */}
           {data.recentAwards.length > 0 && (
             <View style={styles.awardsSection}>
@@ -1032,6 +1221,146 @@ const styles = StyleSheet.create({
   memoryCta: {
     borderRadius: radius.button,
     paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riddleCard: {
+    gap: spacing.md,
+    padding: spacing.lg,
+    marginTop: spacing.md,
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 158, 11, 0.4)",
+  },
+  riddleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  riddleBadge: {
+    backgroundColor: "rgba(245, 158, 11, 0.16)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.chip,
+  },
+  riddleBadgeText: {
+    fontSize: 11,
+    letterSpacing: 0.3,
+  },
+  riddleCatPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  riddleCatText: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  riddleQuestion: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontStyle: "italic",
+  },
+  hintsRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  hintChip: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  hintChipText: {
+    fontSize: 11,
+  },
+  hintBox: {
+    padding: spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 2,
+  },
+  hintBoxTitle: {
+    fontSize: 11,
+  },
+  hintBoxText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  answerContainer: {
+    padding: spacing.md,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 8,
+  },
+  answerLabel: {
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
+  answerText: {
+    fontSize: 18,
+  },
+  riddleActionButtons: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+    flexWrap: "wrap",
+  },
+  solvedBadge: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  solvedBadgeText: {
+    fontSize: 12,
+  },
+  claimXpBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  claimXpText: {
+    fontSize: 12,
+  },
+  shareRiddleBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareRiddleText: {
+    fontSize: 12,
+  },
+  riddleRevealRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  revealAnswerBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  revealAnswerText: {
+    fontSize: 13,
+  },
+  shareRiddleSmallBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },

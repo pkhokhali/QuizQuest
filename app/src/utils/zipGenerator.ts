@@ -265,9 +265,12 @@ export function countSolutions(
 // 3. PUZZLE GENERATOR
 // ---------------------------------------------------------------------------
 
+export type ZipDimension = 5 | 6 | 7 | 8;
+export type ZipDifficulty = "easy" | "medium" | "hard";
+
 export function createZipPuzzle(
-  dimension: 6 | 8 | 10 = 6,
-  difficulty: "easy" | "medium" | "hard" = "easy",
+  dimension: ZipDimension = 6,
+  difficulty: ZipDifficulty = "medium",
   seed?: number
 ): ZipPuzzle {
   const rows = dimension;
@@ -283,9 +286,21 @@ export function createZipPuzzle(
   // 1. Generate full Hamiltonian solution path
   const solution = generateHamiltonianPath(rows, cols, activeSeed);
 
-  // 2. Choose checkpoints (always include 1 and highest number)
-  // Checkpoint count: 6x6 -> 6 checkpoints, 8x8 -> 8 checkpoints, 10x10 -> 9 checkpoints
-  const numCheckpoints = dimension === 6 ? 6 : dimension === 8 ? 8 : 9;
+  // 2. Choose checkpoints based on size & difficulty
+  // Easy: frequent checkpoint numbers guiding the line
+  // Medium: balanced checkpoints
+  // Hard: sparse checkpoints (start, end, and 1-3 checkpoints)
+  let numCheckpoints: number;
+  if (difficulty === "easy") {
+    numCheckpoints = dimension === 5 ? 6 : dimension === 6 ? 7 : dimension === 7 ? 9 : 11;
+  } else if (difficulty === "hard") {
+    numCheckpoints = dimension === 5 ? 3 : dimension === 6 ? 4 : dimension === 7 ? 5 : 6;
+  } else {
+    // medium
+    numCheckpoints = dimension === 5 ? 4 : dimension === 6 ? 5 : dimension === 7 ? 6 : 8;
+  }
+
+  numCheckpoints = Math.max(2, Math.min(total, numCheckpoints));
   const step = (total - 1) / (numCheckpoints - 1);
 
   let rngVal = activeSeed || 12345;
@@ -310,14 +325,23 @@ export function createZipPuzzle(
   cpNum++;
   numbers[solution[solution.length - 1]] = cpNum;
 
-  // 3. Inject strategic walls on adjacent cells that are distant in the path
+  // 3. Inject strategic walls based on difficulty
+  let maxWalls: number;
+  if (difficulty === "easy") {
+    maxWalls = dimension <= 6 ? 2 : 3;
+  } else if (difficulty === "hard") {
+    maxWalls = dimension === 5 ? 4 : dimension === 6 ? 7 : dimension === 7 ? 9 : 11;
+  } else {
+    maxWalls = dimension === 5 ? 3 : dimension === 6 ? 4 : dimension === 7 ? 6 : 7;
+  }
+
   const walls: ZipWall[] = [];
   const wallsSet = new Set<string>();
   const pathIndexMap = new Map<string, number>();
   solution.forEach((k, idx) => pathIndexMap.set(k, idx));
 
   for (let i = 0; i < solution.length; i++) {
-    if (walls.length >= (dimension === 6 ? 4 : dimension === 8 ? 6 : 8)) break;
+    if (walls.length >= maxWalls) break;
     const { row, col } = parseKey(solution[i]);
     const deltas = [
       [1, 0],

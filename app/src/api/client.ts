@@ -8,6 +8,7 @@ import {
   FriendsResponse,
   HomeData,
   Digest,
+  RiddleData,
   JoinSchoolResponse,
   CreateSchoolBody,
   CreateSchoolResponse,
@@ -207,6 +208,14 @@ export function getHome(): Promise<HomeData> {
 
 export function getTodayDigest(): Promise<{ digest: Digest | null }> {
   return request("/api/digest/today");
+}
+
+export function getDailyRiddle(): Promise<{ riddle: RiddleData | null }> {
+  return request("/api/riddle/today");
+}
+
+export function solveDailyRiddle(riddleId: number): Promise<{ success: boolean; alreadySolved: boolean; xpEarned: number; totalXp?: number }> {
+  return request("/api/riddle/solve", { method: "POST", body: { riddleId } });
 }
 
 // ---- Quizzes ----

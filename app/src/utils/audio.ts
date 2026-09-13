@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Asset } from "expo-asset";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { useEffect, useState } from "react";
 import { Platform, Vibration } from "react-native";
@@ -57,6 +58,8 @@ async function ensureAudioMode() {
   try {
     await setAudioModeAsync({
       playsInSilentMode: true,
+      interruptionMode: "mixWithOthers",
+      shouldPlayInBackground: false,
     });
     audioModeConfigured = true;
   } catch {
@@ -79,8 +82,8 @@ function notifyListeners() {
 }
 
 function getNextPlayer(key: string) {
-  const asset = SOUND_ASSETS[key];
-  if (!asset) return null;
+  const assetSource = SOUND_ASSETS[key];
+  if (!assetSource) return null;
 
   const poolSize = VOICE_POOL_SIZE[key] || 1;
   if (!playerPools[key]) {
@@ -94,7 +97,16 @@ function getNextPlayer(key: string) {
   // Initialize player if not yet instantiated for this voice slot
   if (!pool[idx]) {
     try {
-      const player = createAudioPlayer(asset);
+      let resolvedSource: any = assetSource;
+      try {
+        const asset = Asset.fromModule(assetSource);
+        resolvedSource = asset.localUri || asset.uri || assetSource;
+      } catch {}
+
+      const player = createAudioPlayer(resolvedSource, {
+        downloadFirst: true,
+        updateInterval: 1000,
+      });
       try {
         player.volume = GAIN_STAGING[key] ?? 0.8;
       } catch {}
@@ -116,11 +128,11 @@ async function playSoundSafely(key: string) {
     await ensureAudioMode();
     const player = getNextPlayer(key);
     if (player) {
-      if (typeof player.seekTo === "function") {
-        try {
+      try {
+        if (typeof player.seekTo === "function") {
           await player.seekTo(0);
-        } catch {}
-      }
+        }
+      } catch {}
       player.play();
     }
   } catch {
@@ -128,17 +140,17 @@ async function playSoundSafely(key: string) {
   }
 }
 
-/** Pre-warm core sounds into memory for zero initial latency */
-export function prewarmAudio() {
+/** Pre-warm and pre-download core sounds into local cache for zero initial latency */
+export async function prewarmAudio() {
   if (Platform.OS === "web") return;
-  setTimeout(() => {
-    try {
-      ensureAudioMode();
-      ["tap", "correct", "cardFlip", "tick"].forEach((key) => {
-        getNextPlayer(key);
-      });
-    } catch {}
-  }, 500);
+  try {
+    await ensureAudioMode();
+    const assets = Object.values(SOUND_ASSETS);
+    await Asset.loadAsync(assets);
+    ["tap", "correct", "cardFlip", "tick", "wrong", "star"].forEach((key) => {
+      getNextPlayer(key);
+    });
+  } catch {}
 }
 
 // Automatically trigger background pre-warm

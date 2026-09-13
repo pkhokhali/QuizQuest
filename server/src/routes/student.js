@@ -749,6 +749,40 @@ function publishedDigest(gradeBand) {
   return row;
 }
 
+function getDailyRiddle(userId) {
+  const todayStr = today();
+  const parts = todayStr.split("-").map(Number);
+  const dayHash = (parts[0] || 2026) * 365 + (parts[1] || 1) * 31 + (parts[2] || 1);
+
+  const totalRiddles = db.prepare("SELECT COUNT(*) c FROM riddles WHERE status = 'approved'").get()?.c || 0;
+  if (totalRiddles === 0) return null;
+
+  const offset = dayHash % totalRiddles;
+  const riddle = db.prepare("SELECT * FROM riddles WHERE status = 'approved' ORDER BY id ASC LIMIT 1 OFFSET ?").get(offset);
+  if (!riddle) return null;
+
+  const solved = db.prepare("SELECT * FROM user_riddle_solves WHERE user_id = ? AND date = ?").get(userId, todayStr);
+
+  return {
+    id: riddle.id,
+    riddleEn: riddle.riddle_en,
+    riddleNe: riddle.riddle_ne,
+    answerEn: riddle.answer_en,
+    answerNe: riddle.answer_ne,
+    hint1En: riddle.hint1_en,
+    hint1Ne: riddle.hint1_ne,
+    hint2En: riddle.hint2_en,
+    hint2Ne: riddle.hint2_ne,
+    hint3En: riddle.hint3_en,
+    hint3Ne: riddle.hint3_ne,
+    category: riddle.category,
+    difficulty: riddle.difficulty,
+    date: todayStr,
+    solved: !!solved,
+    xpEarned: solved ? solved.xp_earned : 15,
+  };
+}
+
 router.get("/home", (req, res) => {
   const user = req.user;
   const gradeBand = gradeBandFor(user.grade || 8);
@@ -781,6 +815,7 @@ router.get("/home", (req, res) => {
     user: serializeUser(user),
     dailyQuiz,
     digest: serializeDigest(publishedDigest(gradeBand)),
+    riddle: getDailyRiddle(user.id),
     revengeAvailable: revengeAvail,
     recentAwards,
     weeklyXp,
@@ -789,6 +824,39 @@ router.get("/home", (req, res) => {
 
 router.get("/digest/today", (req, res) => {
   res.json({ digest: serializeDigest(publishedDigest(gradeBandFor(req.user.grade || 8))) });
+});
+
+router.get("/riddle/today", (req, res) => {
+  res.json({ riddle: getDailyRiddle(req.user.id) });
+});
+
+router.post("/riddle/solve", (req, res) => {
+  const userId = req.user.id;
+  const todayStr = today();
+  const { riddleId } = req.body || {};
+
+  const existing = db.prepare("SELECT * FROM user_riddle_solves WHERE user_id = ? AND date = ?").get(userId, todayStr);
+  if (existing) {
+    return res.json({ success: true, alreadySolved: true, xpEarned: existing.xp_earned });
+  }
+
+  const xpReward = 15;
+  try {
+    db.prepare("INSERT INTO user_riddle_solves (user_id, riddle_id, date, xp_earned) VALUES (?, ?, ?, ?)").run(userId, riddleId || 1, todayStr, xpReward);
+    db.prepare("INSERT INTO xp_events (user_id, amount, reason, date) VALUES (?, ?, 'daily_riddle', ?)").run(userId, xpReward, todayStr);
+    db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").run(xpReward, userId);
+  } catch (err) {
+    console.error("riddle solve record error:", err);
+  }
+
+  const updatedUser = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+
+  res.json({
+    success: true,
+    alreadySolved: false,
+    xpEarned: xpReward,
+    totalXp: updatedUser.xp,
+  });
 });
 
 // ---------- Quizzes ----------

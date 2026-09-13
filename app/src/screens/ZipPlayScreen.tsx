@@ -47,6 +47,8 @@ import {
   parseKey,
   wallKey,
   ZipCell,
+  ZipDifficulty,
+  ZipDimension,
   ZipPuzzle,
 } from "../utils/zipGenerator";
 
@@ -90,8 +92,10 @@ export function ZipPlayScreen() {
 
   // Mode: "daily" (Official synchronized daily challenge) or "practice" (Free play)
   const [gameMode, setGameMode] = useState<"daily" | "practice">("daily");
-  const [size, setSize] = useState<6 | 8 | 10>(6);
-  const [puzzle, setPuzzle] = useState<ZipPuzzle>(() => createZipPuzzle(6, "easy"));
+  const [size, setSize] = useState<ZipDimension>(6);
+  const [practiceSize, setPracticeSize] = useState<ZipDimension>(6);
+  const [practiceDifficulty, setPracticeDifficulty] = useState<ZipDifficulty>("medium");
+  const [puzzle, setPuzzle] = useState<ZipPuzzle>(() => createZipPuzzle(6, "medium"));
   const [path, setPath] = useState<string[]>([]);
   const [nextExpectedCheckpoint, setNextExpectedCheckpoint] = useState<number>(2);
   const [moves, setMoves] = useState(0);
@@ -179,35 +183,37 @@ export function ZipPlayScreen() {
     wallsSetRef.current = wallsSet;
   }, [wallsSet]);
 
-  /** Initialize a practice puzzle */
-  const initPracticeGame = useCallback((newSize: 6 | 8 | 10) => {
-    const p = createZipPuzzle(
-      newSize,
-      newSize === 6 ? "easy" : newSize === 8 ? "medium" : "hard"
-    );
-    setSize(newSize);
-    setPuzzle(p);
-    puzzleRef.current = p;
+  /** Initialize a practice puzzle with selectable size & difficulty */
+  const initPracticeGame = useCallback(
+    (newSize: ZipDimension = practiceSize, newDiff: ZipDifficulty = practiceDifficulty) => {
+      const p = createZipPuzzle(newSize, newDiff);
+      setSize(newSize);
+      setPracticeSize(newSize);
+      setPracticeDifficulty(newDiff);
+      setPuzzle(p);
+      puzzleRef.current = p;
 
-    const startKey = p.solution[0];
-    pathRef.current = [startKey];
-    nextExpectedCpRef.current = 2;
-    movesRef.current = 0;
-    gameEndedRef.current = false;
+      const startKey = p.solution[0];
+      pathRef.current = [startKey];
+      nextExpectedCpRef.current = 2;
+      movesRef.current = 0;
+      gameEndedRef.current = false;
 
-    setPath([startKey]);
-    setNextExpectedCheckpoint(2);
-    setMoves(0);
-    setSeconds(0);
-    setGameEnded(false);
-    setHintCellKey(null);
-    setOfficialXpAwarded(0);
+      setPath([startKey]);
+      setNextExpectedCheckpoint(2);
+      setMoves(0);
+      setSeconds(0);
+      setGameEnded(false);
+      setHintCellKey(null);
+      setOfficialXpAwarded(0);
 
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setSeconds((s) => s + 1);
-    }, 1000);
-  }, []);
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setSeconds((s) => s + 1);
+      }, 1000);
+    },
+    [practiceSize, practiceDifficulty]
+  );
 
   /** Fetch daily puzzle from backend or fallback */
   const loadDailyChallenge = useCallback(async () => {
@@ -219,7 +225,7 @@ export function ZipPlayScreen() {
       setRivalToBeat(res.rivalToBeat);
 
       const serverPuzzle = getDailyZipPuzzleLocal(res.date);
-      setSize(serverPuzzle.size.rows as 6 | 8 | 10);
+      setSize(serverPuzzle.size.rows as ZipDimension);
       setPuzzle(serverPuzzle);
       puzzleRef.current = serverPuzzle;
 
@@ -245,7 +251,7 @@ export function ZipPlayScreen() {
       }
     } catch {
       const fallback = getDailyZipPuzzleLocal();
-      setSize(fallback.size.rows as 6 | 8 | 10);
+      setSize(fallback.size.rows as ZipDimension);
       setPuzzle(fallback);
       puzzleRef.current = fallback;
 
@@ -275,12 +281,12 @@ export function ZipPlayScreen() {
     if (gameMode === "daily") {
       loadDailyChallenge();
     } else {
-      initPracticeGame(size);
+      initPracticeGame(practiceSize, practiceDifficulty);
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gameMode, loadDailyChallenge, initPracticeGame, size]);
+  }, [gameMode, loadDailyChallenge, initPracticeGame, practiceSize, practiceDifficulty]);
 
   /** Win celebration and score submission handler */
   const handleGameWin = useCallback(
@@ -779,17 +785,33 @@ export function ZipPlayScreen() {
               onPress={() => {
                 if (gameMode === "daily") {
                   setGameMode("practice");
+                  initPracticeGame(practiceSize, practiceDifficulty);
                 } else {
-                  initPracticeGame(size);
+                  setGameMode("daily");
+                  loadDailyChallenge();
                 }
               }}
-              style={[styles.difficultyPill, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+              style={[
+                styles.difficultyPill,
+                {
+                  backgroundColor: gameMode === "daily" ? colors.surfaceElevated : colors.primarySoft,
+                  borderColor: gameMode === "daily" ? colors.border : colors.primary,
+                },
+              ]}
               activeOpacity={0.8}
             >
-              <Text style={[styles.difficultyPillText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+              <Text
+                style={[
+                  styles.difficultyPillText,
+                  {
+                    color: gameMode === "daily" ? colors.textMuted : colors.primary,
+                    fontFamily: fonts.bodyBold,
+                  },
+                ]}
+              >
                 {gameMode === "daily"
                   ? `🌟 Daily #${dailyData?.puzzleNum || "..."}`
-                  : `🎲 New ${size}×${size}`}
+                  : `🎮 Practice: ${practiceSize}×${practiceSize}`}
               </Text>
             </TouchableOpacity>
 
@@ -803,6 +825,110 @@ export function ZipPlayScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Practice Mode Size & Difficulty Selectors */}
+          {gameMode === "practice" && (
+            <View
+              style={[
+                styles.practiceConfigCard,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              {/* Row 1: Grid Size (5x5, 6x6, 7x7, 8x8) */}
+              <View style={styles.selectorRow}>
+                <Text style={[styles.selectorLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                  SIZE
+                </Text>
+                <View style={styles.pillsGroup}>
+                  {([5, 6, 7, 8] as ZipDimension[]).map((s) => {
+                    const active = practiceSize === s;
+                    return (
+                      <TouchableOpacity
+                        key={`size-${s}`}
+                        onPress={() => {
+                          setPracticeSize(s);
+                          initPracticeGame(s, practiceDifficulty);
+                        }}
+                        style={[
+                          styles.chipPill,
+                          active
+                            ? [styles.chipPillActive, { backgroundColor: colors.primary, borderColor: colors.primary }]
+                            : { backgroundColor: colors.card, borderColor: colors.border },
+                        ]}
+                        activeOpacity={0.75}
+                      >
+                        <Text
+                          style={[
+                            styles.chipPillText,
+                            {
+                              color: active ? colors.textOnPrimary : colors.textMuted,
+                              fontFamily: active ? fonts.bodyBold : fonts.body,
+                            },
+                          ]}
+                        >
+                          {s}×{s}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Row 2: Difficulty Level (Easy, Medium, Hard) & New Board Shuffle */}
+              <View style={styles.selectorRow}>
+                <Text style={[styles.selectorLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                  LEVEL
+                </Text>
+                <View style={styles.pillsGroup}>
+                  {(["easy", "medium", "hard"] as ZipDifficulty[]).map((d) => {
+                    const active = practiceDifficulty === d;
+                    const activeColor = d === "easy" ? "#10B981" : d === "medium" ? "#F59E0B" : "#EF4444";
+                    return (
+                      <TouchableOpacity
+                        key={`diff-${d}`}
+                        onPress={() => {
+                          setPracticeDifficulty(d);
+                          initPracticeGame(practiceSize, d);
+                        }}
+                        style={[
+                          styles.chipPill,
+                          active
+                            ? [styles.chipPillActive, { backgroundColor: activeColor, borderColor: activeColor }]
+                            : { backgroundColor: colors.card, borderColor: colors.border },
+                        ]}
+                        activeOpacity={0.75}
+                      >
+                        <Text
+                          style={[
+                            styles.chipPillText,
+                            {
+                              color: active ? "#FFFFFF" : colors.textMuted,
+                              fontFamily: active ? fonts.bodyBold : fonts.body,
+                            },
+                          ]}
+                        >
+                          {d === "easy" ? "🟢 Easy" : d === "medium" ? "🟡 Med" : "🔴 Hard"}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  <TouchableOpacity
+                    onPress={() => initPracticeGame(practiceSize, practiceDifficulty)}
+                    style={[styles.shuffleBtn, { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.shuffleBtnText, { color: "#FFFFFF", fontFamily: fonts.bodyBold }]}>
+                      🎲 New
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Rival To Beat Pill (if daily and rival exists) */}
           {gameMode === "daily" && rivalToBeat && (
@@ -1203,13 +1329,17 @@ export function ZipPlayScreen() {
                     onPress={() => {
                       setGameEnded(false);
                       setGameMode("practice");
+                      initPracticeGame(practiceSize, practiceDifficulty);
                     }}
                     variant="ghost"
                   />
                 ) : (
                   <PrimaryButton
-                    label={size < 10 ? `⚡ Level Up: ${size === 6 ? 8 : 10}×${size === 6 ? 8 : 10}` : "Play Same Size"}
-                    onPress={() => initPracticeGame(size < 10 ? (size === 6 ? 8 : 10) : size)}
+                    label="🎲 Play Another Board"
+                    onPress={() => {
+                      setGameEnded(false);
+                      initPracticeGame(practiceSize, practiceDifficulty);
+                    }}
                     variant="ghost"
                   />
                 )}
@@ -1536,6 +1666,57 @@ const styles = StyleSheet.create({
   difficultyPillText: {
     fontSize: 11,
     letterSpacing: 0.5,
+  },
+  practiceConfigCard: {
+    width: MAX_BOARD_WIDTH,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    gap: 6,
+  },
+  selectorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  selectorLabel: {
+    fontSize: 10,
+    letterSpacing: 0.8,
+    width: 38,
+  },
+  pillsGroup: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  chipPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  chipPillActive: {
+    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+  },
+  chipPillText: {
+    fontSize: 11,
+  },
+  shuffleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginLeft: "auto",
+  },
+  shuffleBtnText: {
+    fontSize: 11,
+    letterSpacing: 0.2,
   },
   subBarResetBtn: {
     flex: 1,

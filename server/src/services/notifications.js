@@ -140,15 +140,19 @@ export async function broadcastPushNotification({ title, body, data = {}, gradeB
 export async function pushDigestNotification({ digest, isManual = false, adminEmail = "auto_scheduler" }) {
   if (!digest) throw new Error("No digest provided to push");
 
-  const title = digest.headlineNe
-    ? `☀️ QuizQuest: ${digest.headlineEn}`
-    : "☀️ Your Daily Quiz Quest Digest is Ready!";
-  
-  const body = digest.nepalFactEn
-    ? `🏔️ Nepal Fact: ${digest.nepalFactEn.slice(0, 85)}... Tap to play!`
-    : digest.gkFactEn
-    ? `💡 Daily GK: ${digest.gkFactEn.slice(0, 85)}... Tap to play!`
-    : "Today's 3 things & daily quest are live. Level up your streak now!";
+  const headline = digest.headlineEn || "Today's Daily Digest";
+  const title = `☀️ QuizQuest: ${headline}`;
+
+  let body = "";
+  if (digest.nepalFactEn && digest.gkFactEn) {
+    body = `🏔️ Nepal: ${digest.nepalFactEn.slice(0, 75)}... 💡 ${digest.gkFactEn.slice(0, 60)}...`;
+  } else if (digest.nepalFactEn) {
+    body = `🏔️ Nepal Fact: ${digest.nepalFactEn.slice(0, 110)}... Tap to read!`;
+  } else if (digest.gkFactEn) {
+    body = `💡 Did You Know: ${digest.gkFactEn.slice(0, 110)}... Tap to read!`;
+  } else {
+    body = "Today's 3 things & daily quest are live. Level up your streak now!";
+  }
 
   const res = await broadcastPushNotification({
     title,

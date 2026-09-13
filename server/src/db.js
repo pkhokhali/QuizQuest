@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import crypto from "crypto";
+import { RIDDLES } from "../seed/data/riddles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "..", "data");
@@ -206,6 +207,32 @@ CREATE TABLE IF NOT EXISTS zip_nudges (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (from_user_id, to_user_id, puzzle_date)
 );
+
+CREATE TABLE IF NOT EXISTS riddles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  riddle_en TEXT NOT NULL,
+  riddle_ne TEXT NOT NULL,
+  answer_en TEXT NOT NULL,
+  answer_ne TEXT NOT NULL,
+  hint1_en TEXT, hint1_ne TEXT,
+  hint2_en TEXT, hint2_ne TEXT,
+  hint3_en TEXT, hint3_ne TEXT,
+  category TEXT DEFAULT 'general',
+  difficulty INTEGER DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'approved',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_riddles_en ON riddles(riddle_en);
+
+CREATE TABLE IF NOT EXISTS user_riddle_solves (
+  user_id INTEGER NOT NULL,
+  riddle_id INTEGER NOT NULL,
+  date TEXT NOT NULL,
+  xp_earned INTEGER NOT NULL DEFAULT 15,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, date)
+);
+CREATE INDEX IF NOT EXISTS idx_riddle_solves_user ON user_riddle_solves(user_id, date);
 `);
 
 // Safe column migrations for existing databases
@@ -597,5 +624,32 @@ const insertMemPackTx = db.transaction(() => {
 });
 insertMemPackTx();
 console.log(`Memory packs ensured: ${allMemoryPacks.length} packs (INSERT OR IGNORE).`);
+
+// Seed riddles — uses INSERT OR IGNORE so new riddles are added on restart
+const insertRiddleIfNew = db.prepare(`
+  INSERT OR IGNORE INTO riddles (riddle_en, riddle_ne, answer_en, answer_ne, hint1_en, hint1_ne, hint2_en, hint2_ne, hint3_en, hint3_ne, category, difficulty, status)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved')
+`);
+
+const insertRiddlesTx = db.transaction(() => {
+  for (const r of RIDDLES) {
+    insertRiddleIfNew.run(
+      r.riddle_en,
+      r.riddle_ne,
+      r.answer_en,
+      r.answer_ne,
+      r.hint1_en,
+      r.hint1_ne,
+      r.hint2_en,
+      r.hint2_ne,
+      r.hint3_en,
+      r.hint3_ne,
+      r.category || "general",
+      r.difficulty || 1
+    );
+  }
+});
+insertRiddlesTx();
+console.log(`Riddles ensured: ${RIDDLES.length} curated riddles (INSERT OR IGNORE).`);
 
 export default db;
