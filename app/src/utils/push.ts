@@ -39,3 +39,92 @@ export async function registerForPushNotificationsAsync() {
     console.log('Must use physical device for Push Notifications');
   }
 }
+
+export async function scheduleDailyReminders() {
+  try {
+    // Configure foreground presentation behavior
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('reminders', {
+        name: 'Daily Reminders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#7C3AED',
+      });
+    }
+
+    // Cancel existing scheduled reminders to avoid duplicates
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const req of scheduled) {
+      if (
+        req.identifier === 'daily_quizquest_morning' ||
+        req.identifier === 'daily_zip_noon' ||
+        req.identifier === 'daily_quizquest_evening'
+      ) {
+        await Notifications.cancelScheduledNotificationAsync(req.identifier);
+      }
+    }
+
+    // 1. Morning QuizQuest Reminder (7:30 AM)
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'daily_quizquest_morning',
+      content: {
+        title: '☀️ Time for QuizQuest!',
+        body: "Answer today's questions, protect your daily streak 🔥 and earn XP!",
+        sound: 'default',
+        data: { screen: 'Home' },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 7,
+        minute: 30,
+        channelId: 'reminders',
+      },
+    });
+
+    // 2. Midday Zip Path Puzzle Reminder (12:30 PM)
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'daily_zip_noon',
+      content: {
+        title: "⚡ Today's Daily Zip is Ready!",
+        body: 'Can you connect the full 6×6 path in under 45 seconds? Play today’s puzzle now! 🧩',
+        sound: 'default',
+        data: { screen: 'ZipPlay' },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 12,
+        minute: 30,
+        channelId: 'reminders',
+      },
+    });
+
+    // 3. Evening Streak Protector Reminder (7:30 PM)
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'daily_quizquest_evening',
+      content: {
+        title: "🔥 Don't Lose Your Streak!",
+        body: "Only a few hours left to complete today's quest and keep your winning flame burning!",
+        sound: 'default',
+        data: { screen: 'Home' },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 19,
+        minute: 30,
+        channelId: 'reminders',
+      },
+    });
+  } catch (err) {
+    console.log('[Push] scheduleDailyReminders error:', err);
+  }
+}

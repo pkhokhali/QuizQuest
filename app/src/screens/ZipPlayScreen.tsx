@@ -780,8 +780,7 @@ export function ZipPlayScreen() {
                 if (gameMode === "daily") {
                   setGameMode("practice");
                 } else {
-                  const nextSize = size === 6 ? 8 : size === 8 ? 10 : 6;
-                  initPracticeGame(nextSize);
+                  initPracticeGame(size);
                 }
               }}
               style={[styles.difficultyPill, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
@@ -789,8 +788,8 @@ export function ZipPlayScreen() {
             >
               <Text style={[styles.difficultyPillText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
                 {gameMode === "daily"
-                  ? `Daily #${dailyData?.puzzleNum || "..."}`
-                  : `Difficulty ${size === 6 ? "EASY" : size === 8 ? "MED" : "HARD"}`}
+                  ? `🌟 Daily #${dailyData?.puzzleNum || "..."}`
+                  : `🎲 New ${size}×${size}`}
               </Text>
             </TouchableOpacity>
 

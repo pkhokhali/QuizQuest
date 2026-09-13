@@ -18,6 +18,7 @@ import { AppSplashVideoScreen } from "./src/screens/AppSplashVideoScreen";
 import { AuthProvider } from "./src/state/AuthContext";
 import { LanguageProvider } from "./src/state/LanguageContext";
 import { ThemeProvider, useTheme } from "./src/state/ThemeContext";
+import { registerForPushNotificationsAsync, scheduleDailyReminders } from "./src/utils/push";
 
 function AppShell() {
   const { colors, ready } = useTheme();
@@ -32,6 +33,11 @@ function AppShell() {
   });
 
   const [splashFinished, setSplashFinished] = React.useState(false);
+
+  React.useEffect(() => {
+    registerForPushNotificationsAsync().catch(() => {});
+    scheduleDailyReminders().catch(() => {});
+  }, []);
 
   if (!splashFinished) {
     return <AppSplashVideoScreen onFinish={() => setSplashFinished(true)} />;

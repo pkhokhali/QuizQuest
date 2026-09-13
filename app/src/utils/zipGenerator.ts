@@ -134,12 +134,16 @@ function generateHamiltonianPath(rows: number, cols: number, seed?: number): str
     return false;
   }
 
-  // Start from a corner or border for balanced paths
+  // Start from a corner or border for balanced, winding paths
   const startPoints = [
     { row: 0, col: 0 },
     { row: 0, col: cols - 1 },
     { row: rows - 1, col: 0 },
     { row: rows - 1, col: cols - 1 },
+    { row: Math.floor(rows / 2), col: 0 },
+    { row: 0, col: Math.floor(cols / 2) },
+    { row: Math.floor(rows / 2), col: cols - 1 },
+    { row: rows - 1, col: Math.floor(cols / 2) },
   ];
   const start = startPoints[Math.floor(rng() * startPoints.length)];
 
@@ -270,29 +274,38 @@ export function createZipPuzzle(
   const cols = dimension;
   const total = rows * cols;
 
-  // If standard sizes, use curated/bundled verified puzzles when no custom seed requested
-  if (!seed) {
-    if (dimension === 6) return getSample6x6();
-    if (dimension === 8) return getSample8x8();
-    if (dimension === 10) return getSample10x10();
-  }
+  // Generate dynamic unique puzzle on every play (or use specific seed when provided)
+  const activeSeed =
+    seed !== undefined
+      ? seed
+      : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
 
   // 1. Generate full Hamiltonian solution path
-  const solution = generateHamiltonianPath(rows, cols, seed);
+  const solution = generateHamiltonianPath(rows, cols, activeSeed);
 
   // 2. Choose checkpoints (always include 1 and highest number)
-  // Checkpoint count: 6x6 -> 5, 8x8 -> 7, 10x10 -> 9
-  const numCheckpoints = dimension === 6 ? 5 : dimension === 8 ? 7 : 9;
-  const step = Math.floor((total - 1) / (numCheckpoints - 1));
+  // Checkpoint count: 6x6 -> 6 checkpoints, 8x8 -> 8 checkpoints, 10x10 -> 9 checkpoints
+  const numCheckpoints = dimension === 6 ? 6 : dimension === 8 ? 8 : 9;
+  const step = (total - 1) / (numCheckpoints - 1);
+
+  let rngVal = activeSeed || 12345;
+  const rng = () => {
+    rngVal = (rngVal * 9301 + 49297) % 233280;
+    return rngVal / 233280;
+  };
 
   const numbers: Record<string, number> = {};
   numbers[solution[0]] = 1;
   let cpNum = 1;
 
   for (let i = 1; i < numCheckpoints - 1; i++) {
-    const idx = i * step;
-    cpNum++;
-    numbers[solution[idx]] = cpNum;
+    const baseIdx = Math.round(i * step);
+    const jitter = Math.floor(rng() * 3) - 1;
+    const clampedIdx = Math.max(1, Math.min(total - 2, baseIdx + jitter));
+    if (!numbers[solution[clampedIdx]]) {
+      cpNum++;
+      numbers[solution[clampedIdx]] = cpNum;
+    }
   }
   cpNum++;
   numbers[solution[solution.length - 1]] = cpNum;
