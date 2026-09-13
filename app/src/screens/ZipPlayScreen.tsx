@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Circle, Line } from "react-native-svg";
 import {
   getDailyZipLeaderboard,
   getDailyZipPuzzle as getDailyZipPuzzleApi,
@@ -97,6 +98,13 @@ export function ZipPlayScreen() {
   const [seconds, setSeconds] = useState(0);
   const [gameEnded, setGameEnded] = useState(false);
   const [hintCellKey, setHintCellKey] = useState<string | null>(null);
+  const [showHowToPlay, setShowHowToPlay] = useState(true);
+
+  const formatTimer = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
 
   // Daily Challenge & Social State
   const [dailyLoading, setDailyLoading] = useState(false);
@@ -698,28 +706,48 @@ export function ZipPlayScreen() {
   return (
     <Atmosphere>
       <SafeAreaView style={styles.safe} edges={["top"]}>
-        {/* Header HUD */}
+        {/* Top Header Bar (Clean LinkedIn-styled header) */}
         <View style={styles.header}>
           <TouchableOpacity
             style={[styles.backBtn, { backgroundColor: colors.surface }]}
             onPress={() => navigation.goBack()}
             activeOpacity={0.75}
           >
-            <Text style={[styles.backBtnText, { color: colors.text }]}>✕</Text>
+            <Text style={[styles.backBtnText, { color: colors.text }]}>←</Text>
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
-            <Text style={[styles.modeTag, { color: colors.accent, fontFamily: fonts.bodyBold }]}>
-              ⚡ ZIP PATH PUZZLE
-            </Text>
-            <Text style={[styles.title, { color: colors.text, fontFamily: fonts.display }]}>
-              {gameMode === "daily"
-                ? `Daily #${dailyData?.puzzleNum || "..."}`
-                : `${puzzle.size.rows}×${puzzle.size.cols} Grid`}
+            <View style={styles.brandBadge}>
+              <Text style={styles.brandBadgeText}>QQ</Text>
+            </View>
+            <Text style={[styles.headerZipTitle, { color: colors.text, fontFamily: fonts.display }]}>
+              Zip
             </Text>
           </View>
 
           <View style={styles.headerRight}>
+            <TouchableOpacity
+              onPress={() => setShowHowToPlay((prev) => !prev)}
+              style={[
+                styles.iconBtn,
+                { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.iconBtnText, { color: colors.text, fontFamily: fonts.bodyBold }]}>?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleOpenStandings}
+              style={[
+                styles.iconBtn,
+                { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 16 }}>🏆</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={toggleSound}
               style={[
@@ -728,76 +756,56 @@ export function ZipPlayScreen() {
               ]}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 16 }}>{isSoundEnabled ? "🔊" : "🔇"}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleOpenStandings}
-              style={[
-                styles.standingsBtn,
-                { backgroundColor: colors.surface, borderColor: colors.gold },
-              ]}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 14 }}>🏆</Text>
-              <Text style={[styles.standingsBtnText, { color: colors.gold, fontFamily: fonts.bodyBold }]}>
-                {t("zipStandings")}
-              </Text>
+              <Text style={{ fontSize: 14 }}>{isSoundEnabled ? "🔊" : "🔇"}</Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Mode Segmented Switcher (Daily vs Free Practice) */}
-        <View style={[styles.modeSegmentContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <TouchableOpacity
-            onPress={() => setGameMode("daily")}
-            style={[
-              styles.modeSegmentBtn,
-              gameMode === "daily" && { backgroundColor: colors.primary },
-            ]}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.modeSegmentText,
-                {
-                  color: gameMode === "daily" ? colors.textOnPrimary : colors.textMuted,
-                  fontFamily: fonts.bodyBold,
-                },
-              ]}
-            >
-              🌟 {t("zipDailyChallenge")}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setGameMode("practice")}
-            style={[
-              styles.modeSegmentBtn,
-              gameMode === "practice" && { backgroundColor: colors.primary },
-            ]}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.modeSegmentText,
-                {
-                  color: gameMode === "practice" ? colors.textOnPrimary : colors.textMuted,
-                  fontFamily: fonts.bodyBold,
-                },
-              ]}
-            >
-              🎯 {t("zipPracticeMode")}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           bounces={false}
           scrollEnabled={!isDragging}
+          showsVerticalScrollIndicator={false}
         >
-          {/* DAILY MODE: Rival To Beat Banner */}
+          {/* Sub-bar directly above the board */}
+          <View style={styles.subBar}>
+            <View style={styles.subBarLeft}>
+              <Text style={[styles.subBarTimer, { color: colors.text, fontFamily: fonts.display }]}>
+                ⏱ {formatTimer(seconds)}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => {
+                if (gameMode === "daily") {
+                  setGameMode("practice");
+                } else {
+                  const nextSize = size === 6 ? 8 : size === 8 ? 10 : 6;
+                  initPracticeGame(nextSize);
+                }
+              }}
+              style={[styles.difficultyPill, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.difficultyPillText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                {gameMode === "daily"
+                  ? `Daily #${dailyData?.puzzleNum || "..."}`
+                  : `Difficulty ${size === 6 ? "EASY" : size === 8 ? "MED" : "HARD"}`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleReset}
+              style={styles.subBarResetBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.subBarResetText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                Reset
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Rival To Beat Pill (if daily and rival exists) */}
           {gameMode === "daily" && rivalToBeat && (
             <TouchableOpacity
               onPress={handleOpenStandings}
@@ -807,159 +815,14 @@ export function ZipPlayScreen() {
               ]}
               activeOpacity={0.85}
             >
-              <AvatarCircle avatar={rivalToBeat.avatar} size={34} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rivalBannerTitle, { color: colors.accent, fontFamily: fonts.bodyBold }]}>
-                  🎯 {t("zipRivalToBeat")}
-                </Text>
-                <Text style={[styles.rivalBannerSubtitle, { color: colors.text, fontFamily: fonts.body }]}>
-                  {rivalToBeat.name} finished in {rivalToBeat.timeSeconds}s
-                </Text>
-              </View>
-              <View style={[styles.rivalPill, { backgroundColor: colors.accentSoft }]}>
-                <Text style={[styles.rivalPillText, { color: colors.accent, fontFamily: fonts.bodyBold }]}>
-                  Beat {rivalToBeat.timeSeconds}s ⚡
-                </Text>
-              </View>
+              <AvatarCircle avatar={rivalToBeat.avatar} size={28} />
+              <Text style={[styles.rivalBannerSubtitle, { color: colors.text, fontFamily: fonts.body }]}>
+                Beat <Text style={{ fontFamily: fonts.bodyBold }}>{rivalToBeat.name}</Text> ({rivalToBeat.timeSeconds}s)
+              </Text>
             </TouchableOpacity>
           )}
 
-          {/* DAILY MODE: Already Solved Banner */}
-          {gameMode === "daily" && myDailyScore && (
-            <Card
-              style={StyleSheet.flatten([
-                styles.completedBanner,
-                { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-              ])}
-            >
-              <View style={styles.completedHeaderRow}>
-                <Text style={{ fontSize: 24 }}>✅</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.completedTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}>
-                    {t("zipTodayCompleted")}
-                  </Text>
-                  <Text style={[styles.completedSub, { color: colors.textMuted, fontFamily: fonts.body }]}>
-                    ⏱ {myDailyScore.timeSeconds}s · 🎯 {myDailyScore.moves} moves · {"⭐".repeat(myDailyScore.stars)}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={handleShareResult}
-                  style={[styles.shareMiniBtn, { backgroundColor: colors.primary }]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.shareMiniBtnText, { color: colors.textOnPrimary, fontFamily: fonts.bodyBold }]}>
-                    📤 {t("zipShareResults")}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </Card>
-          )}
-
-          {/* PRACTICE MODE: Size Picker */}
-          {gameMode === "practice" && (
-            <View style={styles.difficultyRow}>
-              {([6, 8, 10] as const).map((s) => {
-                const active = size === s;
-                const labels = { 6: "6×6 Easy", 8: "8×8 Focus", 10: "10×10 Master" };
-                return (
-                  <TouchableOpacity
-                    key={s}
-                    onPress={() => initPracticeGame(s)}
-                    style={[
-                      styles.diffChip,
-                      {
-                        backgroundColor: active ? colors.primary : colors.surface,
-                        borderColor: active ? colors.primary : colors.border,
-                      },
-                    ]}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.diffChipText,
-                        {
-                          color: active ? colors.textOnPrimary : colors.textMuted,
-                          fontFamily: fonts.bodyBold,
-                        },
-                      ]}
-                    >
-                      {labels[s]}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-
-          {/* Checkpoint Progress Tracker & Live Timer */}
-          <View style={[styles.progressCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-            <View style={styles.trackerTopRow}>
-              <Text style={[styles.statsLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
-                CHECKPOINTS (1 → {puzzle.maxCheckpoint})
-              </Text>
-              <View style={[styles.timerPill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.timerText, { color: colors.accent, fontFamily: fonts.bodyBold }]}>
-                  ⏱ {seconds}s
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.checkpointTrack}>
-              {Array.from({ length: puzzle.maxCheckpoint }, (_, i) => i + 1).map((cpNum) => {
-                const passed = cpNum < nextExpectedCheckpoint;
-                const isNext = cpNum === nextExpectedCheckpoint;
-                return (
-                  <View key={cpNum} style={{ flexDirection: "row", alignItems: "center" }}>
-                    <View
-                      style={[
-                        styles.trackDot,
-                        {
-                          backgroundColor: passed
-                            ? colors.green
-                            : isNext
-                            ? colors.primary
-                            : colors.bgMid,
-                          borderColor: isNext ? colors.accent : colors.border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.trackDotText,
-                          {
-                            color: passed || isNext ? "#FFFFFF" : colors.textMuted,
-                            fontFamily: fonts.bodyBold,
-                          },
-                        ]}
-                      >
-                        {cpNum}
-                      </Text>
-                    </View>
-                    {cpNum < puzzle.maxCheckpoint && (
-                      <View
-                        style={[
-                          styles.trackLine,
-                          { backgroundColor: passed ? colors.green : colors.border },
-                        ]}
-                      />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* Coverage Meter */}
-            <View style={styles.statsRow}>
-              <Text style={[styles.statsLabel, { color: colors.textMuted, fontFamily: fonts.body }]}>
-                {lang === "ne" ? "भरिएको कोष्ठक" : "Cells Filled"}: {path.length}/{totalCells} ({percentFilled}%)
-              </Text>
-              <Text style={[styles.statsLabel, { color: colors.textMuted, fontFamily: fonts.body }]}>
-                Moves: {moves} · Walls: {puzzle.walls.length}
-              </Text>
-            </View>
-          </View>
-
-          {/* The Interactive Zip Grid with Continuous Pipe & Wall Barriers */}
+          {/* The Interactive Zip Grid with Continuous Vector Ribbon & Physical Wall Barriers */}
           {dailyLoading ? (
             <View style={[styles.gridContainer, styles.loadingGrid, { width: MAX_BOARD_WIDTH, height: MAX_BOARD_WIDTH }]}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -980,299 +843,299 @@ export function ZipPlayScreen() {
               ]}
               {...panResponder.panHandlers}
             >
-              {/* Grid Rows & Cells */}
-              {Array.from({ length: puzzle.size.rows }).map((_, r) => (
-                <View key={`row-${r}`} style={styles.gridRow}>
-                  {Array.from({ length: puzzle.size.cols }).map((_, c) => {
-                    const key = cellKey(r, c);
-                    const isCheckpoint = puzzle.numbers[key] !== undefined;
-                    const cpNum = puzzle.numbers[key];
-                    const inPath = pathKeySet.has(key);
-                    const isHead = currentHeadKey === key;
-                    const isHint = hintCellKey === key;
-
-                    // Pipe Direction Connections
-                    const pathIdx = pathIndexMap.get(key) ?? -1;
-                    const ribbonColor = inPath ? getZipRibbonColor(pathIdx, totalCells) : colors.primary;
-                    const prevKey = pathIdx > 0 ? path[pathIdx - 1] : null;
-                    const nextKey = pathIdx >= 0 && pathIdx < path.length - 1 ? path[pathIdx + 1] : null;
-
-                    const prev = prevKey ? parseKey(prevKey) : null;
-                    const next = nextKey ? parseKey(nextKey) : null;
-
-                    const connectsTop = (prev && prev.row < r) || (next && next.row < r);
-                    const connectsBottom = (prev && prev.row > r) || (next && next.row > r);
-                    const connectsLeft = (prev && prev.col < c) || (next && next.col < c);
-                    const connectsRight = (prev && prev.col > c) || (next && next.col > c);
-
-                    // Wall barrier flags on right and bottom borders
-                    const rightNeighborKey = cellKey(r, c + 1);
-                    const bottomNeighborKey = cellKey(r + 1, c);
-                    const hasWallRight = c + 1 < puzzle.size.cols && hasWall(wallsSet, key, rightNeighborKey);
-                    const hasWallBottom = r + 1 < puzzle.size.rows && hasWall(wallsSet, key, bottomNeighborKey);
-
-                    return (
+              {/* Subtle Grid Divider Lines */}
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                {Array.from({ length: puzzle.size.rows }).map((_, r) => (
+                  <View key={`grid-row-${r}`} style={{ flex: 1, flexDirection: "row" }}>
+                    {Array.from({ length: puzzle.size.cols }).map((_, c) => (
                       <View
-                        key={key}
-                        pointerEvents="none"
-                        style={[
-                          styles.cell,
-                          {
-                            width: cellSize,
-                            height: cellSize,
-                            borderColor: "rgba(255, 255, 255, 0.06)",
-                            backgroundColor: isHint ? colors.goldSoft : "transparent",
-                          },
-                        ]}
-                      >
-                        {/* CONTINUOUS PIPE RENDERING (Vibrant LinkedIn Ribbon) */}
-                        {inPath && (
-                          <View style={styles.pipeLayer} pointerEvents="none">
-                            {/* Vertical pipe segment */}
-                            {connectsTop && (
-                              <View
-                                style={[
-                                  styles.pipeVertical,
-                                  {
-                                    width: pipeWidth,
-                                    top: 0,
-                                    height: "54%",
-                                    backgroundColor: ribbonColor,
-                                    borderTopLeftRadius: connectsLeft ? 0 : pipeWidth / 2,
-                                    borderTopRightRadius: connectsRight ? 0 : pipeWidth / 2,
-                                  },
-                                ]}
-                              />
-                            )}
-                            {connectsBottom && (
-                              <View
-                                style={[
-                                  styles.pipeVertical,
-                                  {
-                                    width: pipeWidth,
-                                    bottom: 0,
-                                    height: "54%",
-                                    backgroundColor: ribbonColor,
-                                    borderBottomLeftRadius: connectsLeft ? 0 : pipeWidth / 2,
-                                    borderBottomRightRadius: connectsRight ? 0 : pipeWidth / 2,
-                                  },
-                                ]}
-                              />
-                            )}
+                        key={`grid-cell-${r}-${c}`}
+                        style={{
+                          flex: 1,
+                          borderColor: "rgba(255, 255, 255, 0.05)",
+                          borderWidth: 0.5,
+                        }}
+                      />
+                    ))}
+                  </View>
+                ))}
+              </View>
 
-                            {/* Horizontal pipe segment */}
-                            {connectsLeft && (
-                              <View
-                                style={[
-                                  styles.pipeHorizontal,
-                                  {
-                                    height: pipeWidth,
-                                    left: 0,
-                                    width: "54%",
-                                    backgroundColor: ribbonColor,
-                                    borderTopLeftRadius: connectsTop ? 0 : pipeWidth / 2,
-                                    borderBottomLeftRadius: connectsBottom ? 0 : pipeWidth / 2,
-                                  },
-                                ]}
-                              />
-                            )}
-                            {connectsRight && (
-                              <View
-                                style={[
-                                  styles.pipeHorizontal,
-                                  {
-                                    height: pipeWidth,
-                                    right: 0,
-                                    width: "54%",
-                                    backgroundColor: ribbonColor,
-                                    borderTopRightRadius: connectsTop ? 0 : pipeWidth / 2,
-                                    borderBottomRightRadius: connectsBottom ? 0 : pipeWidth / 2,
-                                  },
-                                ]}
-                              />
-                            )}
+              {/* CONTINUOUS VECTOR-SMOOTH RIBBON (REACT-NATIVE-SVG) */}
+              <Svg
+                width={MAX_BOARD_WIDTH}
+                height={MAX_BOARD_WIDTH}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              >
+                {/* 1. Seamless Path Line Segments */}
+                {path.slice(1).map((key, idx) => {
+                  const prevKey = path[idx];
+                  const from = parseKey(prevKey);
+                  const to = parseKey(key);
+                  const x1 = from.col * cellSize + cellSize / 2;
+                  const y1 = from.row * cellSize + cellSize / 2;
+                  const x2 = to.col * cellSize + cellSize / 2;
+                  const y2 = to.row * cellSize + cellSize / 2;
+                  const color = getZipRibbonColor(idx + 1, totalCells);
+                  return (
+                    <Line
+                      key={`seg-${idx}`}
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={color}
+                      strokeWidth={pipeWidth}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  );
+                })}
 
-                            {/* Center pipe core node */}
-                            <View
-                              style={[
-                                styles.pipeCenterNode,
-                                {
-                                  width: pipeWidth,
-                                  height: pipeWidth,
-                                  borderRadius: pipeWidth / 2,
-                                  backgroundColor: ribbonColor,
-                                },
-                              ]}
-                            />
+                {/* 2. Path Vertex Nodes (Exact match with pipeWidth eliminates all seams) */}
+                {path.map((key, idx) => {
+                  const pos = parseKey(key);
+                  const cx = pos.col * cellSize + cellSize / 2;
+                  const cy = pos.row * cellSize + cellSize / 2;
+                  const color = getZipRibbonColor(idx, totalCells);
+                  return (
+                    <Circle
+                      key={`node-${key}`}
+                      cx={cx}
+                      cy={cy}
+                      r={pipeWidth / 2}
+                      fill={color}
+                    />
+                  );
+                })}
 
-                            {/* Leading Head Pulsing Energy Ring */}
-                            {isHead && (
-                              <View
-                                style={[
-                                  styles.headGlowHalo,
-                                  {
-                                    width: pipeWidth + 8,
-                                    height: pipeWidth + 8,
-                                    borderRadius: (pipeWidth + 8) / 2,
-                                    borderColor: "#FFFFFF",
-                                  },
-                                ]}
-                              />
-                            )}
-                          </View>
-                        )}
-
-                        {/* PHYSICAL WALL BARRIERS */}
-                        {hasWallRight && (
-                          <View
-                            style={[
-                              styles.wallRight,
-                              {
-                                width: wallThickness,
-                                backgroundColor: colors.text,
-                                borderRadius: wallThickness / 2,
-                              },
-                            ]}
-                          />
-                        )}
-                        {hasWallBottom && (
-                          <View
-                            style={[
-                              styles.wallBottom,
-                              {
-                                height: wallThickness,
-                                backgroundColor: colors.text,
-                                borderRadius: wallThickness / 2,
-                              },
-                            ]}
-                          />
-                        )}
-
-                        {/* NUMBERED CHECKPOINT BADGE (Solid black circular badge with white numerals) */}
-                        {isCheckpoint ? (
-                          <View
-                            style={[
-                              styles.checkpointBadge,
-                              {
-                                width: Math.min(cellSize * 0.76, 38),
-                                height: Math.min(cellSize * 0.76, 38),
-                                borderRadius: Math.min(cellSize * 0.76, 38) / 2,
-                                backgroundColor: "#111318",
-                                borderColor:
-                                  cpNum === nextExpectedCheckpoint
-                                    ? "#FFFFFF"
-                                    : inPath
-                                    ? "rgba(255, 255, 255, 0.75)"
-                                    : "rgba(255, 255, 255, 0.35)",
-                                borderWidth: cpNum === nextExpectedCheckpoint ? 2.5 : 1.5,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.checkpointNumber,
-                                {
-                                  color: "#FFFFFF",
-                                  fontFamily: fonts.display,
-                                  fontSize: puzzle.size.cols >= 10 ? 12 : puzzle.size.cols >= 8 ? 14 : 16,
-                                  fontWeight: "900",
-                                },
-                              ]}
-                            >
-                              {cpNum}
-                            </Text>
-                          </View>
-                        ) : isHint ? (
-                          <View
-                            style={[
-                              styles.hintIndicator,
-                              {
-                                width: cellSize * 0.5,
-                                height: cellSize * 0.5,
-                                borderRadius: (cellSize * 0.5) / 2,
-                                borderColor: colors.gold,
-                              },
-                            ]}
-                          />
-                        ) : null}
-                      </View>
+                {/* 3. Leading Head Pulse Halo */}
+                {currentHeadKey &&
+                  (() => {
+                    const hp = parseKey(currentHeadKey);
+                    return (
+                      <Circle
+                        cx={hp.col * cellSize + cellSize / 2}
+                        cy={hp.row * cellSize + cellSize / 2}
+                        r={pipeWidth / 2 + 3}
+                        stroke="#FFFFFF"
+                        strokeWidth={2.5}
+                        fill="none"
+                        opacity={0.9}
+                      />
                     );
-                  })}
-                </View>
-              ))}
+                  })()}
+
+                {/* 4. Physical Wall Barriers with Rounded Caps */}
+                {puzzle.walls.map((w, wIdx) => {
+                  const a = parseKey(w.between[0]);
+                  const b = parseKey(w.between[1]);
+                  if (a.row === b.row) {
+                    const colBorder = Math.max(a.col, b.col);
+                    const x = colBorder * cellSize;
+                    const y1 = a.row * cellSize + 3;
+                    const y2 = (a.row + 1) * cellSize - 3;
+                    return (
+                      <Line
+                        key={`wall-${wIdx}`}
+                        x1={x}
+                        y1={y1}
+                        x2={x}
+                        y2={y2}
+                        stroke={colors.text}
+                        strokeWidth={wallThickness}
+                        strokeLinecap="round"
+                      />
+                    );
+                  } else {
+                    const rowBorder = Math.max(a.row, b.row);
+                    const y = rowBorder * cellSize;
+                    const x1 = a.col * cellSize + 3;
+                    const x2 = (a.col + 1) * cellSize - 3;
+                    return (
+                      <Line
+                        key={`wall-${wIdx}`}
+                        x1={x1}
+                        y1={y}
+                        x2={x2}
+                        y2={y}
+                        stroke={colors.text}
+                        strokeWidth={wallThickness}
+                        strokeLinecap="round"
+                      />
+                    );
+                  }
+                })}
+
+                {/* 5. Hint Target Highlight */}
+                {hintCellKey &&
+                  (() => {
+                    const hp = parseKey(hintCellKey);
+                    return (
+                      <Circle
+                        cx={hp.col * cellSize + cellSize / 2}
+                        cy={hp.row * cellSize + cellSize / 2}
+                        r={cellSize * 0.32}
+                        stroke={colors.gold}
+                        strokeWidth={3}
+                        strokeDasharray="4, 4"
+                        fill="none"
+                      />
+                    );
+                  })()}
+              </Svg>
+
+              {/* Numbered Checkpoint Badges (Solid black circles with crisp white bold numerals) */}
+              {Object.entries(puzzle.numbers).map(([key, num]) => {
+                const pos = parseKey(key);
+                const isNext = num === nextExpectedCheckpoint;
+                const isPassed = num < nextExpectedCheckpoint;
+                const badgeSize = Math.min(cellSize * 0.72, 42);
+                return (
+                  <View
+                    key={`cp-${key}`}
+                    pointerEvents="none"
+                    style={[
+                      styles.checkpointBadge,
+                      {
+                        left: pos.col * cellSize + (cellSize - badgeSize) / 2,
+                        top: pos.row * cellSize + (cellSize - badgeSize) / 2,
+                        width: badgeSize,
+                        height: badgeSize,
+                        borderRadius: badgeSize / 2,
+                        backgroundColor: "#111318",
+                        borderWidth: isNext ? 2.5 : 1.5,
+                        borderColor: isNext
+                          ? "#FFFFFF"
+                          : isPassed
+                          ? "rgba(255, 255, 255, 0.85)"
+                          : "rgba(255, 255, 255, 0.25)",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.checkpointNumber,
+                        {
+                          color: "#FFFFFF",
+                          fontFamily: fonts.display,
+                          fontSize: puzzle.size.cols >= 10 ? 12 : puzzle.size.cols >= 8 ? 14 : 17,
+                          fontWeight: "900",
+                        },
+                      ]}
+                    >
+                      {num}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           )}
 
-          {/* Action Toolbar */}
-          <View style={styles.toolbar}>
+          {/* Action Toolbar (Two wide pill buttons matching LinkedIn Zip) */}
+          <View style={styles.actionToolbar}>
             <TouchableOpacity
-              style={[styles.toolBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.actionPillBtn,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  opacity: path.length <= 1 ? 0.45 : 1,
+                },
+              ]}
               onPress={handleUndo}
+              disabled={path.length <= 1}
               activeOpacity={0.7}
             >
-              <Text style={styles.toolIcon}>↩️</Text>
-              <Text style={[styles.toolLabel, { color: colors.text, fontFamily: fonts.bodyBold }]}>
+              <Text style={[styles.actionPillText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
                 Undo
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.toolBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.actionPillBtn,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                },
+              ]}
               onPress={handleHint}
               activeOpacity={0.7}
             >
-              <Text style={styles.toolIcon}>💡</Text>
-              <Text style={[styles.toolLabel, { color: colors.text, fontFamily: fonts.bodyBold }]}>
+              <Text style={[styles.actionPillText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
                 Hint
               </Text>
             </TouchableOpacity>
+          </View>
 
+          {/* Visual "How to Play" Card */}
+          <View style={[styles.visualHowToPlayCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <TouchableOpacity
-              style={[styles.toolBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={handleReset}
-              activeOpacity={0.7}
+              style={styles.howToPlayHeader}
+              onPress={() => setShowHowToPlay((prev) => !prev)}
+              activeOpacity={0.8}
             >
-              <Text style={styles.toolIcon}>🔄</Text>
-              <Text style={[styles.toolLabel, { color: colors.text, fontFamily: fonts.bodyBold }]}>
-                Reset
+              <Text style={[styles.howToPlayTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}>
+                How to play
+              </Text>
+              <Text style={[styles.howToPlayChevron, { color: colors.textMuted }]}>
+                {showHowToPlay ? "▲" : "▼"}
               </Text>
             </TouchableOpacity>
 
-            {gameMode === "practice" ? (
-              <TouchableOpacity
-                style={[styles.toolBtn, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}
-                onPress={() => initPracticeGame(size)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.toolIcon}>🎲</Text>
-                <Text style={[styles.toolLabel, { color: colors.accent, fontFamily: fonts.bodyBold }]}>
-                  New
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.toolBtn, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
-                onPress={handleShareResult}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.toolIcon}>📤</Text>
-                <Text style={[styles.toolLabel, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
-                  Share
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+            {showHowToPlay && (
+              <View style={styles.howToPlayContent}>
+                <View style={styles.howToPlayRow}>
+                  {/* Visual 1: Connect the dots in order */}
+                  <View style={styles.howToPlayCol}>
+                    <View style={styles.dotsGraphicRow}>
+                      <View style={[styles.miniDot, { backgroundColor: "#111318", borderColor: "rgba(255,255,255,0.4)" }]}>
+                        <Text style={styles.miniDotText}>1</Text>
+                      </View>
+                      <View style={[styles.miniDotLine, { backgroundColor: "#BE185D" }]} />
+                      <View style={[styles.miniDot, { backgroundColor: "#111318", borderColor: "rgba(255,255,255,0.4)" }]}>
+                        <Text style={styles.miniDotText}>2</Text>
+                      </View>
+                      <View style={[styles.miniDotLine, { backgroundColor: "#EA580C" }]} />
+                      <View style={[styles.miniDot, { backgroundColor: "#111318", borderColor: "rgba(255,255,255,0.4)" }]}>
+                        <Text style={styles.miniDotText}>3</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.howToPlayDesc, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                      Connect the dots in order
+                    </Text>
+                  </View>
 
-          {/* Rules / Hint helper */}
-          <View style={[styles.instructionsCard, { backgroundColor: colors.surfaceElevated }]}>
-            <Text style={[styles.instructionsTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}>
-              {lang === "ne" ? "नियमहरू" : "How to Play"}
-            </Text>
-            <Text style={[styles.instructionsBody, { color: colors.textMuted, fontFamily: fonts.body }]}>
-              {lang === "ne"
-                ? "१. १ बाट सुरु गरी अंकहरूलाई क्रमिक रूपमा जोड्नुहोस्।\n२. भित्ता (Wall) पार गर्न मिल्दैन।\n३. सम्पूर्ण कोष्ठकहरू पार गरी अन्तिम अंकमा पुगेपछि खेल जितिन्छ।"
-                : "1. Connect numbered checkpoints in sequential order (1 → 2 → 3 → ...).\n2. Thick dark bars are impassable walls — paths cannot cross them.\n3. Every cell must be visited exactly once, ending at the highest number."}
-            </Text>
+                  {/* Visual 2: Fill every cell */}
+                  <View style={styles.howToPlayCol}>
+                    <View style={[styles.miniGridGraphic, { borderColor: "rgba(255,255,255,0.15)" }]}>
+                      <View style={[styles.miniGridRibbon, { backgroundColor: "#BE185D" }]} />
+                    </View>
+                    <Text style={[styles.howToPlayDesc, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                      Fill every cell
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.seeResultsBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+                  onPress={() => {
+                    if (myDailyScore || gameEnded) {
+                      handleShareResult();
+                    } else {
+                      handleOpenStandings();
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.seeResultsBtnText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
+                    {myDailyScore || gameEnded ? "See results" : `Leaderboard & Standings 🏆`}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </ScrollView>
 
@@ -1599,21 +1462,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backBtnText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "700",
   },
   headerCenter: {
-    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.sm,
+    gap: 6,
   },
-  modeTag: {
-    fontSize: 10,
-    letterSpacing: 1.2,
+  brandBadge: {
+    backgroundColor: "#0A66C2",
+    width: 24,
+    height: 24,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  title: {
-    fontSize: 16,
-    marginTop: 2,
+  brandBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  headerZipTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   headerRight: {
     flexDirection: "row",
@@ -1621,277 +1494,202 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
   },
-  standingsBtn: {
+  iconBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  scrollContent: {
+    alignItems: "center",
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  subBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 6,
-    borderRadius: radius.chip,
-    borderWidth: 1,
-  },
-  standingsBtnText: {
-    fontSize: 11,
-  },
-  modeSegmentContainer: {
-    flexDirection: "row",
-    alignSelf: "center",
-    borderRadius: radius.chip,
-    borderWidth: 1,
-    padding: 3,
-    marginVertical: spacing.xs,
+    justifyContent: "space-between",
     width: MAX_BOARD_WIDTH,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
   },
-  modeSegmentBtn: {
+  subBarLeft: {
     flex: 1,
-    paddingVertical: 7,
-    borderRadius: radius.chip,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "flex-start",
   },
-  modeSegmentText: {
-    fontSize: 12,
+  subBarTimer: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  difficultyPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+  },
+  difficultyPillText: {
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  subBarResetBtn: {
+    flex: 1,
+    alignItems: "flex-end",
+    paddingVertical: 4,
+  },
+  subBarResetText: {
+    fontSize: 13,
   },
   rivalBanner: {
     flexDirection: "row",
     alignItems: "center",
     width: MAX_BOARD_WIDTH,
-    padding: spacing.sm + 2,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
     borderRadius: radius.card,
     borderWidth: 1,
     gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  rivalBannerTitle: {
-    fontSize: 11,
-    letterSpacing: 0.5,
   },
   rivalBannerSubtitle: {
     fontSize: 12,
-  },
-  rivalPill: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.chip,
-  },
-  rivalPillText: {
-    fontSize: 11,
-  },
-  completedBanner: {
-    width: MAX_BOARD_WIDTH,
-    padding: spacing.sm + 2,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    marginBottom: spacing.xs,
-  },
-  completedHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  completedTitle: {
-    fontSize: 13,
-  },
-  completedSub: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  shareMiniBtn: {
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: 6,
-    borderRadius: radius.chip,
-  },
-  shareMiniBtnText: {
-    fontSize: 11,
-  },
-  scrollContent: {
-    alignItems: "center",
-    paddingBottom: spacing.xxl,
-    gap: spacing.xs,
-  },
-  difficultyRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginVertical: spacing.xs,
-  },
-  diffChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.chip,
-    borderWidth: 1,
-  },
-  diffChipText: {
-    fontSize: 11,
-  },
-  progressCard: {
-    width: MAX_BOARD_WIDTH,
-    padding: spacing.sm + 4,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    gap: spacing.xs,
-  },
-  trackerTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  timerPill: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 3,
-    borderRadius: radius.chip,
-    borderWidth: 1,
-  },
-  timerText: {
-    fontSize: 12,
-  },
-  checkpointTrack: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 4,
-  },
-  trackDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  trackDotText: {
-    fontSize: 10,
-  },
-  trackLine: {
-    width: 14,
-    height: 2.5,
-    marginHorizontal: 1,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  statsLabel: {
-    fontSize: 11,
   },
   gridContainer: {
     borderRadius: radius.card,
     borderWidth: 2,
     overflow: "hidden",
-    marginTop: spacing.xs,
+    position: "relative",
     ...shadow.card,
   },
   loadingGrid: {
     alignItems: "center",
     justifyContent: "center",
   },
-  gridRow: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  cell: {
-    borderWidth: 0.5,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  pipeLayer: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pipeVertical: {
-    position: "absolute",
-    alignSelf: "center",
-    zIndex: 2,
-  },
-  pipeHorizontal: {
-    position: "absolute",
-    top: "50%",
-    transform: [{ translateY: -0.5 }],
-    zIndex: 2,
-  },
-  pipeCenterNode: {
-    position: "absolute",
-    zIndex: 3,
-  },
-  headGlowHalo: {
-    position: "absolute",
-    borderWidth: 2,
-    zIndex: 4,
-  },
-  wallRight: {
-    position: "absolute",
-    right: 0,
-    top: 2,
-    bottom: 2,
-    zIndex: 10,
-  },
-  wallBottom: {
-    position: "absolute",
-    bottom: 0,
-    left: 2,
-    right: 2,
-    zIndex: 10,
-  },
   checkpointBadge: {
+    position: "absolute",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 15,
+    zIndex: 20,
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
   },
   checkpointNumber: {
     textAlign: "center",
   },
-  hintIndicator: {
-    borderWidth: 2.5,
-    borderStyle: "dashed",
-    zIndex: 5,
-  },
-  toolbar: {
+  actionToolbar: {
     flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
+    width: MAX_BOARD_WIDTH,
+    gap: spacing.md,
+    marginTop: spacing.xs,
   },
-  toolBtn: {
-    flexDirection: "row",
+  actionPillBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: 7,
-    borderRadius: radius.chip,
+    justifyContent: "center",
     borderWidth: 1,
   },
-  toolIcon: {
+  actionPillText: {
     fontSize: 14,
   },
-  toolLabel: {
-    fontSize: 11,
-  },
-  instructionsCard: {
+  visualHowToPlayCard: {
     width: MAX_BOARD_WIDTH,
-    padding: spacing.md,
     borderRadius: radius.card,
-    marginTop: spacing.sm,
-    gap: 4,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginTop: spacing.xs,
+    gap: spacing.sm,
   },
-  instructionsTitle: {
-    fontSize: 12,
-    letterSpacing: 0.5,
+  howToPlayHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  instructionsBody: {
+  howToPlayTitle: {
+    fontSize: 13,
+    letterSpacing: 0.3,
+  },
+  howToPlayChevron: {
     fontSize: 11,
-    lineHeight: 16,
+  },
+  howToPlayContent: {
+    gap: spacing.md,
+    marginTop: 4,
+  },
+  howToPlayRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "flex-start",
+  },
+  howToPlayCol: {
+    flex: 1,
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 4,
+  },
+  dotsGraphicRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 38,
+  },
+  miniDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  miniDotText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  miniDotLine: {
+    width: 14,
+    height: 4,
+    borderRadius: 2,
+    marginHorizontal: -1,
+  },
+  miniGridGraphic: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 4,
+  },
+  miniGridRibbon: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+  },
+  howToPlayDesc: {
+    fontSize: 11,
+    textAlign: "center",
+  },
+  seeResultsBtn: {
+    width: "100%",
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    marginTop: 2,
+  },
+  seeResultsBtnText: {
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
   modalOverlay: {
     ...(StyleSheet.absoluteFill as object),

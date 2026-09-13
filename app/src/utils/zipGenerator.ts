@@ -474,9 +474,9 @@ export function getDailyZipPuzzle(dateStr?: string): ZipPuzzle {
   const dayNum = Math.max(1, Math.floor((now.getTime() - epoch.getTime()) / 86400000) + 1);
   const dayOfWeek = now.getUTCDay();
 
-  // Mon/Wed/Fri: 6x6, Tue/Thu/Sat: 8x8, Sun: 10x10
-  const dimension: 6 | 8 | 10 = dayOfWeek === 0 ? 10 : [1, 3, 5].includes(dayOfWeek) ? 6 : 8;
-  const difficulty = dimension === 6 ? "easy" : dimension === 8 ? "medium" : "hard";
+  // Standard LinkedIn Zip size: 6x6 for optimal mobile touch usability and layout
+  const dimension: 6 | 8 = 6;
+  const difficulty = "hard";
 
   const puzzle = createZipPuzzle(dimension, difficulty, (dayNum * 2654435761) >>> 0);
   return {
