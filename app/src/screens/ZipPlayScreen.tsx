@@ -52,6 +52,33 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_PADDING = spacing.md * 2;
 const MAX_BOARD_WIDTH = Math.min(SCREEN_WIDTH - GRID_PADDING, 390);
+function interpolateHexColor(c1: string, c2: string, factor: number): string {
+  const r1 = parseInt(c1.slice(1, 3), 16);
+  const g1 = parseInt(c1.slice(3, 5), 16);
+  const b1 = parseInt(c1.slice(5, 7), 16);
+  const r2 = parseInt(c2.slice(1, 3), 16);
+  const g2 = parseInt(c2.slice(3, 5), 16);
+  const b2 = parseInt(c2.slice(5, 7), 16);
+
+  const r = Math.round(r1 + factor * (r2 - r1));
+  const g = Math.round(g1 + factor * (g2 - g1));
+  const b = Math.round(b1 + factor * (b2 - b1));
+
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+/** Authentic LinkedIn Zip purple-to-pink-to-coral ribbon gradient */
+export function getZipRibbonColor(index: number, total: number): string {
+  if (total <= 1) return "#9333EA";
+  const t = Math.max(0, Math.min(1, index / Math.max(1, total - 1)));
+  if (t <= 0.35) {
+    return interpolateHexColor("#7E22CE", "#BE185D", t / 0.35);
+  } else if (t <= 0.7) {
+    return interpolateHexColor("#BE185D", "#E11D48", (t - 0.35) / 0.35);
+  } else {
+    return interpolateHexColor("#E11D48", "#EA580C", (t - 0.7) / 0.3);
+  }
+}
 
 export function ZipPlayScreen() {
   const { colors } = useTheme();
@@ -87,7 +114,7 @@ export function ZipPlayScreen() {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cellSize = MAX_BOARD_WIDTH / puzzle.size.cols;
-  const pipeWidth = Math.max(8, Math.round(cellSize * 0.34));
+  const pipeWidth = Math.max(14, Math.round(cellSize * 0.72));
   const wallThickness = Math.max(4, Math.round(cellSize * 0.12));
 
   // Set of walls for O(1) barrier collision check
@@ -288,18 +315,19 @@ export function ZipPlayScreen() {
   );
 
   /**
-   * Ultra-smooth gesture step processor:
-   * Handles continuous drag drawing, orthogonal line interpolation across multiple cells,
-   * rubber-band retraction when moving backward to an already-drawn cell,
-   * and blocks dragging across obstacles (walls or out-of-order checkpoints).
+   * Initial touch-down on the grid:
+   * 1. If path is empty, starts on checkpoint 1.
+   * 2. If touching a previous checkpoint or cell on the line, intentionally rewinds to that point!
+   *    ("or should touch the number or the line upto where backtrack needed")
+   * 3. If touching an adjacent unvisited cell from head, advances by 1.
    */
-  const processTouchStep = useCallback(
-    (targetR: number, targetC: number) => {
+  const handleTouchDown = useCallback(
+    (row: number, col: number) => {
       if (gameEndedRef.current) return;
       const pz = puzzleRef.current;
-      if (targetR < 0 || targetR >= pz.size.rows || targetC < 0 || targetC >= pz.size.cols) return;
+      if (row < 0 || row >= pz.size.rows || col < 0 || col >= pz.size.cols) return;
 
-      const targetKey = cellKey(targetR, targetC);
+      const targetKey = cellKey(row, col);
 
       // Start path on cell 1 if path is empty
       if (pathRef.current.length === 0) {
@@ -313,7 +341,8 @@ export function ZipPlayScreen() {
         return;
       }
 
-      // Check if finger moved backward into an already visited cell (retraction / unwinding)
+      // DELIBERATE TOUCH-TO-BACKTRACK:
+      // Tapping on an already-visited cell or number rewinds the path directly to that cell!
       const existingIdx = pathRef.current.indexOf(targetKey);
       if (existingIdx !== -1) {
         if (existingIdx < pathRef.current.length - 1) {
@@ -337,7 +366,58 @@ export function ZipPlayScreen() {
         return;
       }
 
-      // Fast-drag interpolation: step from current head towards (targetR, targetC)
+      // If touching an adjacent unvisited cell from head
+      const headKey = pathRef.current[pathRef.current.length - 1];
+      const head = parseKey(headKey);
+      if (areAdjacent(head, { row, col })) {
+        if (hasWall(wallsSetRef.current, headKey, targetKey)) {
+          SoundEffects.playZipWallHit();
+          return;
+        }
+        const cp = pz.numbers[targetKey];
+        if (cp !== undefined && cp !== nextExpectedCpRef.current) {
+          SoundEffects.playZipWallHit();
+          return;
+        }
+        pathRef.current.push(targetKey);
+        movesRef.current += 1;
+        const updated = [...pathRef.current];
+        setPath(updated);
+        setMoves(movesRef.current);
+        if (cp !== undefined) {
+          nextExpectedCpRef.current = cp + 1;
+          setNextExpectedCheckpoint(cp + 1);
+          SoundEffects.playZipCheckpoint();
+        } else {
+          SoundEffects.playZipPop();
+        }
+        setHintCellKey(null);
+
+        const totalCells = pz.size.rows * pz.size.cols;
+        if (updated.length === totalCells && cp === pz.maxCheckpoint) {
+          handleGameWin(updated, movesRef.current);
+        }
+      }
+    },
+    [handleGameWin]
+  );
+
+  /**
+   * Continuous Dragging along the grid:
+   * 1. If dragging backward into the immediate predecessor (head - 1), unrolls backward 1 step ("I should come backward").
+   * 2. If dragging towards ANY OTHER cell already in the path, STRICTLY BLOCKS THE MOVE ("it shouldnt let drag where the line is already dragged").
+   * 3. Blocks moving through walls or out-of-order checkpoints.
+   * 4. Extends the line forward into adjacent unvisited cells.
+   */
+  const handleDragMove = useCallback(
+    (targetR: number, targetC: number) => {
+      if (gameEndedRef.current) return;
+      const pz = puzzleRef.current;
+      if (targetR < 0 || targetR >= pz.size.rows || targetC < 0 || targetC >= pz.size.cols) return;
+
+      const targetKey = cellKey(targetR, targetC);
+      if (pathRef.current.length === 0) return;
+
       let changed = false;
       const maxSteps = pz.size.rows + pz.size.cols;
       let loopCount = 0;
@@ -350,7 +430,6 @@ export function ZipPlayScreen() {
         const dr = targetR - head.row;
         const dc = targetC - head.col;
 
-        // Choose candidate orthogonal step (prioritize primary motion axis)
         const candidates: { r: number; c: number }[] = [];
         if (Math.abs(dr) >= Math.abs(dc)) {
           if (dr !== 0) candidates.push({ r: head.row + Math.sign(dr), c: head.col });
@@ -365,33 +444,48 @@ export function ZipPlayScreen() {
           if (next.r < 0 || next.r >= pz.size.rows || next.c < 0 || next.c >= pz.size.cols) continue;
           const nextK = cellKey(next.r, next.c);
 
-          // Check if candidate is already in path
-          const idxInPath = pathRef.current.indexOf(nextK);
-          if (idxInPath !== -1) {
-            if (idxInPath < pathRef.current.length - 1) {
-              pathRef.current = pathRef.current.slice(0, idxInPath + 1);
-              changed = true;
-              stepped = true;
-              SoundEffects.playZipRetract();
-              break;
-            }
-            continue;
+          // CASE 1: Moving backward along the line into the immediate previous cell -> Unroll 1 step!
+          const prevHeadKey =
+            pathRef.current.length >= 2 ? pathRef.current[pathRef.current.length - 2] : null;
+          if (nextK === prevHeadKey) {
+            pathRef.current.pop();
+            changed = true;
+            stepped = true;
+            SoundEffects.playZipRetract();
+
+            // Recalculate next expected checkpoint
+            let maxVisitedCp = 1;
+            pathRef.current.forEach((k) => {
+              const cp = pz.numbers[k];
+              if (cp !== undefined && cp > maxVisitedCp) {
+                maxVisitedCp = cp;
+              }
+            });
+            nextExpectedCpRef.current = maxVisitedCp + 1;
+            break;
           }
 
-          // Wall collision obstacle: stop drag immediately
+          // CASE 2: Moving into ANY OTHER already-drawn cell -> STRICTLY BLOCKED AS AN OBSTACLE!
+          // Does NOT revert or wipe out earlier paths!
+          if (pathRef.current.includes(nextK)) {
+            SoundEffects.playZipWallHit();
+            break; // Stop immediately at this obstacle
+          }
+
+          // CASE 3: Wall barrier collision -> Blocked!
           if (hasWall(wallsSetRef.current, headKey, nextK)) {
             SoundEffects.playZipWallHit();
             break;
           }
 
-          // Checkpoint sequence obstacle: stop drag immediately if out-of-order
+          // CASE 4: Checkpoint out of order -> Blocked!
           const cp = pz.numbers[nextK];
           if (cp !== undefined && cp !== nextExpectedCpRef.current) {
             SoundEffects.playZipWallHit();
             break;
           }
 
-          // Valid orthogonal move: extend path
+          // CASE 5: Clear valid move -> Step into cell!
           pathRef.current.push(nextK);
           movesRef.current += 1;
           changed = true;
@@ -407,7 +501,7 @@ export function ZipPlayScreen() {
         }
 
         if (!stepped) {
-          // Hit an obstacle or reached current limit
+          // Hit an obstacle (wall, visited line, or out-of-order checkpoint)
           break;
         }
         loopCount++;
@@ -420,7 +514,6 @@ export function ZipPlayScreen() {
         setNextExpectedCheckpoint(nextExpectedCpRef.current);
         setHintCellKey(null);
 
-        // Win Condition: 100% of cells filled AND ends on highest checkpoint
         const totalCells = pz.size.rows * pz.size.cols;
         const finalHeadKey = updatedPath[updatedPath.length - 1];
         const finalCp = pz.numbers[finalHeadKey];
@@ -440,13 +533,11 @@ export function ZipPlayScreen() {
       puzzleRef.current.solution
     );
 
-    // If player made a mistake, automatically rewind path to the fork
     if (validPrefixLength < pathRef.current.length) {
       const rewoundPath = pathRef.current.slice(0, validPrefixLength);
       pathRef.current = rewoundPath;
       setPath(rewoundPath);
 
-      // Recalculate next expected checkpoint
       let maxVisitedCp = 1;
       rewoundPath.forEach((k) => {
         const cp = puzzleRef.current.numbers[k];
@@ -576,7 +667,7 @@ export function ZipPlayScreen() {
 
           const col = Math.floor(locationX / cellSize);
           const row = Math.floor(locationY / cellSize);
-          processTouchStep(row, col);
+          handleTouchDown(row, col);
         },
 
         onPanResponderMove: (evt) => {
@@ -586,7 +677,7 @@ export function ZipPlayScreen() {
           const localY = pageY - gridLayoutRef.current.pageY;
           const col = Math.floor(localX / cellSize);
           const row = Math.floor(localY / cellSize);
-          processTouchStep(row, col);
+          handleDragMove(row, col);
         },
 
         onPanResponderRelease: () => {
@@ -597,7 +688,7 @@ export function ZipPlayScreen() {
           setIsDragging(false);
         },
       }),
-    [cellSize, processTouchStep]
+    [cellSize, handleTouchDown, handleDragMove]
   );
 
   const totalCells = puzzle.size.rows * puzzle.size.cols;
@@ -902,6 +993,7 @@ export function ZipPlayScreen() {
 
                     // Pipe Direction Connections
                     const pathIdx = pathIndexMap.get(key) ?? -1;
+                    const ribbonColor = inPath ? getZipRibbonColor(pathIdx, totalCells) : colors.primary;
                     const prevKey = pathIdx > 0 ? path[pathIdx - 1] : null;
                     const nextKey = pathIdx >= 0 && pathIdx < path.length - 1 ? path[pathIdx + 1] : null;
 
@@ -933,7 +1025,7 @@ export function ZipPlayScreen() {
                           },
                         ]}
                       >
-                        {/* CONTINUOUS PIPE RENDERING */}
+                        {/* CONTINUOUS PIPE RENDERING (Vibrant LinkedIn Ribbon) */}
                         {inPath && (
                           <View style={styles.pipeLayer} pointerEvents="none">
                             {/* Vertical pipe segment */}
@@ -944,8 +1036,10 @@ export function ZipPlayScreen() {
                                   {
                                     width: pipeWidth,
                                     top: 0,
-                                    height: "52%",
-                                    backgroundColor: colors.primary,
+                                    height: "54%",
+                                    backgroundColor: ribbonColor,
+                                    borderTopLeftRadius: connectsLeft ? 0 : pipeWidth / 2,
+                                    borderTopRightRadius: connectsRight ? 0 : pipeWidth / 2,
                                   },
                                 ]}
                               />
@@ -957,8 +1051,10 @@ export function ZipPlayScreen() {
                                   {
                                     width: pipeWidth,
                                     bottom: 0,
-                                    height: "52%",
-                                    backgroundColor: colors.primary,
+                                    height: "54%",
+                                    backgroundColor: ribbonColor,
+                                    borderBottomLeftRadius: connectsLeft ? 0 : pipeWidth / 2,
+                                    borderBottomRightRadius: connectsRight ? 0 : pipeWidth / 2,
                                   },
                                 ]}
                               />
@@ -972,8 +1068,10 @@ export function ZipPlayScreen() {
                                   {
                                     height: pipeWidth,
                                     left: 0,
-                                    width: "52%",
-                                    backgroundColor: colors.primary,
+                                    width: "54%",
+                                    backgroundColor: ribbonColor,
+                                    borderTopLeftRadius: connectsTop ? 0 : pipeWidth / 2,
+                                    borderBottomLeftRadius: connectsBottom ? 0 : pipeWidth / 2,
                                   },
                                 ]}
                               />
@@ -985,8 +1083,10 @@ export function ZipPlayScreen() {
                                   {
                                     height: pipeWidth,
                                     right: 0,
-                                    width: "52%",
-                                    backgroundColor: colors.primary,
+                                    width: "54%",
+                                    backgroundColor: ribbonColor,
+                                    borderTopRightRadius: connectsTop ? 0 : pipeWidth / 2,
+                                    borderBottomRightRadius: connectsBottom ? 0 : pipeWidth / 2,
                                   },
                                 ]}
                               />
@@ -1000,7 +1100,7 @@ export function ZipPlayScreen() {
                                   width: pipeWidth,
                                   height: pipeWidth,
                                   borderRadius: pipeWidth / 2,
-                                  backgroundColor: isHead ? colors.accent : colors.primary,
+                                  backgroundColor: ribbonColor,
                                 },
                               ]}
                             />
@@ -1014,7 +1114,7 @@ export function ZipPlayScreen() {
                                     width: pipeWidth + 8,
                                     height: pipeWidth + 8,
                                     borderRadius: (pipeWidth + 8) / 2,
-                                    borderColor: colors.accent,
+                                    borderColor: "#FFFFFF",
                                   },
                                 ]}
                               />
@@ -1048,23 +1148,23 @@ export function ZipPlayScreen() {
                           />
                         )}
 
-                        {/* NUMBERED CHECKPOINT BADGE */}
+                        {/* NUMBERED CHECKPOINT BADGE (Solid black circular badge with white numerals) */}
                         {isCheckpoint ? (
                           <View
                             style={[
                               styles.checkpointBadge,
                               {
-                                width: Math.min(cellSize * 0.76, 36),
-                                height: Math.min(cellSize * 0.76, 36),
-                                borderRadius: Math.min(cellSize * 0.76, 36) / 2,
-                                backgroundColor: inPath ? colors.primary : colors.surfaceElevated,
+                                width: Math.min(cellSize * 0.76, 38),
+                                height: Math.min(cellSize * 0.76, 38),
+                                borderRadius: Math.min(cellSize * 0.76, 38) / 2,
+                                backgroundColor: "#111318",
                                 borderColor:
                                   cpNum === nextExpectedCheckpoint
-                                    ? colors.accent
+                                    ? "#FFFFFF"
                                     : inPath
-                                    ? colors.green
-                                    : colors.primary,
-                                borderWidth: cpNum === nextExpectedCheckpoint ? 2.5 : 2,
+                                    ? "rgba(255, 255, 255, 0.75)"
+                                    : "rgba(255, 255, 255, 0.35)",
+                                borderWidth: cpNum === nextExpectedCheckpoint ? 2.5 : 1.5,
                               },
                             ]}
                           >
@@ -1072,9 +1172,10 @@ export function ZipPlayScreen() {
                               style={[
                                 styles.checkpointNumber,
                                 {
-                                  color: inPath ? "#FFFFFF" : colors.text,
+                                  color: "#FFFFFF",
                                   fontFamily: fonts.display,
-                                  fontSize: puzzle.size.cols >= 10 ? 11 : puzzle.size.cols >= 8 ? 13 : 15,
+                                  fontSize: puzzle.size.cols >= 10 ? 12 : puzzle.size.cols >= 8 ? 14 : 16,
+                                  fontWeight: "900",
                                 },
                               ]}
                             >
