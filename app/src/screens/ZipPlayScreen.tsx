@@ -105,6 +105,45 @@ export function ZipPlayScreen() {
     return map;
   }, [path]);
 
+  // Real-time gesture refs to eliminate React re-render latency during 120Hz continuous drag
+  const [isDragging, setIsDragging] = useState(false);
+  const pathRef = useRef<string[]>(path);
+  const nextExpectedCpRef = useRef<number>(nextExpectedCheckpoint);
+  const movesRef = useRef<number>(moves);
+  const gameEndedRef = useRef<boolean>(gameEnded);
+  const puzzleRef = useRef<ZipPuzzle>(puzzle);
+  const secondsRef = useRef<number>(seconds);
+  const wallsSetRef = useRef<Set<string>>(wallsSet);
+  const gridLayoutRef = useRef<{ pageX: number; pageY: number; cellSize: number } | null>(null);
+
+  useEffect(() => {
+    pathRef.current = path;
+  }, [path]);
+
+  useEffect(() => {
+    nextExpectedCpRef.current = nextExpectedCheckpoint;
+  }, [nextExpectedCheckpoint]);
+
+  useEffect(() => {
+    movesRef.current = moves;
+  }, [moves]);
+
+  useEffect(() => {
+    gameEndedRef.current = gameEnded;
+  }, [gameEnded]);
+
+  useEffect(() => {
+    puzzleRef.current = puzzle;
+  }, [puzzle]);
+
+  useEffect(() => {
+    secondsRef.current = seconds;
+  }, [seconds]);
+
+  useEffect(() => {
+    wallsSetRef.current = wallsSet;
+  }, [wallsSet]);
+
   /** Initialize a practice puzzle */
   const initPracticeGame = useCallback((newSize: 6 | 8 | 10) => {
     const p = createZipPuzzle(
@@ -113,8 +152,14 @@ export function ZipPlayScreen() {
     );
     setSize(newSize);
     setPuzzle(p);
+    puzzleRef.current = p;
 
     const startKey = p.solution[0];
+    pathRef.current = [startKey];
+    nextExpectedCpRef.current = 2;
+    movesRef.current = 0;
+    gameEndedRef.current = false;
+
     setPath([startKey]);
     setNextExpectedCheckpoint(2);
     setMoves(0);
@@ -138,12 +183,17 @@ export function ZipPlayScreen() {
       setMyDailyScore(res.myScore);
       setRivalToBeat(res.rivalToBeat);
 
-      // Adapt daily puzzle response to modern ZipPuzzle format
       const serverPuzzle = getDailyZipPuzzleLocal(res.date);
       setSize(serverPuzzle.size.rows as 6 | 8 | 10);
       setPuzzle(serverPuzzle);
+      puzzleRef.current = serverPuzzle;
 
       const startKey = serverPuzzle.solution[0];
+      pathRef.current = [startKey];
+      nextExpectedCpRef.current = 2;
+      movesRef.current = 0;
+      gameEndedRef.current = false;
+
       setPath([startKey]);
       setNextExpectedCheckpoint(2);
       setMoves(0);
@@ -159,11 +209,18 @@ export function ZipPlayScreen() {
         }, 1000);
       }
     } catch {
-      // Offline fallback: use deterministic daily generator
       const fallback = getDailyZipPuzzleLocal();
       setSize(fallback.size.rows as 6 | 8 | 10);
       setPuzzle(fallback);
-      setPath([fallback.solution[0]]);
+      puzzleRef.current = fallback;
+
+      const startKey = fallback.solution[0];
+      pathRef.current = [startKey];
+      nextExpectedCpRef.current = 2;
+      movesRef.current = 0;
+      gameEndedRef.current = false;
+
+      setPath([startKey]);
       setNextExpectedCheckpoint(2);
       setMoves(0);
       setSeconds(0);
@@ -190,17 +247,65 @@ export function ZipPlayScreen() {
     };
   }, [gameMode, loadDailyChallenge, initPracticeGame, size]);
 
-  /** Core gesture & click step handler (smooth touch-and-drag + rubber-band retraction) */
-  const handleCellAction = useCallback(
-    async (r: number, c: number) => {
-      if (gameEnded) return;
-      if (r < 0 || r >= puzzle.size.rows || c < 0 || c >= puzzle.size.cols) return;
+  /** Win celebration and score submission handler */
+  const handleGameWin = useCallback(
+    async (finalPath: string[], totalMoves: number) => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      gameEndedRef.current = true;
+      setGameEnded(true);
+      SoundEffects.playZipSolve();
 
-      const targetKey = cellKey(r, c);
+      const elapsed = secondsRef.current;
+      const stars = elapsed <= 45 ? 3 : elapsed <= 90 ? 2 : 1;
+
+      if (gameMode === "daily") {
+        try {
+          const subRes = await submitDailyZipScore({
+            puzzleDate: dailyData?.date,
+            timeSeconds: elapsed,
+            moves: totalMoves,
+            stars,
+          });
+          if (subRes.ok) {
+            setOfficialXpAwarded(subRes.score.xpEarned);
+            setMyDailyScore({
+              timeSeconds: subRes.score.timeSeconds,
+              moves: subRes.score.moves,
+              stars: subRes.score.stars,
+              xpEarned: subRes.score.xpEarned,
+              completedAt: new Date().toISOString(),
+            });
+            refreshUser();
+          }
+        } catch {
+          // handled gracefully
+        }
+      } else {
+        refreshUser();
+      }
+    },
+    [gameMode, dailyData?.date, refreshUser]
+  );
+
+  /**
+   * Ultra-smooth gesture step processor:
+   * Handles continuous drag drawing, orthogonal line interpolation across multiple cells,
+   * rubber-band retraction when moving backward to an already-drawn cell,
+   * and blocks dragging across obstacles (walls or out-of-order checkpoints).
+   */
+  const processTouchStep = useCallback(
+    (targetR: number, targetC: number) => {
+      if (gameEndedRef.current) return;
+      const pz = puzzleRef.current;
+      if (targetR < 0 || targetR >= pz.size.rows || targetC < 0 || targetC >= pz.size.cols) return;
+
+      const targetKey = cellKey(targetR, targetC);
 
       // Start path on cell 1 if path is empty
-      if (path.length === 0) {
-        if (puzzle.numbers[targetKey] === 1) {
+      if (pathRef.current.length === 0) {
+        if (pz.numbers[targetKey] === 1) {
+          pathRef.current = [targetKey];
+          nextExpectedCpRef.current = 2;
           setPath([targetKey]);
           setNextExpectedCheckpoint(2);
           SoundEffects.playZipPop();
@@ -208,172 +313,186 @@ export function ZipPlayScreen() {
         return;
       }
 
-      // 1. Rubber-band retraction: if re-entering an already visited cell
-      if (pathKeySet.has(targetKey)) {
-        const targetIdx = pathIndexMap.get(targetKey);
-        if (targetIdx !== undefined && targetIdx < path.length - 1) {
-          const newPath = path.slice(0, targetIdx + 1);
+      // Check if finger moved backward into an already visited cell (retraction / unwinding)
+      const existingIdx = pathRef.current.indexOf(targetKey);
+      if (existingIdx !== -1) {
+        if (existingIdx < pathRef.current.length - 1) {
+          const newPath = pathRef.current.slice(0, existingIdx + 1);
+          pathRef.current = newPath;
           setPath(newPath);
           SoundEffects.playZipRetract();
 
           // Recalculate next expected checkpoint
           let maxVisitedCp = 1;
           newPath.forEach((k) => {
-            const cp = puzzle.numbers[k];
+            const cp = pz.numbers[k];
             if (cp !== undefined && cp > maxVisitedCp) {
               maxVisitedCp = cp;
             }
           });
+          nextExpectedCpRef.current = maxVisitedCp + 1;
           setNextExpectedCheckpoint(maxVisitedCp + 1);
           setHintCellKey(null);
         }
         return;
       }
 
-      // 2. Path Extension
-      const currentHeadKey = path[path.length - 1];
-      const currentHead = parseKey(currentHeadKey);
-      const nextCell: ZipCell = { row: r, col: c };
+      // Fast-drag interpolation: step from current head towards (targetR, targetC)
+      let changed = false;
+      const maxSteps = pz.size.rows + pz.size.cols;
+      let loopCount = 0;
 
-      // Must be orthogonally adjacent
-      if (!areAdjacent(currentHead, nextCell)) {
-        return;
-      }
+      while (loopCount < maxSteps) {
+        const headKey = pathRef.current[pathRef.current.length - 1];
+        if (headKey === targetKey) break;
 
-      // Wall collision check: cannot cross a wall barrier
-      if (hasWall(wallsSet, currentHeadKey, targetKey)) {
-        SoundEffects.playZipWallHit();
-        return;
-      }
+        const head = parseKey(headKey);
+        const dr = targetR - head.row;
+        const dc = targetC - head.col;
 
-      // Checkpoint ordering rule: cannot hit a checkpoint out of order
-      const cp = puzzle.numbers[targetKey];
-      if (cp !== undefined) {
-        if (cp !== nextExpectedCheckpoint) {
-          SoundEffects.playZipWallHit();
-          return;
-        }
-      }
-
-      // Valid move! Extend path
-      const newPath = [...path, targetKey];
-      const newMoves = moves + 1;
-      setPath(newPath);
-      setMoves(newMoves);
-      setHintCellKey(null);
-
-      if (cp !== undefined) {
-        SoundEffects.playZipCheckpoint();
-        setNextExpectedCheckpoint(cp + 1);
-      } else {
-        SoundEffects.playZipPop();
-      }
-
-      // Win Condition: 100% of cells filled AND ends on the highest checkpoint
-      const totalCells = puzzle.size.rows * puzzle.size.cols;
-      if (newPath.length === totalCells && cp === puzzle.maxCheckpoint) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        setGameEnded(true);
-        SoundEffects.playZipSolve();
-
-        // Speed stars: 3 stars <= 45s, 2 stars <= 90s, 1 star otherwise
-        const stars = seconds <= 45 ? 3 : seconds <= 90 ? 2 : 1;
-
-        if (gameMode === "daily") {
-          try {
-            const subRes = await submitDailyZipScore({
-              puzzleDate: dailyData?.date,
-              timeSeconds: seconds,
-              moves: newMoves,
-              stars,
-            });
-            if (subRes.ok) {
-              setOfficialXpAwarded(subRes.score.xpEarned);
-              setMyDailyScore({
-                timeSeconds: subRes.score.timeSeconds,
-                moves: subRes.score.moves,
-                stars: subRes.score.stars,
-                xpEarned: subRes.score.xpEarned,
-                completedAt: new Date().toISOString(),
-              });
-              refreshUser();
-            }
-          } catch {
-            // gracefully handled
-          }
+        // Choose candidate orthogonal step (prioritize primary motion axis)
+        const candidates: { r: number; c: number }[] = [];
+        if (Math.abs(dr) >= Math.abs(dc)) {
+          if (dr !== 0) candidates.push({ r: head.row + Math.sign(dr), c: head.col });
+          if (dc !== 0) candidates.push({ r: head.row, c: head.col + Math.sign(dc) });
         } else {
-          refreshUser();
+          if (dc !== 0) candidates.push({ r: head.row, c: head.col + Math.sign(dc) });
+          if (dr !== 0) candidates.push({ r: head.row + Math.sign(dr), c: head.col });
+        }
+
+        let stepped = false;
+        for (const next of candidates) {
+          if (next.r < 0 || next.r >= pz.size.rows || next.c < 0 || next.c >= pz.size.cols) continue;
+          const nextK = cellKey(next.r, next.c);
+
+          // Check if candidate is already in path
+          const idxInPath = pathRef.current.indexOf(nextK);
+          if (idxInPath !== -1) {
+            if (idxInPath < pathRef.current.length - 1) {
+              pathRef.current = pathRef.current.slice(0, idxInPath + 1);
+              changed = true;
+              stepped = true;
+              SoundEffects.playZipRetract();
+              break;
+            }
+            continue;
+          }
+
+          // Wall collision obstacle: stop drag immediately
+          if (hasWall(wallsSetRef.current, headKey, nextK)) {
+            SoundEffects.playZipWallHit();
+            break;
+          }
+
+          // Checkpoint sequence obstacle: stop drag immediately if out-of-order
+          const cp = pz.numbers[nextK];
+          if (cp !== undefined && cp !== nextExpectedCpRef.current) {
+            SoundEffects.playZipWallHit();
+            break;
+          }
+
+          // Valid orthogonal move: extend path
+          pathRef.current.push(nextK);
+          movesRef.current += 1;
+          changed = true;
+          stepped = true;
+
+          if (cp !== undefined) {
+            SoundEffects.playZipCheckpoint();
+            nextExpectedCpRef.current = cp + 1;
+          } else {
+            SoundEffects.playZipPop();
+          }
+          break;
+        }
+
+        if (!stepped) {
+          // Hit an obstacle or reached current limit
+          break;
+        }
+        loopCount++;
+      }
+
+      if (changed) {
+        const updatedPath = [...pathRef.current];
+        setPath(updatedPath);
+        setMoves(movesRef.current);
+        setNextExpectedCheckpoint(nextExpectedCpRef.current);
+        setHintCellKey(null);
+
+        // Win Condition: 100% of cells filled AND ends on highest checkpoint
+        const totalCells = pz.size.rows * pz.size.cols;
+        const finalHeadKey = updatedPath[updatedPath.length - 1];
+        const finalCp = pz.numbers[finalHeadKey];
+        if (updatedPath.length === totalCells && finalCp === pz.maxCheckpoint) {
+          handleGameWin(updatedPath, movesRef.current);
         }
       }
     },
-    [
-      gameEnded,
-      puzzle,
-      path,
-      pathKeySet,
-      pathIndexMap,
-      wallsSet,
-      nextExpectedCheckpoint,
-      moves,
-      seconds,
-      gameMode,
-      dailyData?.date,
-      refreshUser,
-    ]
+    [handleGameWin]
   );
 
   /** Intelligent Hint: rewinds path to deviation point and highlights the exact next correct cell */
   const handleHint = useCallback(() => {
-    if (gameEnded) return;
-    const { validPrefixLength, nextCorrectCell } = getSmartHint(path, puzzle.solution);
+    if (gameEndedRef.current) return;
+    const { validPrefixLength, nextCorrectCell } = getSmartHint(
+      pathRef.current,
+      puzzleRef.current.solution
+    );
 
     // If player made a mistake, automatically rewind path to the fork
-    if (validPrefixLength < path.length) {
-      const rewoundPath = path.slice(0, validPrefixLength);
+    if (validPrefixLength < pathRef.current.length) {
+      const rewoundPath = pathRef.current.slice(0, validPrefixLength);
+      pathRef.current = rewoundPath;
       setPath(rewoundPath);
 
       // Recalculate next expected checkpoint
       let maxVisitedCp = 1;
       rewoundPath.forEach((k) => {
-        const cp = puzzle.numbers[k];
+        const cp = puzzleRef.current.numbers[k];
         if (cp !== undefined && cp > maxVisitedCp) {
           maxVisitedCp = cp;
         }
       });
+      nextExpectedCpRef.current = maxVisitedCp + 1;
       setNextExpectedCheckpoint(maxVisitedCp + 1);
     }
 
     setHintCellKey(nextCorrectCell);
     SoundEffects.playStar();
-  }, [gameEnded, path, puzzle.solution, puzzle.numbers]);
+  }, []);
 
   /** Step back one cell */
   const handleUndo = useCallback(() => {
-    if (path.length <= 1 || gameEnded) return;
-    const newPath = path.slice(0, -1);
+    if (pathRef.current.length <= 1 || gameEndedRef.current) return;
+    const newPath = pathRef.current.slice(0, -1);
+    pathRef.current = newPath;
     setPath(newPath);
     SoundEffects.playZipPop();
 
     let maxVisitedCp = 1;
     newPath.forEach((k) => {
-      const cp = puzzle.numbers[k];
+      const cp = puzzleRef.current.numbers[k];
       if (cp !== undefined && cp > maxVisitedCp) {
         maxVisitedCp = cp;
       }
     });
+    nextExpectedCpRef.current = maxVisitedCp + 1;
     setNextExpectedCheckpoint(maxVisitedCp + 1);
     setHintCellKey(null);
-  }, [path, gameEnded, puzzle.numbers]);
+  }, []);
 
   /** Clear/Reset path back to checkpoint 1 */
   const handleReset = useCallback(() => {
-    if (gameEnded) return;
-    const startKey = puzzle.solution[0];
+    if (gameEndedRef.current) return;
+    const startKey = puzzleRef.current.solution[0];
+    pathRef.current = [startKey];
+    nextExpectedCpRef.current = 2;
     setPath([startKey]);
     setNextExpectedCheckpoint(2);
     setHintCellKey(null);
     SoundEffects.playZipRetract();
-  }, [gameEnded, puzzle.solution]);
+  }, []);
 
   /** Open Standings & Leaderboard Modal */
   const handleOpenStandings = useCallback(async () => {
@@ -412,12 +531,12 @@ export function ZipPlayScreen() {
 
   /** Share Result using native share sheet */
   const handleShareResult = useCallback(async () => {
-    const solvedSeconds = myDailyScore ? myDailyScore.timeSeconds : seconds;
-    const solvedMoves = myDailyScore ? myDailyScore.moves : moves;
+    const solvedSeconds = myDailyScore ? myDailyScore.timeSeconds : secondsRef.current;
+    const solvedMoves = myDailyScore ? myDailyScore.moves : movesRef.current;
     const solvedStars = myDailyScore ? myDailyScore.stars : 3;
     const text = generateZipShareText({
       puzzleNum: dailyData?.puzzleNum || 1,
-      size: puzzle.size,
+      size: puzzleRef.current.size,
       seconds: solvedSeconds,
       moves: solvedMoves,
       stars: solvedStars,
@@ -431,28 +550,54 @@ export function ZipPlayScreen() {
     } catch {
       // User cancelled share
     }
-  }, [myDailyScore, seconds, moves, dailyData?.puzzleNum, puzzle.size, lang]);
+  }, [myDailyScore, dailyData?.puzzleNum, lang]);
 
   // Ultra-responsive PanResponder for 120Hz continuous drag drawing
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponderCapture: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
+
         onPanResponderGrant: (evt) => {
-          const { locationX, locationY } = evt.nativeEvent;
+          const { pageX, pageY, locationX, locationY } = evt.nativeEvent;
+          const gridPageX = pageX - locationX;
+          const gridPageY = pageY - locationY;
+          gridLayoutRef.current = {
+            pageX: gridPageX,
+            pageY: gridPageY,
+            cellSize,
+          };
+          setIsDragging(true);
+
           const col = Math.floor(locationX / cellSize);
           const row = Math.floor(locationY / cellSize);
-          handleCellAction(row, col);
+          processTouchStep(row, col);
         },
+
         onPanResponderMove: (evt) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          const col = Math.floor(locationX / cellSize);
-          const row = Math.floor(locationY / cellSize);
-          handleCellAction(row, col);
+          if (!gridLayoutRef.current) return;
+          const { pageX, pageY } = evt.nativeEvent;
+          const localX = pageX - gridLayoutRef.current.pageX;
+          const localY = pageY - gridLayoutRef.current.pageY;
+          const col = Math.floor(localX / cellSize);
+          const row = Math.floor(localY / cellSize);
+          processTouchStep(row, col);
+        },
+
+        onPanResponderRelease: () => {
+          setIsDragging(false);
+        },
+
+        onPanResponderTerminate: () => {
+          setIsDragging(false);
         },
       }),
-    [cellSize, handleCellAction]
+    [cellSize, processTouchStep]
   );
 
   const totalCells = puzzle.size.rows * puzzle.size.cols;
@@ -556,7 +701,11 @@ export function ZipPlayScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          scrollEnabled={!isDragging}
+        >
           {/* DAILY MODE: Rival To Beat Banner */}
           {gameMode === "daily" && rivalToBeat && (
             <TouchableOpacity
@@ -771,10 +920,9 @@ export function ZipPlayScreen() {
                     const hasWallBottom = r + 1 < puzzle.size.rows && hasWall(wallsSet, key, bottomNeighborKey);
 
                     return (
-                      <TouchableOpacity
+                      <View
                         key={key}
-                        activeOpacity={0.9}
-                        onPress={() => handleCellAction(r, c)}
+                        pointerEvents="none"
                         style={[
                           styles.cell,
                           {
@@ -946,7 +1094,7 @@ export function ZipPlayScreen() {
                             ]}
                           />
                         ) : null}
-                      </TouchableOpacity>
+                      </View>
                     );
                   })}
                 </View>
