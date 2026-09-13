@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import crypto from "crypto";
-import { RIDDLES } from "../seed/data/riddles.js";
+import { RIDDLES } from "./data/riddles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "..", "data");
