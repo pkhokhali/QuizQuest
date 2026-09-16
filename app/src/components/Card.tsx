@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: radius.card,
     padding: spacing.lg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     ...shadow.card,
   },
 });

@@ -1,9 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Asset } from "expo-asset";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { useEffect, useState } from "react";
-import { Platform, Vibration } from "react-native";
+import { Image, NativeModules, Platform, Vibration } from "react-native";
 
+const { NativeSoundModule } = NativeModules;
 const SOUND_STORAGE_KEY = "@quizquest_sound_enabled";
 
 const SOUND_ASSETS: Record<string, any> = {
@@ -22,17 +22,17 @@ const SOUND_ASSETS: Record<string, any> = {
 
 // Calibrated gain staging (0.0 to 1.0) for balanced acoustic master mix
 const GAIN_STAGING: Record<string, number> = {
-  tap: 0.55,
-  tick: 0.35,
-  cardFlip: 0.6,
-  correct: 0.85,
-  wrong: 0.75,
-  combo: 0.9,
-  victory: 0.95,
-  fanfare: 0.9,
-  battleStart: 0.95,
-  matchFound: 0.85,
-  star: 0.75,
+  tap: 0.7,
+  tick: 0.5,
+  cardFlip: 0.75,
+  correct: 0.95,
+  wrong: 0.85,
+  combo: 0.95,
+  victory: 1.0,
+  fanfare: 0.95,
+  battleStart: 1.0,
+  matchFound: 0.9,
+  star: 0.85,
 };
 
 // Number of polyphonic voice channels per fast-trigger sound
@@ -53,7 +53,7 @@ const poolIndices: Record<string, number> = {};
 
 // Configure audio mode on app load
 let audioModeConfigured = false;
-async function ensureAudioMode() {
+export async function ensureAudioMode() {
   if (audioModeConfigured) return;
   try {
     await setAudioModeAsync({
@@ -66,6 +66,9 @@ async function ensureAudioMode() {
     // Non-fatal if restricted on web / sandbox
   }
 }
+
+// Initialize audio mode immediately
+ensureAudioMode().catch(() => {});
 
 // Initialize sound setting from AsyncStorage
 AsyncStorage.getItem(SOUND_STORAGE_KEY)
@@ -81,56 +84,77 @@ function notifyListeners() {
   listeners.forEach((listener) => listener(soundEnabled));
 }
 
+/**
+ * Resolves static required assets into a format directly loadable by native audio engines
+ * (e.g. android raw resource identifiers or local asset URIs in release builds).
+ */
+function getAudioSource(assetSource: any): any {
+  if (typeof assetSource === "number") {
+    try {
+      const resolved = Image.resolveAssetSource(assetSource);
+      if (resolved?.uri) {
+        if (resolved.uri.startsWith("http")) {
+          return { uri: resolved.uri };
+        }
+        const cleanName = resolved.uri.replace(/\.[^/.]+$/, "");
+        const rawName = cleanName.startsWith("assets_") ? cleanName : `assets_${cleanName}`;
+        return { uri: rawName };
+      }
+    } catch {}
+  }
+  return assetSource;
+}
+
 function getNextPlayer(key: string) {
   const assetSource = SOUND_ASSETS[key];
   if (!assetSource) return null;
 
-  const poolSize = VOICE_POOL_SIZE[key] || 1;
   if (!playerPools[key]) {
     playerPools[key] = [];
     poolIndices[key] = 0;
   }
 
   const pool = playerPools[key];
-  let idx = poolIndices[key] || 0;
-
-  // Initialize player if not yet instantiated for this voice slot
-  if (!pool[idx]) {
+  if (!pool[0]) {
     try {
-      let resolvedSource: any = assetSource;
-      try {
-        const asset = Asset.fromModule(assetSource);
-        resolvedSource = asset.localUri || asset.uri || assetSource;
-      } catch {}
-
-      const player = createAudioPlayer(resolvedSource, {
-        downloadFirst: true,
-        updateInterval: 1000,
+      const source = getAudioSource(assetSource);
+      const player = createAudioPlayer(source, {
+        keepAudioSessionActive: false,
       });
+
       try {
         player.volume = GAIN_STAGING[key] ?? 0.8;
       } catch {}
-      pool[idx] = player;
+
+      pool[0] = player;
     } catch {
       return null;
     }
   }
 
-  const player = pool[idx];
-  // Cycle round-robin index for next trigger
-  poolIndices[key] = (idx + 1) % poolSize;
-  return player;
+  return pool[0];
 }
 
-async function playSoundSafely(key: string) {
+function playSoundSafely(key: string) {
   if (!soundEnabled) return;
+  const volume = GAIN_STAGING[key] ?? 0.8;
+
+  // 1. Ultra-fast zero-latency Android native SoundPool
+  if (Platform.OS === "android" && NativeSoundModule && typeof NativeSoundModule.play === "function") {
+    try {
+      NativeSoundModule.play(key, volume);
+      return;
+    } catch {}
+  }
+
+  // 2. Fallback to expo-audio for other platforms / dev
   try {
-    await ensureAudioMode();
+    ensureAudioMode().catch(() => {});
     const player = getNextPlayer(key);
     if (player) {
       try {
         if (typeof player.seekTo === "function") {
-          await player.seekTo(0);
+          player.seekTo(0).catch(() => {});
         }
       } catch {}
       player.play();
@@ -140,21 +164,14 @@ async function playSoundSafely(key: string) {
   }
 }
 
-/** Pre-warm and pre-download core sounds into local cache for zero initial latency */
-export async function prewarmAudio() {
-  if (Platform.OS === "web") return;
-  try {
-    await ensureAudioMode();
-    const assets = Object.values(SOUND_ASSETS);
-    await Asset.loadAsync(assets);
-    ["tap", "correct", "cardFlip", "tick", "wrong", "star"].forEach((key) => {
-      getNextPlayer(key);
-    });
-  } catch {}
+/** Pre-warm native sound pool on boot without freezing audio thread */
+export function prewarmAudio() {
+  if (Platform.OS === "android" && NativeSoundModule && typeof NativeSoundModule.preload === "function") {
+    try {
+      NativeSoundModule.preload();
+    } catch {}
+  }
 }
-
-// Automatically trigger background pre-warm
-prewarmAudio();
 
 export const SoundEffects = {
   isSoundEnabled: () => soundEnabled,

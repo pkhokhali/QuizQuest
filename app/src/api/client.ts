@@ -28,6 +28,9 @@ import {
   DailyZipPuzzleResponse,
   DailyZipSubmitResponse,
   DailyZipLeaderboardResponse,
+  DailyWordSearchResponse,
+  WordSearchSubmitResponse,
+  UserInsightsResponse,
 } from "./types";
 
 export const TOKEN_KEY = "qq_token";
@@ -214,6 +217,10 @@ export function getDailyRiddle(): Promise<{ riddle: RiddleData | null }> {
   return request("/api/riddle/today");
 }
 
+export function getRandomRiddle(): Promise<{ riddle: RiddleData | null }> {
+  return request("/api/riddle/random");
+}
+
 export function solveDailyRiddle(riddleId: number): Promise<{ success: boolean; alreadySolved: boolean; xpEarned: number; totalXp?: number }> {
   return request("/api/riddle/solve", { method: "POST", body: { riddleId } });
 }
@@ -234,6 +241,15 @@ export function getRevengeQuiz(): Promise<RevengeQuizResponse> {
 
 export function submitRevengeQuiz(body: SubmitQuizBody): Promise<SubmitQuizResponse> {
   return request("/api/quiz/revenge/submit", { method: "POST", body });
+}
+
+export function getPracticeQuiz(subject?: string): Promise<DailyQuizResponse> {
+  const query = subject ? `?subject=${encodeURIComponent(subject)}` : "";
+  return request(`/api/quiz/practice${query}`);
+}
+
+export function submitPracticeQuiz(body: SubmitQuizBody): Promise<SubmitQuizResponse> {
+  return request("/api/quiz/practice/submit", { method: "POST", body });
 }
 
 // ---- Battles ----
@@ -290,4 +306,34 @@ export function nudgeDailyZipFriend(
     body: { targetUserId, puzzleDate },
   });
 }
+
+// ---- Word Search (शब्द खोज) ----
+
+export function getDailyWordSearch(date?: string): Promise<DailyWordSearchResponse> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : "";
+  return request(`/api/wordsearch/daily${query}`);
+}
+
+export function getRandomWordSearch(category?: string): Promise<DailyWordSearchResponse> {
+  const query = category ? `?category=${encodeURIComponent(category)}` : "";
+  return request(`/api/wordsearch/random${query}`);
+}
+
+export function submitWordSearch(body: {
+  puzzleDate?: string;
+  category?: string;
+  timeSeconds: number;
+  wordsFound: number;
+  totalWords: number;
+  stars: number;
+}): Promise<WordSearchSubmitResponse> {
+  return request("/api/wordsearch/submit", { method: "POST", body });
+}
+
+// ---- Student Game Insights & Mastery ----
+
+export function getUserInsights(): Promise<UserInsightsResponse> {
+  return request("/api/me/insights");
+}
+
 

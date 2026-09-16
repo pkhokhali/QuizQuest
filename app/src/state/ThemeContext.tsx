@@ -34,8 +34,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       try {
         const saved = await AsyncStorage.getItem(PALETTE_KEY);
         if (
-          saved === "violet" ||
+          saved === "simrik" ||
           saved === "himalaya" ||
+          saved === "violet" ||
           saved === "dawn" ||
           saved === "forest"
         ) {

@@ -1,7 +1,7 @@
 // QuizQuest visual identity — structure tokens + named color palettes.
 // Active palette is chosen by the student (ThemeContext).
 
-export type PaletteId = "violet" | "himalaya" | "dawn" | "forest";
+export type PaletteId = "simrik" | "himalaya" | "violet" | "dawn" | "forest";
 
 export type ColorTokens = {
   primary: string;
@@ -34,39 +34,39 @@ export type ColorTokens = {
 
 export type PaletteMeta = {
   id: PaletteId;
-  nameKey: "themeViolet" | "themeHimalaya" | "themeDawn" | "themeForest";
+  nameKey: "themeSimrik" | "themeViolet" | "themeHimalaya" | "themeDawn" | "themeForest";
   swatch: [string, string, string];
   colors: ColorTokens;
 };
 
-/** Cinematic Violet quest — deep cosmic space with vivid neon glow. */
-const violet: ColorTokens = {
-  primary: "#A855F7", // Electric purple
-  primaryDark: "#7E22CE",
-  primarySoft: "#F3E8FF",
-  accent: "#FB923C", // Vivid warm orange
-  accentSoft: "#FFEDD5",
-  bg: "#0F0728", // Deep cosmic void
-  bgMid: "#1B0F40",
-  bgDeep: "#28165E",
-  card: "#1E1248",
-  surface: "#1E1248",
-  surfaceElevated: "#281861",
-  cream: "#FAF5FF",
+/** Simrik & Himal — Authentic Nepali royal crimson, Sayapatri marigold gold, and Himalayan mountain night. */
+const simrik: ColorTokens = {
+  primary: "#DC2626", // Simrik crimson red (National flag red)
+  primaryDark: "#B91C1C",
+  primarySoft: "#FEE2E2",
+  accent: "#F59E0B", // Sayapatri golden marigold
+  accentSoft: "#FEF3C7",
+  bg: "#0B1120", // Deep Himalayan starry mountain night
+  bgMid: "#111827",
+  bgDeep: "#1E293B",
+  card: "#162038", // Slate-Himal card surface
+  surface: "#162038",
+  surfaceElevated: "#1E294B",
+  cream: "#FFFBEB",
   text: "#F8FAFC",
-  textMuted: "#C4B5FD",
+  textMuted: "#94A3B8",
   textOnPrimary: "#FFFFFF",
-  green: "#10B981",
+  green: "#059669", // Rhododendron pine trek green
   greenSoft: "#D1FAE5",
-  amber: "#FBBF24",
+  amber: "#F59E0B",
   amberSoft: "#FEF3C7",
-  border: "rgba(255, 255, 255, 0.12)",
-  gold: "#FBBF24",
-  goldSoft: "rgba(251, 191, 36, 0.15)",
+  border: "rgba(245, 158, 11, 0.22)", // Subtle Sayapatri gold rim
+  gold: "#F59E0B",
+  goldSoft: "rgba(245, 158, 11, 0.15)",
   silver: "#E2E8F0",
-  bronze: "#FB923C",
-  danger: "#F43F5E",
-  dangerSoft: "#FFE4E6",
+  bronze: "#F97316",
+  danger: "#EF4444",
+  dangerSoft: "#FEE2E2",
 };
 
 /** Himalayan Midnight — sleek cosmic night, radiant electric cyan, and warm gold. */
@@ -91,6 +91,36 @@ const himalaya: ColorTokens = {
   amber: "#FBBF24",
   amberSoft: "#FEF3C7",
   border: "rgba(255, 255, 255, 0.1)",
+  gold: "#FBBF24",
+  goldSoft: "rgba(251, 191, 36, 0.15)",
+  silver: "#E2E8F0",
+  bronze: "#FB923C",
+  danger: "#F43F5E",
+  dangerSoft: "#FFE4E6",
+};
+
+/** Cinematic Violet quest — deep cosmic space with vivid neon glow. */
+const violet: ColorTokens = {
+  primary: "#A855F7", // Electric purple
+  primaryDark: "#7E22CE",
+  primarySoft: "#F3E8FF",
+  accent: "#FB923C", // Vivid warm orange
+  accentSoft: "#FFEDD5",
+  bg: "#0F0728", // Deep cosmic void
+  bgMid: "#1B0F40",
+  bgDeep: "#28165E",
+  card: "#1E1248",
+  surface: "#1E1248",
+  surfaceElevated: "#281861",
+  cream: "#FAF5FF",
+  text: "#F8FAFC",
+  textMuted: "#C4B5FD",
+  textOnPrimary: "#FFFFFF",
+  green: "#10B981",
+  greenSoft: "#D1FAE5",
+  amber: "#FBBF24",
+  amberSoft: "#FEF3C7",
+  border: "rgba(255, 255, 255, 0.12)",
   gold: "#FBBF24",
   goldSoft: "rgba(251, 191, 36, 0.15)",
   silver: "#E2E8F0",
@@ -161,6 +191,12 @@ const forest: ColorTokens = {
 
 export const PALETTES: PaletteMeta[] = [
   {
+    id: "simrik",
+    nameKey: "themeSimrik",
+    swatch: [simrik.primary, simrik.accent, simrik.bgDeep],
+    colors: simrik,
+  },
+  {
     id: "himalaya",
     nameKey: "themeHimalaya",
     swatch: [himalaya.primary, himalaya.accent, himalaya.bgDeep],
@@ -186,20 +222,24 @@ export const PALETTES: PaletteMeta[] = [
   },
 ];
 
-export const DEFAULT_PALETTE_ID: PaletteId = "himalaya";
+export const DEFAULT_PALETTE_ID: PaletteId = "simrik";
 
 export function getPalette(id: PaletteId): PaletteMeta {
   return PALETTES.find((p) => p.id === id) ?? PALETTES[0];
 }
 
 /** Default export for rare static fallbacks (prefer useTheme). */
-export const colors: ColorTokens = himalaya;
+export const colors: ColorTokens = simrik;
 
 export const radius = {
   card: 20,
   button: 16,
   chip: 12,
   small: 8,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  pill: 999,
 };
 
 export const spacing = {
@@ -229,11 +269,39 @@ export const fonts = {
 };
 
 export const shadow = {
-  card: {
+  sm: {
     shadowColor: "#000000",
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  md: {
+    shadowColor: "#000000",
+    shadowOpacity: 0.25,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
+  },
+  card: {
+    shadowColor: "#000000",
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  nepalButton: {
+    shadowColor: "#000000",
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  goldGlow: {
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
 };

@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { AvatarInfo } from "../api/types";
 
 interface AvatarCircleProps {
@@ -20,7 +20,19 @@ export function AvatarCircle({ avatar, size = 48 }: AvatarCircleProps) {
         },
       ]}
     >
-      <Text style={{ fontSize: size * 0.55 }}>{avatar.emoji || "🦊"}</Text>
+      {avatar.photoUrl ? (
+        <Image
+          source={{ uri: avatar.photoUrl }}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+          }}
+          resizeMode="cover"
+        />
+      ) : (
+        <Text style={{ fontSize: size * 0.55 }}>{avatar.emoji || "🦊"}</Text>
+      )}
     </View>
   );
 }

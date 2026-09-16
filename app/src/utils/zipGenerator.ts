@@ -93,8 +93,13 @@ function generateHamiltonianPath(rows: number, cols: number, seed?: number): str
   };
 
   const path: string[] = [];
+  let steps = 0;
+  const MAX_STEPS = 1200;
 
   function backtrack(r: number, c: number): boolean {
+    if (++steps > MAX_STEPS) {
+      return false; // Time out gracefully to avoid blocking JS thread
+    }
     visited[r][c] = true;
     path.push(cellKey(r, c));
 
@@ -151,13 +156,27 @@ function generateHamiltonianPath(rows: number, cols: number, seed?: number): str
     return path;
   }
 
-  // Fallback snake pattern if random search times out (guaranteed Hamiltonian)
+  // Instant O(N) fallback: randomized serpentine pattern (guaranteed Hamiltonian path)
   const snake: string[] = [];
-  for (let r = 0; r < rows; r++) {
-    if (r % 2 === 0) {
-      for (let c = 0; c < cols; c++) snake.push(cellKey(r, c));
-    } else {
-      for (let c = cols - 1; c >= 0; c--) snake.push(cellKey(r, c));
+  const vertical = rng() > 0.5;
+  const flip = rng() > 0.5;
+  if (!vertical) {
+    for (let r = 0; r < rows; r++) {
+      const actualR = flip ? rows - 1 - r : r;
+      if (r % 2 === 0) {
+        for (let c = 0; c < cols; c++) snake.push(cellKey(actualR, c));
+      } else {
+        for (let c = cols - 1; c >= 0; c--) snake.push(cellKey(actualR, c));
+      }
+    }
+  } else {
+    for (let c = 0; c < cols; c++) {
+      const actualC = flip ? cols - 1 - c : c;
+      if (c % 2 === 0) {
+        for (let r = 0; r < rows; r++) snake.push(cellKey(r, actualC));
+      } else {
+        for (let r = rows - 1; r >= 0; r--) snake.push(cellKey(r, actualC));
+      }
     }
   }
   return snake;
@@ -287,17 +306,17 @@ export function createZipPuzzle(
   const solution = generateHamiltonianPath(rows, cols, activeSeed);
 
   // 2. Choose checkpoints based on size & difficulty
-  // Easy: frequent checkpoint numbers guiding the line
+  // Easy: generous spacing
   // Medium: balanced checkpoints
-  // Hard: sparse checkpoints (start, end, and 1-3 checkpoints)
+  // Hard: expanded checkpoints up to 14 numbers (on 6x6) and up to 18 (on 8x8) with dense obstacle walls
   let numCheckpoints: number;
   if (difficulty === "easy") {
-    numCheckpoints = dimension === 5 ? 6 : dimension === 6 ? 7 : dimension === 7 ? 9 : 11;
+    numCheckpoints = dimension === 5 ? 5 : dimension === 6 ? 7 : dimension === 7 ? 9 : 11;
   } else if (difficulty === "hard") {
-    numCheckpoints = dimension === 5 ? 3 : dimension === 6 ? 4 : dimension === 7 ? 5 : 6;
+    numCheckpoints = dimension === 5 ? 8 : dimension === 6 ? 14 : dimension === 7 ? 16 : 18;
   } else {
     // medium
-    numCheckpoints = dimension === 5 ? 4 : dimension === 6 ? 5 : dimension === 7 ? 6 : 8;
+    numCheckpoints = dimension === 5 ? 6 : dimension === 6 ? 9 : dimension === 7 ? 12 : 14;
   }
 
   numCheckpoints = Math.max(2, Math.min(total, numCheckpoints));
@@ -325,14 +344,14 @@ export function createZipPuzzle(
   cpNum++;
   numbers[solution[solution.length - 1]] = cpNum;
 
-  // 3. Inject strategic walls based on difficulty
+  // 3. Inject strategic walls based on difficulty (up to 16 walls for maximum hardness)
   let maxWalls: number;
   if (difficulty === "easy") {
-    maxWalls = dimension <= 6 ? 2 : 3;
+    maxWalls = dimension <= 6 ? 4 : 6;
   } else if (difficulty === "hard") {
-    maxWalls = dimension === 5 ? 4 : dimension === 6 ? 7 : dimension === 7 ? 9 : 11;
+    maxWalls = dimension === 5 ? 6 : dimension === 6 ? 11 : dimension === 7 ? 14 : 16;
   } else {
-    maxWalls = dimension === 5 ? 3 : dimension === 6 ? 4 : dimension === 7 ? 6 : 7;
+    maxWalls = dimension === 5 ? 5 : dimension === 6 ? 8 : dimension === 7 ? 10 : 12;
   }
 
   const walls: ZipWall[] = [];
@@ -511,8 +530,10 @@ export function getDailyZipPuzzle(dateStr?: string): ZipPuzzle {
   const dayNum = Math.max(1, Math.floor((now.getTime() - epoch.getTime()) / 86400000) + 1);
   const dayOfWeek = now.getUTCDay();
 
-  // Standard LinkedIn Zip size: 6x6 for optimal mobile touch usability and layout
-  const dimension: 6 | 8 = 6;
+  // Day-of-week progression matching server:
+  // Mon/Wed: 5x5, Tue/Thu/Fri: 6x6, Sun: 7x7, Sat (Weekend Master): 8x8
+  const dimension: 5 | 6 | 7 | 8 =
+    dayOfWeek === 6 ? 8 : dayOfWeek === 0 ? 7 : [1, 3].includes(dayOfWeek) ? 5 : 6;
   const difficulty = "hard";
 
   const puzzle = createZipPuzzle(dimension, difficulty, (dayNum * 2654435761) >>> 0);

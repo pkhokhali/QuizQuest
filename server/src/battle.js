@@ -3,6 +3,7 @@ import { verifyToken } from "./auth.js";
 import { studentQuestion, gradeBandFor, levelForXp, today, optionOrder, originalChoiceIndex } from "./util.js";
 import { checkAwards } from "./awards.js";
 import { onlineSockets } from "./presence.js";
+import { sendPushToUser } from "./services/notifications.js";
 
 const TOTAL_QUESTIONS = 6;
 const PER_QUESTION_MS = 10000;
@@ -19,12 +20,76 @@ let nextBattleId = 1;
 let nextChallengeId = 1;
 
 function pickBattleQuestions(gradeBand) {
-  return db
-    .prepare(
-      `SELECT * FROM questions WHERE status = 'approved' AND grade_band = ? AND difficulty <= 4
-       ORDER BY RANDOM() LIMIT ?`
-    )
-    .all(gradeBand, TOTAL_QUESTIONS);
+  // Balanced subject distribution across Science, GK/Environment, Social/Current Affairs, Language, and Math
+  const targetSubjects = ["science", "gk", "social", "english", "math"];
+  const picked = [];
+  const pickedIds = new Set();
+
+  for (const subj of targetSubjects) {
+    // 1. Try matching gradeBand and subject
+    let q = db
+      .prepare(
+        `SELECT * FROM questions 
+         WHERE status = 'approved' AND subject = ? AND grade_band = ? AND difficulty <= 4
+         ORDER BY RANDOM() LIMIT 1`
+      )
+      .get(subj, gradeBand);
+
+    // 2. If no question in exact gradeBand, pull from adjacent or any approved band for this subject
+    if (!q) {
+      q = db
+        .prepare(
+          `SELECT * FROM questions 
+           WHERE status = 'approved' AND subject = ? AND difficulty <= 4
+           ORDER BY RANDOM() LIMIT 1`
+        )
+        .get(subj);
+    }
+
+    if (q && !pickedIds.has(q.id)) {
+      picked.push(q);
+      pickedIds.add(q.id);
+    }
+  }
+
+  // 6th question: pick from nepali, science, gk or social to keep non-math variety high
+  const bonusSubjects = ["nepali", "science", "gk", "social"];
+  for (const bonusSubj of bonusSubjects) {
+    if (picked.length >= TOTAL_QUESTIONS) break;
+    const q = db
+      .prepare(
+        `SELECT * FROM questions 
+         WHERE status = 'approved' AND subject = ? AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+         ORDER BY RANDOM() LIMIT 1`
+      )
+      .get(bonusSubj);
+    if (q && !pickedIds.has(q.id)) {
+      picked.push(q);
+      pickedIds.add(q.id);
+    }
+  }
+
+  // If still fewer than TOTAL_QUESTIONS (e.g. 6), backfill with any approved question not already picked
+  while (picked.length < TOTAL_QUESTIONS) {
+    const q = db
+      .prepare(
+        `SELECT * FROM questions 
+         WHERE status = 'approved' AND grade_band = ? AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+         ORDER BY RANDOM() LIMIT 1`
+      )
+      .get(gradeBand);
+    if (!q) break;
+    picked.push(q);
+    pickedIds.add(q.id);
+  }
+
+  // Shuffle final list so subject order varies per duel
+  for (let i = picked.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [picked[i], picked[j]] = [picked[j], picked[i]];
+  }
+
+  return picked;
 }
 
 function publicPlayer(user) {
@@ -153,19 +218,51 @@ export function initBattle(io) {
       startBattle({ socket, user }, { socket: null, user: botUser, isBot: true }, band);
     });
 
-    socket.on("challenge:send", ({ friendUserId } = {}) => {
-      const target = onlineSockets.get(Number(friendUserId));
-      if (!target) return;
+    socket.on("challenge:send", async ({ friendUserId } = {}) => {
+      const targetId = Number(friendUserId);
+      if (!targetId || targetId === user.id) return;
       const challengeId = nextChallengeId++;
-      challenges.set(challengeId, { from: { socket, user }, toUserId: Number(friendUserId), expires: Date.now() + 60000 });
-      target.emit("challenge:incoming", { challengeId, from: publicPlayer(user) });
+      challenges.set(challengeId, {
+        id: challengeId,
+        from: { socket, user },
+        toUserId: targetId,
+        expires: Date.now() + 180000, // 3 minutes
+      });
+
+      const target = onlineSockets.get(targetId);
+      if (target?.connected) {
+        target.emit("challenge:incoming", { challengeId, from: publicPlayer(user) });
+      }
+
+      // Send background push notification so user receives it even if app is closed
+      try {
+        await sendPushToUser({
+          userId: targetId,
+          title: `⚔️ 1v1 Quiz Challenge!`,
+          body: `${user.name || "A classmate"} challenged you to a live Quiz Duel! Tap to accept now! 🔥`,
+          data: {
+            screen: "Battle",
+            challengeId,
+            fromUserId: user.id,
+            fromName: user.name || "Player",
+          },
+        });
+      } catch (err) {
+        console.warn("[Battle] Failed to send challenge push notification:", err);
+      }
     });
 
     socket.on("challenge:accept", ({ challengeId } = {}) => {
       const ch = challenges.get(Number(challengeId));
+      if (!ch || ch.toUserId !== user.id || Date.now() > ch.expires) {
+        socket.emit("challenge:expired", { message: "Challenge has expired or is invalid" });
+        return;
+      }
       challenges.delete(Number(challengeId));
-      if (!ch || ch.toUserId !== user.id || Date.now() > ch.expires) return;
-      if (!ch.from.socket.connected) return;
+      if (!ch.from.socket.connected) {
+        socket.emit("challenge:expired", { message: "Challenger is no longer connected" });
+        return;
+      }
       const band = gradeBandFor(ch.from.user.grade || user.grade || 8);
       startBattle(ch.from, { socket, user }, band);
     });

@@ -18,6 +18,9 @@ import { BattleScreen } from "../screens/BattleScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { MemoryPlayScreen } from "../screens/MemoryPlayScreen";
 import { ZipPlayScreen } from "../screens/ZipPlayScreen";
+import { RiddlePlayScreen } from "../screens/RiddlePlayScreen";
+import { WordSearchPlayScreen } from "../screens/WordSearchPlayScreen";
+import { GameInsightsScreen } from "../screens/GameInsightsScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { QuizPlayScreen } from "../screens/QuizPlayScreen";
@@ -112,8 +115,10 @@ function Tabs() {
   );
 }
 
-function DailyQuizRoute() {
-  return <QuizPlayScreen mode="daily" />;
+function DailyQuizRoute({ route }: { route?: { params?: { mode?: "daily" | "practice"; subject?: string } } }) {
+  const mode = route?.params?.mode || "daily";
+  const subject = route?.params?.subject;
+  return <QuizPlayScreen mode={mode} initialSubject={subject} />;
 }
 
 function RevengeRoundRoute() {
@@ -183,6 +188,21 @@ export function RootNavigator() {
           <RootStack.Screen
             name="ZipPlay"
             component={ZipPlayScreen}
+            options={{ animation: "slide_from_bottom" }}
+          />
+          <RootStack.Screen
+            name="RiddlePlay"
+            component={RiddlePlayScreen}
+            options={{ animation: "slide_from_bottom" }}
+          />
+          <RootStack.Screen
+            name="WordSearchPlay"
+            component={WordSearchPlayScreen}
+            options={{ animation: "slide_from_bottom" }}
+          />
+          <RootStack.Screen
+            name="GameInsights"
+            component={GameInsightsScreen}
             options={{ animation: "slide_from_bottom" }}
           />
         </RootStack.Navigator>

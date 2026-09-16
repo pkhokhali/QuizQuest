@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createSchool, getMySchool, joinSchool, leaveSchool, updateMe } from "../api/client";
+import * as ImagePicker from "expo-image-picker";
 import { Language, SchoolClanData, Subject } from "../api/types";
 import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
@@ -41,6 +42,7 @@ export function ProfileScreen() {
   const [subjects, setSubjects] = useState<Subject[]>(user?.subjects ?? []);
   const [emoji, setEmoji] = useState(user?.avatar.emoji ?? "🦊");
   const [bg, setBg] = useState(user?.avatar.bg ?? colors.primary);
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(user?.avatar.photoUrl);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -65,6 +67,41 @@ export function ProfileScreen() {
   }, [user?.schoolName]);
 
   if (!user) return null;
+
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          lang === 'ne' ? "अनुमति आवश्यक" : "Permission Required",
+          lang === 'ne'
+            ? "कृपया प्रोफाइल फोटो छनोट गर्न ग्यालरी पहुँच अनुमति दिनुहोस्।"
+            : "Please grant photo gallery permission to choose a profile photo."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const dataUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        setPhotoUrl(dataUri);
+      }
+    } catch (err) {
+      console.warn("Could not pick image:", err);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoUrl(undefined);
+  };
 
   const onJoinSchool = async () => {
     const code = schoolCode.trim();
@@ -138,6 +175,7 @@ export function ProfileScreen() {
     grade !== user.grade ||
     emoji !== user.avatar.emoji ||
     bg !== user.avatar.bg ||
+    photoUrl !== user.avatar.photoUrl ||
     JSON.stringify(extraCountries) !== JSON.stringify(user.extraCountries) ||
     JSON.stringify(subjects) !== JSON.stringify(user.subjects);
 
@@ -177,7 +215,7 @@ export function ProfileScreen() {
         grade: grade ?? undefined,
         extraCountries,
         subjects,
-        avatar: { emoji, bg },
+        avatar: { emoji, bg, photoUrl },
       });
       setUser(updated);
       setSaved(true);
@@ -218,7 +256,7 @@ export function ProfileScreen() {
             ])}
           >
             <View style={styles.accountTop}>
-              <AvatarCircle avatar={{ emoji, bg }} size={72} />
+              <AvatarCircle avatar={{ emoji, bg, photoUrl }} size={72} />
               <View style={styles.accountMeta}>
                 <Text
                   style={[
@@ -628,6 +666,49 @@ export function ProfileScreen() {
               style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}
             >
               {t("profileAvatar")}
+            </Text>
+
+            {/* Custom Photo Picker */}
+            <View style={{ marginBottom: spacing.md, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <AvatarCircle avatar={{ emoji, bg, photoUrl }} size={56} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontFamily: fonts.bodyBold, fontSize: 14 }}>
+                  {lang === "ne" ? "तपाईंको आफ्नै तस्बिर" : "Custom Photo"}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontFamily: fonts.body, fontSize: 12 }}>
+                  {photoUrl
+                    ? (lang === "ne" ? "कस्टम फोटो राखिएको छ" : "Custom photo selected")
+                    : (lang === "ne" ? "ग्यालरीबाट फोटो छान्नुहोस्" : "Choose from photo gallery")}
+                </Text>
+                <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: 6 }}>
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.chip, backgroundColor: colors.primary }}
+                    onPress={handlePickImage}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: "#FFFFFF", fontFamily: fonts.bodyBold, fontSize: 12 }}>
+                      📸 {lang === "ne" ? "फोटो छान्नुहोस्" : "Choose Photo"}
+                    </Text>
+                  </TouchableOpacity>
+                  {photoUrl ? (
+                    <TouchableOpacity
+                      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.chip, backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.danger }}
+                      onPress={handleRemovePhoto}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: colors.danger, fontFamily: fonts.bodyBold, fontSize: 12 }}>
+                        ✕ {lang === "ne" ? "हटाउनुहोस्" : "Remove"}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+
+            <Text
+              style={[{ color: colors.textMuted, fontFamily: fonts.body, fontSize: 13, marginBottom: spacing.xs }]}
+            >
+              {lang === "ne" ? "अथवा ईमोजी अवतार छान्नुहोस्:" : "Or select an emoji avatar:"}
             </Text>
             <View style={styles.emojiGrid}>
               {AVATAR_EMOJIS.map((item) => {

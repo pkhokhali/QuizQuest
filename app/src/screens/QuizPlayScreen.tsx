@@ -13,8 +13,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ApiError,
   getDailyQuiz,
+  getPracticeQuiz,
   getRevengeQuiz,
   submitDailyQuiz,
+  submitPracticeQuiz,
   submitRevengeQuiz,
 } from "../api/client";
 import { AnswerInput, StudentQuestion, SubmitQuizResponse } from "../api/types";
@@ -40,13 +42,16 @@ import { VictoryAnimation } from "../components/VictoryAnimation";
 type Phase = "loading" | "error" | "empty" | "playing" | "submitting" | "results";
 
 interface QuizPlayScreenProps {
-  mode: "daily" | "revenge";
+  mode: "daily" | "revenge" | "practice";
+  initialSubject?: string;
 }
 
 const ADVANCE_DELAY_MS = 350;
 const PER_QUESTION_MS = 30_000;
 
-export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
+export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlayScreenProps) {
+  const [currentMode, setCurrentMode] = useState<"daily" | "revenge" | "practice">(initialMode);
+  const mode = currentMode;
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
@@ -82,7 +87,12 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
     setPhase("loading");
     setEmptyMessage(undefined);
     try {
-      const data = mode === "daily" ? await getDailyQuiz() : await getRevengeQuiz();
+      const data =
+        mode === "daily"
+          ? await getDailyQuiz()
+          : mode === "practice"
+          ? await getPracticeQuiz(initialSubject)
+          : await getRevengeQuiz();
       if (!data.questions || data.questions.length === 0) {
         setEmptyMessage(mode === "daily" ? t("quizEmptyDaily") : undefined);
         setPhase("empty");
@@ -106,7 +116,7 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
         setPhase("error");
       }
     }
-  }, [mode, t]);
+  }, [mode, initialSubject, t]);
 
   useEffect(() => {
     load();
@@ -122,13 +132,15 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
         const res =
           mode === "daily"
             ? await submitDailyQuiz({ quizId: id, answers })
+            : mode === "practice"
+            ? await submitPracticeQuiz({ quizId: id, answers })
             : await submitRevengeQuiz({ quizId: id, answers });
         setResult(res);
         setPhase("results");
         refreshUser();
 
         // Log Firebase Analytics events for Play Games leaderboards & achievements
-        logPostScore(res.score, mode === "daily" ? "daily_quiz_leaderboard" : "revenge_round_leaderboard");
+        logPostScore(res.score, mode === "daily" ? "daily_quiz_leaderboard" : "practice_quiz_leaderboard");
         if (res.newAwards && Array.isArray(res.newAwards)) {
           for (const award of res.newAwards) {
             logUnlockAchievement(award.code);
@@ -243,6 +255,11 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
         questions={questions}
         answers={answersRef.current}
         onDone={() => navigation.goBack()}
+        onPlayNext={() => {
+          setCurrentMode("practice");
+          setPhase("loading");
+          load();
+        }}
       />
     );
   }
@@ -354,14 +371,15 @@ export function QuizPlayScreen({ mode }: QuizPlayScreenProps) {
 // ---- Results ----
 
 interface ResultsViewProps {
-  mode: "daily" | "revenge";
+  mode: "daily" | "revenge" | "practice";
   result: SubmitQuizResponse;
   questions: StudentQuestion[];
   answers: AnswerInput[];
   onDone: () => void;
+  onPlayNext: () => void;
 }
 
-function ResultsView({ mode, result, questions, answers, onDone }: ResultsViewProps) {
+function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: ResultsViewProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t, lang } = useI18n();
@@ -407,7 +425,11 @@ function ResultsView({ mode, result, questions, answers, onDone }: ResultsViewPr
               { color: colors.text, fontFamily: fonts.display },
             ]}
           >
-            {mode === "daily" ? t("quizResultsTitle") : t("revengeResultsTitle")}
+            {mode === "daily"
+              ? t("quizResultsTitle")
+              : mode === "practice"
+              ? t("quizPracticeTitle")
+              : t("revengeResultsTitle")}
           </Text>
 
           <ScoreRing score={result.score} total={result.total} />
@@ -585,7 +607,29 @@ function ResultsView({ mode, result, questions, answers, onDone }: ResultsViewPr
             })}
           </View>
 
-          <PrimaryButton label={t("quizBackHome")} onPress={onDone} />
+          <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+            <PrimaryButton
+              label={t("quizNextRound")}
+              onPress={onPlayNext}
+            />
+            <TouchableOpacity
+              onPress={onDone}
+              style={{
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: 14,
+                borderRadius: radius.card,
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+                borderWidth: 1,
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: colors.textMuted, fontFamily: fonts.bodyBold, fontSize: 15 }}>
+                {t("quizBackHome")}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
 
         {/* Celebratory Victory Overlay Animations */}

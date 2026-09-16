@@ -1,15 +1,24 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { registerPushToken } from '../api/client';
 
 export async function registerForPushNotificationsAsync() {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
+      name: 'Default',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#7C3AED',
+    });
+
+    await Notifications.setNotificationChannelAsync('challenges', {
+      name: '1v1 Challenges',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 350, 200, 350],
+      lightColor: '#EF4444',
+      sound: 'default',
     });
   }
 
@@ -25,7 +34,10 @@ export async function registerForPushNotificationsAsync() {
       return;
     }
     try {
-      const projectId = 'your-expo-project-id'; // To be configured by user
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ??
+        Constants.easConfig?.projectId ??
+        '8209eeb8-c465-4463-89f5-d14dd9d2188f';
       const pushTokenString = (await Notifications.getExpoPushTokenAsync({
         projectId,
       })).data;
@@ -128,3 +140,22 @@ export async function scheduleDailyReminders() {
     console.log('[Push] scheduleDailyReminders error:', err);
   }
 }
+
+export async function sendInstantTestNotification() {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "⚡ QuizQuest Daily Alert",
+        body: "Your daily quest & Gaunkhane Katha are ready! Play now & earn +165 XP! 🔥",
+        sound: "default",
+        data: { screen: "Home" },
+      },
+      trigger: null,
+    });
+    return true;
+  } catch (err) {
+    console.log("[Push] instant notification error:", err);
+    return false;
+  }
+}
+

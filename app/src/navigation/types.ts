@@ -16,11 +16,14 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<MainTabParamList>;
-  DailyQuiz: undefined;
+  DailyQuiz: { mode?: "daily" | "practice"; subject?: string } | undefined;
   RevengeRound: undefined;
   BattleLive: { start: BattleStartEvent };
   MemoryPlay: undefined;
   ZipPlay: undefined;
+  RiddlePlay: { initialMode?: "daily" | "practice" } | undefined;
+  WordSearchPlay: undefined;
+  GameInsights: undefined;
 };
 
 declare global {

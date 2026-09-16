@@ -19,17 +19,27 @@ interface AppSplashProps {
 function VideoPlayerLayer({ onVideoEnd }: { onVideoEnd: () => void }) {
   const videoSource = require("../../assets/splash_intro.mp4");
   const player = useVideoPlayer(videoSource, (p) => {
-    p.loop = false;
-    p.muted = false;
-    p.play();
+    try {
+      p.loop = false;
+      p.muted = false;
+      p.play();
+    } catch {}
   });
 
   useEffect(() => {
-    const subscription = player.addListener("playToEnd", () => {
-      onVideoEnd();
-    });
+    let subscription: any;
+    try {
+      subscription = player.addListener("playToEnd", () => {
+        onVideoEnd();
+      });
+    } catch {}
+
     return () => {
-      subscription.remove();
+      try {
+        if (subscription && typeof subscription.remove === "function") {
+          subscription.remove();
+        }
+      } catch {}
     };
   }, [player, onVideoEnd]);
 
@@ -53,23 +63,27 @@ export function AppSplashVideoScreen({ onFinish }: AppSplashProps) {
   const handleFinish = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 350,
-      useNativeDriver: true,
-    }).start(() => {
+    try {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        onFinish();
+      });
+    } catch {
       onFinish();
-    });
+    }
   };
 
   useEffect(() => {
-    // Safety auto-finish after 5.3 seconds to allow full 5s video playback
+    // Safety auto-finish after 5.3s allows full 5.0s video & soundtrack to play completely
     const timer = setTimeout(() => {
       handleFinish();
     }, 5300);
 
-    // Fallback animation loop
-    Animated.loop(
+    // Cinematic pulsating branding fallback loop
+    const animLoop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
           Animated.timing(logoScale, {
@@ -96,9 +110,13 @@ export function AppSplashVideoScreen({ onFinish }: AppSplashProps) {
           }),
         ]),
       ])
-    ).start();
+    );
+    animLoop.start();
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      animLoop.stop();
+    };
   }, []);
 
   return (
@@ -107,8 +125,10 @@ export function AppSplashVideoScreen({ onFinish }: AppSplashProps) {
         <View style={StyleSheet.absoluteFill}>
           <VideoPlayerLayer onVideoEnd={handleFinish} />
         </View>
-      ) : (
-        /* Cinematic Animated Branding Fallback */
+      ) : null}
+
+      {/* Cinematic Animated Branding Fallback */}
+      {videoFailed && (
         <View style={styles.fallbackContainer}>
           <Animated.View
             style={[
@@ -125,18 +145,19 @@ export function AppSplashVideoScreen({ onFinish }: AppSplashProps) {
               { transform: [{ scale: logoScale }] },
             ]}
           >
-            <Text style={styles.logoIcon}>👑</Text>
+            <Text style={styles.logoIcon}>🇳🇵</Text>
           </Animated.View>
           <Text style={styles.brandTitle}>QUIZQUEST</Text>
-          <Text style={styles.brandSubtitle}>Daily Knowledge • Global Battles</Text>
+          <Text style={styles.brandSubtitle}>नेपालको ज्ञान मञ्च • DAILY QUESTS</Text>
         </View>
       )}
 
-      {/* Skip button in top corner */}
+      {/* Prominent, Responsive Skip Button with Large Touch Target */}
       <TouchableOpacity
         style={styles.skipButton}
         onPress={handleFinish}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
+        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
       >
         <Text style={styles.skipText}>SKIP ✕</Text>
       </TouchableOpacity>
@@ -147,7 +168,7 @@ export function AppSplashVideoScreen({ onFinish }: AppSplashProps) {
 const styles = StyleSheet.create({
   container: {
     ...(StyleSheet.absoluteFill as any),
-    backgroundColor: "#0F0728",
+    backgroundColor: "#0B1120",
     zIndex: 9999,
     justifyContent: "center",
     alignItems: "center",
@@ -162,59 +183,59 @@ const styles = StyleSheet.create({
   },
   glowOrb: {
     position: "absolute",
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(168, 85, 247, 0.4)",
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: "rgba(220, 38, 38, 0.4)",
   },
   logoBadge: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "#7C3AED",
+    backgroundColor: "#DC2626",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 4,
-    borderColor: "#FAF5FF",
+    borderColor: "#F59E0B",
     marginBottom: spacing.md,
     ...shadow.card,
   },
   logoIcon: {
-    fontSize: 64,
+    fontSize: 54,
   },
   brandTitle: {
     fontFamily: fonts.bodyBold,
     fontSize: 34,
     color: "#FFFFFF",
-    letterSpacing: 2,
-    textShadowColor: "rgba(168, 85, 247, 0.6)",
+    letterSpacing: 2.5,
+    textShadowColor: "rgba(220, 38, 38, 0.6)",
     textShadowOffset: { width: 0, height: 4 },
     textShadowRadius: 14,
   },
   brandSubtitle: {
     fontFamily: fonts.bodyBold,
-    fontSize: 14,
-    color: "#C4B5FD",
-    marginTop: 6,
-    letterSpacing: 1,
-    textTransform: "uppercase",
+    fontSize: 13,
+    color: "#F59E0B",
+    marginTop: 8,
+    letterSpacing: 1.5,
   },
   skipButton: {
     position: "absolute",
     top: 50,
     right: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    backgroundColor: "rgba(11, 17, 32, 0.75)",
+    paddingVertical: 7,
+    paddingHorizontal: 16,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 158, 11, 0.6)",
     zIndex: 100,
+    ...shadow.card,
   },
   skipText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    color: "#FFFFFF",
+    fontSize: 12,
+    color: "#F59E0B",
     letterSpacing: 1,
   },
 });

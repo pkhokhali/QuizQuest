@@ -15,7 +15,7 @@ import {
   friendCode,
   parseFriendCode,
 } from "../util.js";
-import { composeDailyQuiz, composeRevengeRound } from "../quizComposer.js";
+import { composeDailyQuiz, composeRevengeRound, composePracticeQuiz } from "../quizComposer.js";
 import { checkAwards, awardsForUser } from "../awards.js";
 import { isOnline } from "../presence.js";
 import { sendPushToUser } from "../services/notifications.js";
@@ -345,9 +345,13 @@ function getDailyZipSpecs(dateStr) {
   const dayNum = Math.max(1, Math.floor((d.getTime() - epoch.getTime()) / 86400000) + 1);
   const dayOfWeek = d.getUTCDay();
 
-  // Mon/Wed/Fri: 4x4 (Easy), Tue/Thu/Sat: 5x5 (Focus), Sun: 6x6 (Master)
-  const size = dayOfWeek === 0 ? 6 : [1, 3, 5].includes(dayOfWeek) ? 4 : 5;
-  const difficulty = size === 4 ? "easy" : size === 5 ? "medium" : "hard";
+  // Day-of-week Level-Up Progression:
+  // Mon/Wed: 5x5 (Level 1: 7 checkpoints, 4 walls)
+  // Tue/Thu/Fri: 6x6 (Level 2: 9 checkpoints, 7 walls)
+  // Sun: 7x7 (Level 3: 12 checkpoints, 10 walls)
+  // Sat (Weekend Grand Challenge): 8x8 (Master Level: 14 checkpoints, 12 walls)
+  const size = dayOfWeek === 6 ? 8 : dayOfWeek === 0 ? 7 : [1, 3].includes(dayOfWeek) ? 5 : 6;
+  const difficulty = size === 8 ? "hard" : size === 7 ? "hard" : size === 6 ? "medium" : "easy";
 
   let seed = (dayNum * 2654435761) >>> 0;
   const rng = () => {
@@ -374,12 +378,24 @@ function getDailyZipSpecs(dateStr) {
   };
 
   const path = [];
+  let backtrackSteps = 0;
+  const MAX_BACKTRACK_STEPS = 2500;
+
   function backtrack(r, c) {
+    if (++backtrackSteps > MAX_BACKTRACK_STEPS) return false;
     visited[r][c] = true;
     path.push({ row: r, col: c });
     if (path.length === total) return true;
 
     const nbrs = neighbors(r, c);
+    for (const n of nbrs) {
+      if (neighbors(n.row, n.col).length === 0 && path.length < total - 1) {
+        visited[r][c] = false;
+        path.pop();
+        return false;
+      }
+    }
+
     nbrs.sort((a, b) => {
       const degA = neighbors(a.row, a.col).length;
       const degB = neighbors(b.row, b.col).length;
@@ -403,6 +419,7 @@ function getDailyZipSpecs(dateStr) {
   ];
   const start = corners[Math.floor(rng() * corners.length)];
   if (!backtrack(start.row, start.col)) {
+    path.length = 0;
     for (let r = 0; r < size; r++) {
       if (r % 2 === 0) {
         for (let c = 0; c < size; c++) path.push({ row: r, col: c });
@@ -412,8 +429,10 @@ function getDailyZipSpecs(dateStr) {
     }
   }
 
-  const numCheckpoints = size === 4 ? 4 : size === 5 ? 5 : 6;
-  const step = Math.floor((total - 1) / (numCheckpoints - 1));
+  // Checkpoints: up to 14 numbers for hardness and progression
+  const targetCheckpoints = size === 5 ? 7 : size === 6 ? 9 : size === 7 ? 12 : 14;
+  const numCheckpoints = Math.min(total, targetCheckpoints);
+  const step = (total - 1) / (numCheckpoints - 1);
   const checkpoints = {};
   const numbers = {};
   let cpNum = 1;
@@ -422,24 +441,28 @@ function getDailyZipSpecs(dateStr) {
   numbers[`${path[0].row},${path[0].col}`] = 1;
 
   for (let i = 1; i < numCheckpoints - 1; i++) {
-    const cell = path[i * step];
-    cpNum++;
-    checkpoints[`${cell.row}-${cell.col}`] = cpNum;
-    numbers[`${cell.row},${cell.col}`] = cpNum;
+    const baseIdx = Math.round(i * step);
+    const cell = path[baseIdx];
+    if (cell && !numbers[`${cell.row},${cell.col}`]) {
+      cpNum++;
+      checkpoints[`${cell.row}-${cell.col}`] = cpNum;
+      numbers[`${cell.row},${cell.col}`] = cpNum;
+    }
   }
   const endCell = path[path.length - 1];
   cpNum++;
   checkpoints[`${endCell.row}-${endCell.col}`] = cpNum;
   numbers[`${endCell.row},${endCell.col}`] = cpNum;
 
-  // Strategic wall barriers
+  // Strategic wall barriers: up to 12 obstacle walls
+  const targetWalls = size === 5 ? 4 : size === 6 ? 7 : size === 7 ? 10 : 12;
   const walls = [];
   const wallsSet = new Set();
   const pathIndexMap = new Map();
   path.forEach((p, idx) => pathIndexMap.set(`${p.row},${p.col}`, idx));
 
   for (let i = 0; i < path.length; i++) {
-    if (walls.length >= (size === 6 ? 4 : size === 8 ? 6 : 8)) break;
+    if (walls.length >= targetWalls) break;
     const p = path[i];
     const deltas = [
       [1, 0],
@@ -826,8 +849,42 @@ router.get("/digest/today", (req, res) => {
   res.json({ digest: serializeDigest(publishedDigest(gradeBandFor(req.user.grade || 8))) });
 });
 
+router.get("/digest/random", (req, res) => {
+  const row = db
+    .prepare("SELECT * FROM digests WHERE status = 'published' ORDER BY RANDOM() LIMIT 1")
+    .get();
+  res.json({ digest: serializeDigest(row || publishedDigest(gradeBandFor(req.user.grade || 8))) });
+});
+
 router.get("/riddle/today", (req, res) => {
   res.json({ riddle: getDailyRiddle(req.user.id) });
+});
+
+router.get("/riddle/random", (req, res) => {
+  const todayStr = today();
+  const riddle = db.prepare("SELECT * FROM riddles WHERE status = 'approved' ORDER BY RANDOM() LIMIT 1").get();
+  if (!riddle) return res.json({ riddle: null });
+
+  const solved = db.prepare("SELECT * FROM user_riddle_solves WHERE user_id = ? AND riddle_id = ?").get(req.user.id, riddle.id);
+  res.json({
+    riddle: {
+      id: riddle.id,
+      riddleEn: riddle.riddle_en,
+      riddleNe: riddle.riddle_ne,
+      answerEn: riddle.answer_en,
+      answerNe: riddle.answer_ne,
+      hint1En: riddle.hint1_en,
+      hint1Ne: riddle.hint1_ne,
+      hint2En: riddle.hint2_en,
+      hint2Ne: riddle.hint2_ne,
+      hint3En: riddle.hint3_en,
+      hint3Ne: riddle.hint3_ne,
+      category: riddle.category,
+      difficulty: riddle.difficulty,
+      solved: Boolean(solved),
+      date: todayStr,
+    }
+  });
 });
 
 router.post("/riddle/solve", (req, res) => {
@@ -893,6 +950,29 @@ router.get("/quiz/daily", (req, res) => {
     questions: questionsForQuiz(quiz, req.user.language),
     completed: Boolean(quiz.completed),
     score: quiz.score,
+  });
+});
+
+router.get("/quiz/practice", (req, res) => {
+  const user = req.user;
+  const { subject } = req.query;
+  const questions = composePracticeQuiz(user, subject || null);
+  if (!questions || !questions.length) {
+    return res.status(503).json({ error: "No practice questions available right now" });
+  }
+
+  // Create a practice quiz session in DB
+  const info = db
+    .prepare("INSERT INTO quizzes (user_id, date, kind, question_ids) VALUES (?, ?, 'practice', ?)")
+    .run(user.id, today(), JSON.stringify(questions.map((q) => q.id)));
+
+  const quiz = db.prepare("SELECT * FROM quizzes WHERE id = ?").get(info.lastInsertRowid);
+  res.json({
+    quizId: quiz.id,
+    date: quiz.date,
+    questions: questionsForQuiz(quiz, user.language),
+    completed: false,
+    score: 0,
   });
 });
 
@@ -966,8 +1046,9 @@ function submitQuiz(req, res, kind) {
   db.prepare("UPDATE quizzes SET completed = 1, score = ?, xp_earned = ? WHERE id = ?").run(score, xpEarned, quiz.id);
   db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").run(xpEarned, user.id);
   if (xpEarned > 0) {
+    const xpReason = kind === "daily" ? "daily_quest" : kind === "practice" ? "practice_round" : "revenge_round";
     db.prepare("INSERT INTO xp_events (user_id, amount, reason, date) VALUES (?, ?, ?, ?)")
-      .run(user.id, xpEarned, kind === "daily" ? "daily_quest" : "revenge_round", today());
+      .run(user.id, xpEarned, xpReason, today());
   }
 
   const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
@@ -985,6 +1066,7 @@ function submitQuiz(req, res, kind) {
 }
 
 router.post("/quiz/daily/submit", (req, res) => submitQuiz(req, res, "daily"));
+router.post("/quiz/practice/submit", (req, res) => submitQuiz(req, res, "practice"));
 router.post("/quiz/revenge/submit", (req, res) => submitQuiz(req, res, "revenge"));
 
 // ---------- Battles history ----------
@@ -1091,6 +1173,469 @@ router.post("/friends/add", (req, res) => {
       level: levelForXp(friend.xp),
       streak: friend.streak,
       online: isOnline(friend.id),
+    },
+  });
+});
+
+// ---------- Word Search (शब्द खोज) ----------
+
+const WORD_SEARCH_CATEGORIES = [
+  {
+    id: "nepal_heritage",
+    titleEn: "Nepal Heritage & Culture",
+    titleNe: "नेपाली सम्पदा र संस्कृति",
+    icon: "🏔️",
+    words: [
+      { word: "SAGARMATHA", clueEn: "Highest peak in the world", clueNe: "विश्वको सर्वोच्च शिखर" },
+      { word: "POKHARA", clueEn: "Scenic lake city of Nepal", clueNe: "नेपालको सुन्दर तालहरूको सहर" },
+      { word: "LUMBINI", clueEn: "Birthplace of Lord Buddha", clueNe: "भगवान बुद्धको जन्मस्थल" },
+      { word: "DANFE", clueEn: "National bird of Nepal", clueNe: "नेपालको राष्ट्रिय चरा (डाँफे)" },
+      { word: "RHINO", clueEn: "One-horned icon of Chitwan", clueNe: "चितवनको एक सिङ्गे गैँडा" },
+      { word: "BAGMATI", clueEn: "Holy river flowing past Pashupatinath", clueNe: "पशुपतिनाथ भएर बग्ने पवित्र नदी" },
+      { word: "PATAN", clueEn: "Historic City of Fine Arts", clueNe: "ललितकलाको प्राचीन सहर" },
+      { word: "JANAKPUR", clueEn: "City of Mithila and Janaki Temple", clueNe: "जानकी मन्दिर अवस्थित मिथिला नगरी" },
+      { word: "BHAKTAPUR", clueEn: "City of devotees & 55-window palace", clueNe: "५५ झ्याले दरबार भएको भक्तपुर" },
+      { word: "PASHUPATI", clueEn: "Sacred Hindu pilgrimage temple", clueNe: "पवित्र हिन्दू तीर्थस्थल पशुपतिनाथ" },
+      { word: "GORKHA", clueEn: "Historic palace of King Prithvi Narayan", clueNe: "गोरखा दरबार, ऐतिहासिक किल्ला" },
+      { word: "ILAM", clueEn: "Famous tea garden hills of eastern Nepal", clueNe: "चियाबारीले प्रसिद्ध पूर्वी जिल्ला" },
+      { word: "BOUDDHA", clueEn: "Massive Buddhist stupa in Kathmandu", clueNe: "काठमाडौँको विशाल बौद्ध स्तुपा" },
+      { word: "SWAYAMBHU", clueEn: "Ancient hilltop monkey temple stupa", clueNe: "स्वयम्भूनाथ महाचैत्य" },
+      { word: "ANNAPURNA", clueEn: "World famous trekking massif", clueNe: "अन्नपूर्ण पदमार्ग हिमशृङ्खला" },
+      { word: "MANASLU", clueEn: "Mountain of the spirit in Gorkha", clueNe: "मनास्लु हिमाल" },
+      { word: "PALPA", clueEn: "Historic Tansen hill town & Dhaka", clueNe: "पाल्पा तानसेन, ढाकाको सहर" },
+    ]
+  },
+  {
+    id: "solar_system",
+    titleEn: "Cosmos & Solar System",
+    titleNe: "सौर्यमण्डल र अन्तरिक्ष",
+    icon: "🪐",
+    words: [
+      { word: "JUPITER", clueEn: "The largest planet in solar system", clueNe: "सौर्यमण्डलको सबैभन्दा ठूलो ग्रह" },
+      { word: "MERCURY", clueEn: "Closest planet to the Sun", clueNe: "सूर्यको सबैभन्दा नजिकको ग्रह" },
+      { word: "NEPTUNE", clueEn: "Farthest giant gas planet from Sun", clueNe: "सूर्यबाट सबैभन्दा टाढाको ग्रह" },
+      { word: "GALAXY", clueEn: "Vast system of stars, like Milky Way", clueNe: "तारापुञ्ज (मिल्की वे जस्तै)" },
+      { word: "ASTEROID", clueEn: "Rocky celestial body orbiting Sun", clueNe: "सूर्य वरिपरि घुम्ने चट्टानी पिण्ड" },
+      { word: "COMET", clueEn: "Cosmic snowball with a shining tail", clueNe: "चम्किलो पुच्छ्रेतारा" },
+      { word: "ORBIT", clueEn: "Curved path of a celestial body", clueNe: "ग्रहहरूको परिक्रमा मार्ग" },
+      { word: "SATURN", clueEn: "Planet with spectacular ice rings", clueNe: "सुन्दर घेरा भएको शनि ग्रह" },
+      { word: "VENUS", clueEn: "Brightest morning and evening planet", clueNe: "सबैभन्दा चम्किलो शुक्र ग्रह" },
+      { word: "MARS", clueEn: "The famous Red Planet", clueNe: "रातो ग्रह मङ्गल" },
+      { word: "URANUS", clueEn: "Sideways-spinning ice giant", clueNe: "ढल्किएर घुम्ने अरुण ग्रह" },
+      { word: "ECLIPSE", clueEn: "Celestial body passing into shadow", clueNe: "ग्रहण (सूर्य वा चन्द्र ग्रहण)" },
+      { word: "METEOR", clueEn: "Shooting star burning in atmosphere", clueNe: "उल्कापिण्ड" },
+      { word: "NEBULA", clueEn: "Giant interstellar cloud of gas & dust", clueNe: "निहारिका, तारा बन्ने स्थान" },
+      { word: "CRATER", clueEn: "Bowl-shaped impact depression on moon", clueNe: "चन्द्रमाको खाल्डो" },
+    ]
+  },
+  {
+    id: "science_elements",
+    titleEn: "Science & Nature",
+    titleNe: "विज्ञान र प्रकृति",
+    icon: "🔬",
+    words: [
+      { word: "OXYGEN", clueEn: "Gas essential for respiration", clueNe: "श्वासप्रश्वासका लागि चाहिने प्राणवायु" },
+      { word: "HYDROGEN", clueEn: "Most abundant element in universe", clueNe: "ब्रह्माण्डमा सबैभन्दा बढी पाइने तत्त्व" },
+      { word: "GRAVITY", clueEn: "Force that pulls objects downward", clueNe: "पृथ्वीको गुरुत्वाकर्षण बल" },
+      { word: "ENERGY", clueEn: "Capacity to perform work", clueNe: "कार्य गर्ने क्षमता (ऊर्जा)" },
+      { word: "ELECTRON", clueEn: "Negatively charged subatomic particle", clueNe: "ऋणात्मक चार्ज भएको कण" },
+      { word: "PRISM", clueEn: "Refracts light into 7 colors", clueNe: "प्रकाशलाई सात रङमा छुट्याउने साधन" },
+      { word: "CARBON", clueEn: "Found in all living organic structures", clueNe: "सम्पूर्ण जैविक पदार्थको आधार तत्त्व" },
+      { word: "NITROGEN", clueEn: "Makes up 78% of Earth atmosphere", clueNe: "हावामा ७८% पाइने ग्यास" },
+      { word: "DENSITY", clueEn: "Mass per unit volume of a substance", clueNe: "घनत्व" },
+      { word: "VOLTAGE", clueEn: "Electrical potential difference", clueNe: "विद्युतीय भोल्टेज" },
+      { word: "MAGNET", clueEn: "Material attracting iron objects", clueNe: "चुम्बक" },
+      { word: "INERTIA", clueEn: "Tendency to resist changes in motion", clueNe: "चाल वा विश्रामको गुण (जडता)" },
+      { word: "FRICTION", clueEn: "Force opposing sliding contact", clueNe: "घर्षण बल" },
+      { word: "PHOTON", clueEn: "Particle representing light quantum", clueNe: "प्रकाशको सूक्ष्म कण (फोटोन)" },
+    ]
+  },
+  {
+    id: "wildlife_nature",
+    titleEn: "Himalayan Wildlife",
+    titleNe: "वन्यजन्तु र प्रकृति",
+    icon: "🐾",
+    words: [
+      { word: "REDPANDA", clueEn: "Cute bamboo eater of Langtang", clueNe: "लाङटाङको दुर्लभ हाब्रे (रेड पाण्डा)" },
+      { word: "TIGER", clueEn: "Royal Bengal predator of Bardia", clueNe: "बर्दियाको पाटे बाघ" },
+      { word: "ELEPHANT", clueEn: "Gentle giant of the Tarai plains", clueNe: "तराईको विशाल हात्ती" },
+      { word: "GHARIAL", clueEn: "Fish-eating long-snouted crocodile", clueNe: "माछा खाने घडियाल गोही" },
+      { word: "LEOPARD", clueEn: "Elusive spotted cat of the hills", clueNe: "पहाडी क्षेत्रको चितुवा" },
+      { word: "PEACOCK", clueEn: "Colorful dancing bird with feathers", clueNe: "रङ्गीचङ्गी प्वाँख भएको मयूर" },
+      { word: "MUSKDEER", clueEn: "High altitude deer prized for musk", clueNe: "कस्तुरी मृग" },
+      { word: "SNOWLEOPARD", clueEn: "Ghost of high Himalayan ridges", clueNe: "हिउँ चितुवा" },
+      { word: "MONAL", clueEn: "Glistening pheasant of high peaks", clueNe: "मुनाल चरा" },
+      { word: "DOLPHIN", clueEn: "Gangetic freshwater mammal of Karnali", clueNe: "कर्णालीको सोँस (डल्फिन)" },
+      { word: "PANGOLIN", clueEn: "Scaly anteater of Nepal forests", clueNe: "सङ्कटापन्न सालक" },
+      { word: "HORNBILL", clueEn: "Giant beaked bird of Chitwan canopy", clueNe: "धनेश चरा" },
+      { word: "VULTURE", clueEn: "Nature essential scavenger raptor", clueNe: "प्रकृतिको कुचीकार (गिद्ध)" },
+    ]
+  },
+  {
+    id: "body_health",
+    titleEn: "Human Body & Health",
+    titleNe: "मानव शरीर र स्वास्थ्य",
+    icon: "🫀",
+    words: [
+      { word: "HEART", clueEn: "Pumps oxygen-rich blood through body", clueNe: "शरीरमा रगत पम्प गर्ने अङ्ग (मुटु)" },
+      { word: "BRAIN", clueEn: "Command center of nervous system", clueNe: "स्नायु प्रणालीको नियन्त्रक (मस्तिष्क)" },
+      { word: "MUSCLE", clueEn: "Tissue that helps body move", clueNe: "शरीर चलायमान बनाउने मांशपेसी" },
+      { word: "SKELETON", clueEn: "Internal framework of 206 bones", clueNe: "२०६ वटा हाड मिलेर बनेको अस्थिपञ्जर" },
+      { word: "VITAMIN", clueEn: "Nutrient that keeps immunity strong", clueNe: "रोग प्रतिरोधात्मक क्षमता बढाउने तत्त्व" },
+      { word: "ARTERY", clueEn: "Vessel carrying oxygenated blood", clueNe: "मुटुबाट शुद्ध रगत लैजाने धमनी" },
+      { word: "NEURON", clueEn: "Nerve cell transmitting signals", clueNe: "सूचना प्रवाह गर्ने स्नायु कोष" },
+      { word: "LIVER", clueEn: "Body largest metabolic and detox organ", clueNe: "शरीरको सबैभन्दा ठूलो ग्रन्थी (कलेजो)" },
+      { word: "KIDNEY", clueEn: "Bean-shaped blood filtering organ", clueNe: "रगत छान्ने मिर्गौला" },
+      { word: "LUNGS", clueEn: "Organs exchanging oxygen and carbon", clueNe: "श्वासप्रश्वास अङ्ग फोक्सो" },
+      { word: "CALCIUM", clueEn: "Mineral strengthening teeth and bones", clueNe: "हाड बलियो बनाउने क्याल्सियम" },
+      { word: "PROTEIN", clueEn: "Building block for muscle repair", clueNe: "मांशपेसी निर्माण गर्ने प्रोटिन" },
+    ]
+  },
+  {
+    id: "nepal_geography",
+    titleEn: "Geography of Nepal",
+    titleNe: "नेपालको भूगोल",
+    icon: "🗺️",
+    words: [
+      { word: "HIMALAYA", clueEn: "Majestic snow-capped mountain range", clueNe: "सेता हिउँका चुचुराहरूको हिमशृङ्खला" },
+      { word: "KARNALI", clueEn: "Longest river flowing in Nepal", clueNe: "नेपालको सबैभन्दा लामो नदी" },
+      { word: "MUSTANG", clueEn: "Ancient kingdom beyond the high hills", clueNe: "मुस्ताङ, हिमाल पारिको जिल्ला" },
+      { word: "CHITWAN", clueEn: "Home of Nepal's first national park", clueNe: "नेपालको पहिलो राष्ट्रिय निकुञ्ज" },
+      { word: "KOSHI", clueEn: "River with largest water discharge", clueNe: "सबैभन्दा बढी जलप्रवाह भएको नदी" },
+      { word: "TERAI", clueEn: "Fertile southern flat grain basket", clueNe: "उब्जाउ अन्नको भण्डार (तराई)" },
+      { word: "RARA", clueEn: "Deepest and biggest lake in Mugu", clueNe: "मुगुमा अवस्थित रारा ताल" },
+      { word: "GANDAKI", clueEn: "Mighty river fed by Kali & Trishuli", clueNe: "गण्डकी नदी" },
+      { word: "PHEWA", clueEn: "Famous lake reflecting Machhapuchhre", clueNe: "पोखराको फेवाताल" },
+      { word: "TILICHO", clueEn: "One of the highest altitude alpine lakes", clueNe: "विश्वकै अग्लो स्थानको तिलिचो ताल" },
+      { word: "DOLPA", clueEn: "Largest district of Nepal with Shey Phoksundo", clueNe: "नेपालको सबैभन्दा ठूलो जिल्ला डोल्पा" },
+      { word: "MANANG", clueEn: "Rain-shadow valley district behind Annapurna", clueNe: "मनाङ उपत्यका" },
+    ]
+  },
+  {
+    id: "nepali_culture",
+    titleEn: "Festivals & Traditional Arts",
+    titleNe: "चाडपर्व र मौलिक कला",
+    icon: "🪕",
+    words: [
+      { word: "DASHAIN", clueEn: "Biggest autumn festival with Jamara & Tika", clueNe: "नेपालीहरूको महान् चाड बडादसैँ" },
+      { word: "TIHAR", clueEn: "Festival of lights, flowers, and brothers", clueNe: "उज्यालो र फूलको चाड तिहार" },
+      { word: "CHHATH", clueEn: "Sun-worship festival of the plains", clueNe: "सूर्य उपासनाको पर्व छठ" },
+      { word: "LOSHAR", clueEn: "New year festival of Himalayan communities", clueNe: "हिमाली नयाँ वर्ष ल्होसार" },
+      { word: "KHUKURI", clueEn: "Traditional curved Nepali bravery blade", clueNe: "नेपाली वीरताको प्रतीक खुकुरी" },
+      { word: "MADAL", clueEn: "Beloved double-headed rhythmic hand drum", clueNe: "नेपाली मौलिक बाजा मादल" },
+      { word: "SARANGI", clueEn: "Folk string instrument played with a bow", clueNe: "सारङ्गी बाजा" },
+      { word: "SELROTI", clueEn: "Traditional crispy ring-shaped rice bread", clueNe: "नेपाली मौलिक परिकार सेलरोटी" },
+      { word: "DHAKA", clueEn: "Intricately hand-woven traditional fabric", clueNe: "ढाका टोपी र कपडा" },
+      { word: "CHAUTARI", clueEn: "Shady stone resting tree platform in hills", clueNe: "वर-पीपलको शीतल चौतारी" },
+    ]
+  }
+];
+
+function getDailyWordSearchCategory(dateStr) {
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    hash = (hash * 31 + dateStr.charCodeAt(i)) >>> 0;
+  }
+  const index = hash % WORD_SEARCH_CATEGORIES.length;
+  const category = WORD_SEARCH_CATEGORIES[index];
+
+  // Pick deterministic subset of 7 words based on dateStr hash
+  const shuffled = [...category.words].sort((a, b) => {
+    const ha = (hash ^ a.word.charCodeAt(0)) % 100;
+    const hb = (hash ^ b.word.charCodeAt(0)) % 100;
+    return ha - hb;
+  });
+
+  return {
+    ...category,
+    words: shuffled.slice(0, 7),
+  };
+}
+
+router.get("/wordsearch/daily", (req, res) => {
+  const dateStr = req.query.date || today();
+  const categoryData = getDailyWordSearchCategory(dateStr);
+
+  // Check if player has already submitted for today
+  const myScoreRow = db
+    .prepare("SELECT * FROM word_search_scores WHERE user_id = ? AND puzzle_date = ?")
+    .get(req.user.id, dateStr);
+
+  const myScore = myScoreRow
+    ? {
+        timeSeconds: myScoreRow.time_seconds,
+        wordsFound: myScoreRow.words_found,
+        totalWords: myScoreRow.total_words,
+        stars: myScoreRow.stars,
+        xpEarned: myScoreRow.xp_earned,
+        completedAt: myScoreRow.created_at,
+      }
+    : null;
+
+  // Fastest solvers leaderboard for today
+  const leaderboard = db
+    .prepare(`
+      SELECT u.id, u.name, u.avatar, s.time_seconds, s.words_found
+      FROM word_search_scores s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.puzzle_date = ?
+      ORDER BY s.words_found DESC, s.time_seconds ASC
+      LIMIT 10
+    `)
+    .all(dateStr)
+    .map((row, idx) => ({
+      rank: idx + 1,
+      userId: row.id,
+      name: row.name || "Player",
+      avatar: JSON.parse(row.avatar || "{}"),
+      timeSeconds: row.time_seconds,
+      wordsFound: row.words_found,
+      isMe: row.id === req.user.id,
+    }));
+
+  res.json({
+    puzzleDate: dateStr,
+    category: categoryData.id,
+    titleEn: categoryData.titleEn,
+    titleNe: categoryData.titleNe,
+    icon: categoryData.icon,
+    words: categoryData.words,
+    allCategories: WORD_SEARCH_CATEGORIES.map(c => ({ id: c.id, titleEn: c.titleEn, titleNe: c.titleNe, icon: c.icon, wordCount: c.words.length })),
+    myScore,
+    leaderboard,
+  });
+});
+
+// Random Word Search for unlimited practice sessions with fresh boards
+router.get("/wordsearch/random", (req, res) => {
+  const catId = req.query.category;
+  let category = WORD_SEARCH_CATEGORIES.find(c => c.id === catId);
+  if (!category) {
+    category = WORD_SEARCH_CATEGORIES[Math.floor(Math.random() * WORD_SEARCH_CATEGORIES.length)];
+  }
+
+  // Pick 7 random words from the pool
+  const shuffled = [...category.words].sort(() => 0.5 - Math.random());
+  const selectedWords = shuffled.slice(0, 7);
+
+  res.json({
+    category: category.id,
+    titleEn: category.titleEn,
+    titleNe: category.titleNe,
+    icon: category.icon,
+    words: selectedWords,
+    allCategories: WORD_SEARCH_CATEGORIES.map(c => ({
+      id: c.id,
+      titleEn: c.titleEn,
+      titleNe: c.titleNe,
+      icon: c.icon,
+      wordCount: c.words.length,
+    })),
+  });
+});
+
+router.post("/wordsearch/submit", (req, res) => {
+  const { puzzleDate, category = "daily", timeSeconds, wordsFound, totalWords, stars = 3 } = req.body || {};
+  const dateStr = puzzleDate || today();
+
+  if (typeof timeSeconds !== "number" || typeof wordsFound !== "number") {
+    return res.status(400).json({ error: "Invalid score payload" });
+  }
+
+  const xpEarned = Math.round(25 + (wordsFound / Math.max(1, totalWords)) * 25 + Math.min(3, Math.max(1, stars)) * 5);
+
+  const existing = db
+    .prepare("SELECT * FROM word_search_scores WHERE user_id = ? AND puzzle_date = ?")
+    .get(req.user.id, dateStr);
+
+  if (!existing) {
+    db.prepare(`
+      INSERT INTO word_search_scores (user_id, puzzle_date, category, time_seconds, words_found, total_words, stars, xp_earned)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(req.user.id, dateStr, category, timeSeconds, wordsFound, totalWords, stars, xpEarned);
+
+    db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").run(xpEarned, req.user.id);
+    db.prepare("INSERT INTO xp_events (user_id, amount, reason, date) VALUES (?, ?, 'word_search', ?)")
+      .run(req.user.id, xpEarned, today());
+  }
+
+  const freshUser = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+
+  res.json({
+    ok: true,
+    score: {
+      puzzleDate: dateStr,
+      timeSeconds,
+      wordsFound,
+      totalWords,
+      stars,
+      xpEarned: existing ? 0 : xpEarned,
+      isNewRecord: !existing,
+    },
+    user: serializeUser(freshUser),
+  });
+});
+
+// ---------- Student Game Insights & Mastery ----------
+
+router.get("/me/insights", (req, res) => {
+  const userId = req.user.id;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+
+  // 1. Overall stats
+  const totalAnswersRow = db
+    .prepare("SELECT COUNT(*) as total, COALESCE(SUM(correct), 0) as correct FROM answer_log WHERE user_id = ?")
+    .get(userId);
+  const totalAnswers = totalAnswersRow ? totalAnswersRow.total : 0;
+  const correctAnswers = totalAnswersRow ? totalAnswersRow.correct : 0;
+  const accuracyPct = totalAnswers > 0 ? Math.round((correctAnswers / totalAnswers) * 100) : 0;
+
+  // 2. Subject Mastery Breakdown
+  const subjectRows = db
+    .prepare(`
+      SELECT subject, COUNT(*) as total, COALESCE(SUM(correct), 0) as correct
+      FROM answer_log
+      WHERE user_id = ?
+      GROUP BY subject
+      ORDER BY total DESC
+    `)
+    .all(userId);
+
+  const subjectMastery = subjectRows.map(row => ({
+    subject: row.subject,
+    total: row.total,
+    correct: row.correct,
+    pct: row.total > 0 ? Math.round((row.correct / row.total) * 100) : 0,
+  }));
+
+  // 3. Game XP and Play Distribution
+  const xpBreakdownRows = db
+    .prepare(`
+      SELECT reason, COALESCE(SUM(amount), 0) as totalXp, COUNT(*) as playCount
+      FROM xp_events
+      WHERE user_id = ?
+      GROUP BY reason
+    `)
+    .all(userId);
+
+  const gameMeta = {
+    daily_quest: { name: "Daily Quest", icon: "🎯", color: "#F59E0B" },
+    practice_round: { name: "Unlimited Practice", icon: "📚", color: "#3B82F6" },
+    daily_zip: { name: "Zip Path Puzzle", icon: "⚡", color: "#8B5CF6" },
+    word_search: { name: "Word Search", icon: "🔤", color: "#EC4899" },
+    daily_riddle: { name: "Gaunkhane Katha", icon: "🧩", color: "#10B981" },
+    memory_blocks: { name: "Memory Blocks", icon: "🧠", color: "#06B6D4" },
+    battle_win: { name: "Friend Battles", icon: "⚔️", color: "#EF4444" },
+    quiz_streak: { name: "Streak Bonus", icon: "🔥", color: "#F97316" },
+  };
+
+  const gameBreakdown = xpBreakdownRows.map(r => {
+    const meta = gameMeta[r.reason] || { name: r.reason, icon: "⭐", color: "#6B7280" };
+    return {
+      reason: r.reason,
+      name: meta.name,
+      icon: meta.icon,
+      color: meta.color,
+      totalXp: r.totalXp,
+      playCount: r.playCount,
+    };
+  });
+
+  // 4. 30-Day Activity Heatmap
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+  const dailyXpRows = db
+    .prepare(`
+      SELECT date, COALESCE(SUM(amount), 0) as xp, COUNT(*) as events
+      FROM xp_events
+      WHERE user_id = ? AND date >= ?
+      GROUP BY date
+      ORDER BY date ASC
+    `)
+    .all(userId, thirtyDaysAgoStr);
+
+  const dailyAnswersRows = db
+    .prepare(`
+      SELECT date, COUNT(*) as count, COALESCE(SUM(correct), 0) as correct
+      FROM answer_log
+      WHERE user_id = ? AND date >= ?
+      GROUP BY date
+    `)
+    .all(userId, thirtyDaysAgoStr);
+
+  const answerMap = new Map();
+  dailyAnswersRows.forEach(row => {
+    answerMap.set(row.date, row);
+  });
+
+  const activityHeatmap = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dStr = d.toISOString().split("T")[0];
+    const xpEntry = dailyXpRows.find(x => x.date === dStr);
+    const ansEntry = answerMap.get(dStr);
+
+    activityHeatmap.push({
+      date: dStr,
+      xp: xpEntry ? xpEntry.xp : 0,
+      events: xpEntry ? xpEntry.events : 0,
+      answers: ansEntry ? ansEntry.count : 0,
+      correct: ansEntry ? ansEntry.correct : 0,
+    });
+  }
+
+  // 5. Personal Bests
+  const fastestZip = db
+    .prepare("SELECT MIN(time_seconds) as fastest FROM daily_zip_scores WHERE user_id = ?")
+    .get(userId);
+
+  const fastestWordSearch = db
+    .prepare("SELECT MIN(time_seconds) as fastest FROM word_search_scores WHERE user_id = ?")
+    .get(userId);
+
+  const riddlesSolved = db
+    .prepare("SELECT COUNT(*) as count FROM user_riddle_solves WHERE user_id = ?")
+    .get(userId);
+
+  const battlesWon = db
+    .prepare("SELECT COUNT(*) as count FROM battles WHERE winner = ?")
+    .get(userId);
+
+  const totalBattles = db
+    .prepare("SELECT COUNT(*) as count FROM battles WHERE p1 = ? OR p2 = ?")
+    .get(userId, userId);
+
+  const wordSearchCount = db
+    .prepare("SELECT COUNT(*) as count FROM word_search_scores WHERE user_id = ?")
+    .get(userId);
+
+  const memoryBest = db
+    .prepare("SELECT MAX(stars) as stars, MIN(time_ms) as minTime FROM memory_scores WHERE user_id = ?")
+    .get(userId);
+
+  res.json({
+    summary: {
+      totalXp: user.xp,
+      level: levelForXp(user.xp),
+      streak: user.streak,
+      totalAnswers,
+      correctAnswers,
+      accuracyPct,
+    },
+    subjectMastery,
+    gameBreakdown,
+    activityHeatmap,
+    personalBests: {
+      fastestZipSec: fastestZip && fastestZip.fastest ? fastestZip.fastest : null,
+      fastestWordSearchSec: fastestWordSearch && fastestWordSearch.fastest ? fastestWordSearch.fastest : null,
+      wordSearchCount: wordSearchCount ? wordSearchCount.count : 0,
+      totalRiddlesSolved: riddlesSolved ? riddlesSolved.count : 0,
+      battlesWon: battlesWon ? battlesWon.count : 0,
+      totalBattles: totalBattles ? totalBattles.count : 0,
+      memoryHighestStars: memoryBest && memoryBest.stars ? memoryBest.stars : null,
     },
   });
 });

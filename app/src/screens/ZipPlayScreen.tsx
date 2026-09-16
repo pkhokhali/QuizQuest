@@ -183,13 +183,27 @@ export function ZipPlayScreen() {
     wallsSetRef.current = wallsSet;
   }, [wallsSet]);
 
-  /** Initialize a practice puzzle with selectable size & difficulty */
+  const practiceSizeRef = useRef<ZipDimension>(practiceSize);
+  const practiceDifficultyRef = useRef<ZipDifficulty>(practiceDifficulty);
+
+  useEffect(() => {
+    practiceSizeRef.current = practiceSize;
+  }, [practiceSize]);
+
+  useEffect(() => {
+    practiceDifficultyRef.current = practiceDifficulty;
+  }, [practiceDifficulty]);
+
+  /** Initialize a practice puzzle with selectable size & difficulty and 100% fresh randomized seed */
   const initPracticeGame = useCallback(
-    (newSize: ZipDimension = practiceSize, newDiff: ZipDifficulty = practiceDifficulty) => {
-      const p = createZipPuzzle(newSize, newDiff);
-      setSize(newSize);
-      setPracticeSize(newSize);
-      setPracticeDifficulty(newDiff);
+    (newSize?: ZipDimension, newDiff?: ZipDifficulty) => {
+      const s = newSize ?? practiceSizeRef.current;
+      const d = newDiff ?? practiceDifficultyRef.current;
+      const dynamicSeed = ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
+      const p = createZipPuzzle(s, d, dynamicSeed);
+      setSize(s);
+      setPracticeSize(s);
+      setPracticeDifficulty(d);
       setPuzzle(p);
       puzzleRef.current = p;
 
@@ -212,7 +226,7 @@ export function ZipPlayScreen() {
         setSeconds((s) => s + 1);
       }, 1000);
     },
-    [practiceSize, practiceDifficulty]
+    []
   );
 
   /** Fetch daily puzzle from backend or fallback */
@@ -281,12 +295,12 @@ export function ZipPlayScreen() {
     if (gameMode === "daily") {
       loadDailyChallenge();
     } else {
-      initPracticeGame(practiceSize, practiceDifficulty);
+      initPracticeGame();
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gameMode, loadDailyChallenge, initPracticeGame, practiceSize, practiceDifficulty]);
+  }, [gameMode, loadDailyChallenge, initPracticeGame]);
 
   /** Win celebration and score submission handler */
   const handleGameWin = useCallback(
@@ -773,6 +787,92 @@ export function ZipPlayScreen() {
           scrollEnabled={!isDragging}
           showsVerticalScrollIndicator={false}
         >
+          {/* Clear Segmented Mode Tabs: Daily Challenge vs Unlimited Free Play */}
+          <View style={[styles.modeSegmentContainer, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={[
+                styles.modeSegmentTab,
+                gameMode === "daily" && [styles.modeSegmentTabActive, { backgroundColor: colors.primary }],
+              ]}
+              onPress={() => {
+                if (gameMode !== "daily") {
+                  setGameMode("daily");
+                  loadDailyChallenge();
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[
+                  styles.modeSegmentText,
+                  {
+                    color: gameMode === "daily" ? colors.textOnPrimary : colors.textMuted,
+                    fontFamily: fonts.bodyBold,
+                  },
+                ]}
+              >
+                🌟 Daily Challenge {dailyData?.puzzleNum ? `#${dailyData.puzzleNum}` : ""}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.modeSegmentTab,
+                gameMode === "practice" && [styles.modeSegmentTabActive, { backgroundColor: colors.primary }],
+              ]}
+              onPress={() => {
+                if (gameMode !== "practice") {
+                  setGameMode("practice");
+                  initPracticeGame(practiceSize, practiceDifficulty);
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[
+                  styles.modeSegmentText,
+                  {
+                    color: gameMode === "practice" ? colors.textOnPrimary : colors.textMuted,
+                    fontFamily: fonts.bodyBold,
+                  },
+                ]}
+              >
+                🎲 Free Play (New Board)
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Daily Solved Banner with Play Unlimited Boards button */}
+          {gameMode === "daily" && myDailyScore && (
+            <View
+              style={[
+                styles.dailySolvedNotice,
+                { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: colors.green },
+              ]}
+            >
+              <View style={styles.dailySolvedNoticeTextCol}>
+                <Text style={[styles.dailySolvedNoticeTitle, { color: colors.green, fontFamily: fonts.bodyBold }]}>
+                  ✓ Daily Zip Solved ({myDailyScore.timeSeconds}s)
+                </Text>
+                <Text style={[styles.dailySolvedNoticeSub, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                  Play unlimited randomized puzzles in Free Play!
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.dailySolvedPlayMoreBtn, { backgroundColor: colors.green }]}
+                onPress={() => {
+                  setGameMode("practice");
+                  initPracticeGame(practiceSize, practiceDifficulty);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.dailySolvedPlayMoreText, { fontFamily: fonts.bodyBold }]}>
+                  New Board 🎲
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Sub-bar directly above the board */}
           <View style={styles.subBar}>
             <View style={styles.subBarLeft}>
@@ -781,49 +881,29 @@ export function ZipPlayScreen() {
               </Text>
             </View>
 
-            <TouchableOpacity
-              onPress={() => {
-                if (gameMode === "daily") {
-                  setGameMode("practice");
-                  initPracticeGame(practiceSize, practiceDifficulty);
-                } else {
-                  setGameMode("daily");
-                  loadDailyChallenge();
-                }
-              }}
-              style={[
-                styles.difficultyPill,
-                {
-                  backgroundColor: gameMode === "daily" ? colors.surfaceElevated : colors.primarySoft,
-                  borderColor: gameMode === "daily" ? colors.border : colors.primary,
-                },
-              ]}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.difficultyPillText,
-                  {
-                    color: gameMode === "daily" ? colors.textMuted : colors.primary,
-                    fontFamily: fonts.bodyBold,
-                  },
-                ]}
-              >
-                {gameMode === "daily"
-                  ? `🌟 Daily #${dailyData?.puzzleNum || "..."}`
-                  : `🎮 Practice: ${practiceSize}×${practiceSize}`}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.subBarActions}>
+              {gameMode === "practice" && (
+                <TouchableOpacity
+                  onPress={() => initPracticeGame(practiceSize, practiceDifficulty)}
+                  style={[styles.newBoardBtn, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.newBoardBtnText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                    🎲 New Board
+                  </Text>
+                </TouchableOpacity>
+              )}
 
-            <TouchableOpacity
-              onPress={handleReset}
-              style={styles.subBarResetBtn}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.subBarResetText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
-                Reset
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleReset}
+                style={styles.subBarResetBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.subBarResetText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                  Reset
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Practice Mode Size & Difficulty Selectors */}
@@ -1145,7 +1225,14 @@ export function ZipPlayScreen() {
                         {
                           color: "#FFFFFF",
                           fontFamily: fonts.display,
-                          fontSize: puzzle.size.cols >= 10 ? 12 : puzzle.size.cols >= 8 ? 14 : 17,
+                          fontSize:
+                            num >= 10
+                              ? puzzle.size.cols >= 8
+                                ? 11
+                                : 13
+                              : puzzle.size.cols >= 8
+                              ? 14
+                              : 17,
                           fontWeight: "900",
                         },
                       ]}
@@ -1323,26 +1410,15 @@ export function ZipPlayScreen() {
                   variant="accent"
                 />
 
-                {gameMode === "daily" ? (
-                  <PrimaryButton
-                    label="🎯 Switch to Practice Mode"
-                    onPress={() => {
-                      setGameEnded(false);
-                      setGameMode("practice");
-                      initPracticeGame(practiceSize, practiceDifficulty);
-                    }}
-                    variant="ghost"
-                  />
-                ) : (
-                  <PrimaryButton
-                    label="🎲 Play Another Board"
-                    onPress={() => {
-                      setGameEnded(false);
-                      initPracticeGame(practiceSize, practiceDifficulty);
-                    }}
-                    variant="ghost"
-                  />
-                )}
+                <PrimaryButton
+                  label="🎲 Play Another Board (New Random Grid)"
+                  onPress={() => {
+                    setGameEnded(false);
+                    setGameMode("practice");
+                    initPracticeGame(practiceSize, practiceDifficulty);
+                  }}
+                  variant="primary"
+                />
               </View>
             </Card>
           </View>
@@ -2057,6 +2133,73 @@ const styles = StyleSheet.create({
     borderRadius: radius.chip,
   },
   nudgeBtnText: {
+    fontSize: 11,
+  },
+  modeSegmentContainer: {
+    flexDirection: "row",
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: spacing.sm + 2,
+    marginHorizontal: spacing.xs,
+  },
+  modeSegmentTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: radius.chip - 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modeSegmentTabActive: {
+    ...shadow.card,
+  },
+  modeSegmentText: {
+    fontSize: 12,
+    letterSpacing: 0.2,
+  },
+  dailySolvedNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.xs,
+    gap: 8,
+  },
+  dailySolvedNoticeTextCol: {
+    flex: 1,
+  },
+  dailySolvedNoticeTitle: {
+    fontSize: 12,
+  },
+  dailySolvedNoticeSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  dailySolvedPlayMoreBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  dailySolvedPlayMoreText: {
+    fontSize: 11,
+    color: "#FFFFFF",
+  },
+  subBarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  newBoardBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+  },
+  newBoardBtnText: {
     fontSize: 11,
   },
 });

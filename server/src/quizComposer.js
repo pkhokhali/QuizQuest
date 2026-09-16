@@ -146,3 +146,60 @@ export function revengeAvailable(user) {
   if (existing && existing.completed) return false;
   return composeRevengeRound(user).length > 0;
 }
+
+/** Compose a 5-question unlimited/practice round with balanced subjects across Science, GK, Social, Language, and Math. */
+export function composePracticeQuiz(user, subjectFilter = null) {
+  const gradeBand = gradeBandFor(user.grade || 8);
+  const PRACTICE_SIZE = 5;
+  const targetSubjects = subjectFilter
+    ? Array(PRACTICE_SIZE).fill(subjectFilter)
+    : shuffle(["science", "gk", "social", "english", "math"]);
+
+  const picked = [];
+  const pickedIds = new Set();
+
+  for (const subj of targetSubjects) {
+    let q = db
+      .prepare(
+        `SELECT * FROM questions
+         WHERE status = 'approved' AND subject = ? AND grade_band = ? AND difficulty <= 4
+           AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+         ORDER BY RANDOM() LIMIT 1`
+      )
+      .get(subj, gradeBand);
+
+    if (!q) {
+      q = db
+        .prepare(
+          `SELECT * FROM questions
+           WHERE status = 'approved' AND subject = ? AND difficulty <= 4
+             AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+           ORDER BY RANDOM() LIMIT 1`
+        )
+        .get(subj);
+    }
+
+    if (q && !pickedIds.has(q.id)) {
+      picked.push(q);
+      pickedIds.add(q.id);
+    }
+  }
+
+  // Backfill if needed
+  while (picked.length < PRACTICE_SIZE) {
+    const q = db
+      .prepare(
+        `SELECT * FROM questions
+         WHERE status = 'approved' AND grade_band = ?
+           AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+         ORDER BY RANDOM() LIMIT 1`
+      )
+      .get(gradeBand);
+    if (!q) break;
+    picked.push(q);
+    pickedIds.add(q.id);
+  }
+
+  return shuffle(picked);
+}
+

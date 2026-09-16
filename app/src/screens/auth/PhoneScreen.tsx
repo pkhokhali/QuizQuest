@@ -192,6 +192,24 @@ export function PhoneScreen({ navigation }: Props) {
     }
   };
 
+  const onQuickTestLogin = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await loginWithEmail({
+        email: "test2@quizquest.com",
+        password: "password123",
+        isSignUp: false,
+      });
+      await signIn(res.token, res.user);
+      logLoginEvent("reviewer_quick");
+    } catch (err: any) {
+      setError(formatAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       {/* Ambient glowing backdrop: friendly luminous radiance, no harsh shapes */}
@@ -539,6 +557,27 @@ export function PhoneScreen({ navigation }: Props) {
                   </Text>
                 </Text>
               </TouchableOpacity>
+
+              {/* Quick Tester Access Button */}
+              <TouchableOpacity
+                style={[
+                  styles.quickTestBtn,
+                  { backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F8FAFC", borderColor: colors.border },
+                ]}
+                onPress={onQuickTestLogin}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.quickTestIcon}>⚡</Text>
+                <Text
+                  style={[
+                    styles.quickTestText,
+                    { color: colors.accent, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  Quick Test Login (Demo / Reviewer)
+                </Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -766,6 +805,24 @@ const styles = StyleSheet.create({
   },
   switchModeText: {
     fontSize: 13,
+  },
+  quickTestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    gap: 8,
+    marginTop: spacing.xs,
+  },
+  quickTestIcon: {
+    fontSize: 16,
+  },
+  quickTestText: {
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
 });
 

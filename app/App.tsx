@@ -33,17 +33,27 @@ function AppShell() {
   });
 
   const [splashFinished, setSplashFinished] = React.useState(false);
+  const [fontTimeout, setFontTimeout] = React.useState(false);
 
   React.useEffect(() => {
     registerForPushNotificationsAsync().catch(() => {});
     scheduleDailyReminders().catch(() => {});
+
+    // Ensure fonts never indefinitely block app mounting if offline or slow
+    const fontTimer = setTimeout(() => {
+      setFontTimeout(true);
+    }, 1200);
+
+    return () => clearTimeout(fontTimer);
   }, []);
 
   if (!splashFinished) {
     return <AppSplashVideoScreen onFinish={() => setSplashFinished(true)} />;
   }
 
-  if (!ready || !fredokaLoaded || !nunitoLoaded) {
+  const fontsReady = (fredokaLoaded && nunitoLoaded) || fontTimeout;
+
+  if (!ready || !fontsReady) {
     return (
       <View
         style={{

@@ -9,29 +9,32 @@ type Props = {
   intensity?: "soft" | "bold";
 };
 
-/** Non-flat background: layered washes that follow the active palette. */
+/** Non-flat background: layered washes that follow the active palette with subtle Himalayan aura. */
 export function Atmosphere({ children, style, intensity = "soft" }: Props) {
   const { colors } = useTheme();
-  const deepOpacity = intensity === "bold" ? 0.55 : 0.35;
+  const deepOpacity = intensity === "bold" ? 0.6 : 0.4;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }, style]}>
+      {/* Top right mountain sun / star aura */}
       <View
         style={[
           styles.blobTop,
-          { backgroundColor: colors.bgMid, opacity: deepOpacity },
+          { backgroundColor: colors.accent, opacity: deepOpacity * 0.22 },
         ]}
       />
+      {/* Bottom left deep valley mountain wash */}
       <View
         style={[
           styles.blobBottom,
-          { backgroundColor: colors.bgDeep, opacity: deepOpacity * 0.45 },
+          { backgroundColor: colors.primary, opacity: deepOpacity * 0.18 },
         ]}
       />
+      {/* Subtle glowing ring (Chandra / lunar arc) */}
       <View
         style={[
           styles.arc,
-          { borderColor: colors.primarySoft, opacity: 0.7 },
+          { borderColor: colors.border, opacity: 0.5 },
         ]}
       />
       {children}
@@ -46,27 +49,28 @@ const styles = StyleSheet.create({
   },
   blobTop: {
     position: "absolute",
-    top: -80,
-    right: -60,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
+    top: -90,
+    right: -70,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
   },
   blobBottom: {
     position: "absolute",
-    bottom: 40,
-    left: -90,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
+    bottom: 60,
+    left: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
   },
   arc: {
     position: "absolute",
-    top: "28%",
-    right: -40,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    borderWidth: 28,
+    top: "22%",
+    right: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 2,
+    borderStyle: "dashed",
   },
 });

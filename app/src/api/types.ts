@@ -28,6 +28,7 @@ export type QuizTime = "morning" | "afterschool" | "evening";
 export interface AvatarInfo {
   emoji: string;
   bg: string;
+  photoUrl?: string;
 }
 
 export interface User {
@@ -134,7 +135,11 @@ export interface RiddleData {
   hint2Ne?: string;
   hint3En?: string;
   hint3Ne?: string;
+  meaningEn?: string;
+  meaningNe?: string;
   category: string;
+  categoryEn?: string;
+  categoryNe?: string;
   difficulty: number;
   date: string;
   solved: boolean;
@@ -444,4 +449,114 @@ export interface DailyZipLeaderboardResponse {
   unplayedFriends: ZipUnplayedFriend[];
   school: ZipLeaderboardUser[];
 }
+
+// ---- Word Search Types ----
+export interface WordSearchWord {
+  word: string;
+  clueEn: string;
+  clueNe: string;
+}
+
+export interface WordSearchCategoryMeta {
+  id: string;
+  titleEn: string;
+  titleNe: string;
+  icon: string;
+  wordCount: number;
+}
+
+export interface WordSearchLeaderboardUser {
+  rank: number;
+  userId: number;
+  name: string;
+  avatar: AvatarInfo;
+  timeSeconds: number;
+  wordsFound: number;
+  isMe: boolean;
+}
+
+export interface DailyWordSearchResponse {
+  puzzleDate: string;
+  category: string;
+  titleEn: string;
+  titleNe: string;
+  icon: string;
+  words: WordSearchWord[];
+  allCategories: WordSearchCategoryMeta[];
+  myScore: {
+    timeSeconds: number;
+    wordsFound: number;
+    totalWords: number;
+    stars: number;
+    xpEarned: number;
+    completedAt: string;
+  } | null;
+  leaderboard: WordSearchLeaderboardUser[];
+}
+
+export interface WordSearchSubmitResponse {
+  ok: boolean;
+  score: {
+    puzzleDate: string;
+    timeSeconds: number;
+    wordsFound: number;
+    totalWords: number;
+    stars: number;
+    xpEarned: number;
+    isNewRecord: boolean;
+  };
+  user: User;
+}
+
+// ---- Game Insights & Mastery Types ----
+
+export interface SubjectMasteryItem {
+  subject: string;
+  total: number;
+  correct: number;
+  pct: number;
+}
+
+export interface GameBreakdownItem {
+  reason: string;
+  name: string;
+  icon: string;
+  color: string;
+  totalXp: number;
+  playCount: number;
+}
+
+export interface ActivityHeatmapDay {
+  date: string;
+  xp: number;
+  events: number;
+  answers: number;
+  correct: number;
+}
+
+export interface PersonalBests {
+  fastestZipSec: number | null;
+  fastestWordSearchSec: number | null;
+  wordSearchCount: number;
+  totalRiddlesSolved: number;
+  battlesWon: number;
+  totalBattles: number;
+  memoryHighestStars: number | null;
+}
+
+export interface UserInsightsResponse {
+  summary: {
+    totalXp: number;
+    level: number;
+    streak: number;
+    totalAnswers: number;
+    correctAnswers: number;
+    accuracyPct: number;
+  };
+  subjectMastery: SubjectMasteryItem[];
+  gameBreakdown: GameBreakdownItem[];
+  activityHeatmap: ActivityHeatmapDay[];
+  personalBests: PersonalBests;
+}
+
 

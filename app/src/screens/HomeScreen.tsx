@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getHome, updateMe, solveDailyRiddle } from "../api/client";
+import { getHome, updateMe } from "../api/client";
 import { SoundEffects } from "../utils/audio";
 import { HomeData } from "../api/types";
 import { Atmosphere } from "../components/Atmosphere";
@@ -20,6 +20,7 @@ import { Card } from "../components/Card";
 import { CountrySelectorModal } from "../components/CountrySelectorModal";
 import { ErrorCard } from "../components/ErrorCard";
 import { LoadingView } from "../components/LoadingView";
+import { NotificationCenterModal } from "../components/NotificationCenterModal";
 import { IconFlame, IconMap } from "../components/QuestIcons";
 import { StreakFlame } from "../components/StreakFlame";
 import { StreakCelebrationModal } from "../components/StreakCelebrationModal";
@@ -46,50 +47,8 @@ export function HomeScreen() {
   const [failed, setFailed] = useState(false);
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [showCountryModal, setShowCountryModal] = useState(false);
-  const [revealedHints, setRevealedHints] = useState<number[]>([]);
-  const [answerRevealed, setAnswerRevealed] = useState(false);
-  const [riddleSolved, setRiddleSolved] = useState(false);
-  const [solvingRiddle, setSolvingRiddle] = useState(false);
-
-  useEffect(() => {
-    if (data?.riddle?.solved) {
-      setRiddleSolved(true);
-      setAnswerRevealed(true);
-    }
-  }, [data?.riddle?.solved]);
-
-  const handleSolveRiddle = async (riddleId: number) => {
-    if (riddleSolved || solvingRiddle) return;
-    setSolvingRiddle(true);
-    SoundEffects.playCorrect();
-    try {
-      const res = await solveDailyRiddle(riddleId);
-      setRiddleSolved(true);
-      if (res.totalXp && user) {
-        setUser({ ...user, xp: res.totalXp });
-      }
-    } catch {
-      // Non-fatal
-    } finally {
-      setSolvingRiddle(false);
-    }
-  };
-
-  const handleShareRiddle = async (riddleText: string) => {
-    try {
-      SoundEffects.playTap();
-      await Share.share({
-        message: `🧩 QuizQuest Daily Riddle / गाउँखाने कथा:\n\n"${riddleText}"\n\nCan you guess the answer? Play QuizQuest & earn +15 XP! 🔥\nhttps://quizquest.com`,
-      });
-    } catch {}
-  };
-
-  const toggleHint = (index: number) => {
-    SoundEffects.playTap();
-    setRevealedHints((prev) =>
-      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
-    );
-  };
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [factSeed, setFactSeed] = useState(() => Math.floor(Math.random() * 50));
 
   // Auto-detect user country if not set yet
   useEffect(() => {
@@ -271,8 +230,38 @@ export function HomeScreen() {
                 ✨ {t("tagline")}
               </Text>
             </View>
-            <AvatarCircle avatar={data.user.avatar} size={54} />
+
+            {/* Notification Bell & Profile Avatar */}
+            <View style={styles.headerRightActions}>
+              <TouchableOpacity
+                style={[
+                  styles.notificationBellBtn,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ]}
+                onPress={() => setShowNotificationModal(true)}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Notifications"
+              >
+                <Text style={styles.notificationBellIcon}>🔔</Text>
+                <View style={[styles.notificationBellBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.notificationBellBadgeText}>3</Text>
+                </View>
+              </TouchableOpacity>
+              <AvatarCircle avatar={data.user.avatar} size={48} />
+            </View>
           </View>
+
+          {/* Notification Center Modal */}
+          <NotificationCenterModal
+            visible={showNotificationModal}
+            onClose={() => setShowNotificationModal(false)}
+            onNavigateQuiz={() => (navigation as any).navigate("DailyQuiz")}
+            onNavigateZip={() => (navigation as any).navigate("ZipPlay")}
+            onNavigateBattle={() => (navigation as any).navigate("Battle")}
+            onNavigateRiddle={() => (navigation as any).navigate("RiddlePlay")}
+            streakCount={data.user.streak || 1}
+          />
 
           {/* Country Syllabus Switcher Modal */}
           <CountrySelectorModal
@@ -369,13 +358,18 @@ export function HomeScreen() {
           {/* Hero Daily Quest Card */}
           <TouchableOpacity
             activeOpacity={0.88}
-            disabled={quizDone}
-            onPress={() => navigation.navigate("DailyQuiz")}
+            onPress={() => {
+              if (quizDone) {
+                navigation.navigate("DailyQuiz", { mode: "practice" });
+              } else {
+                navigation.navigate("DailyQuiz", { mode: "daily" });
+              }
+            }}
           >
             <Card
               style={StyleSheet.flatten([
                 styles.questCard,
-                !quizDone && { borderColor: colors.primary, borderWidth: 1.5 },
+                { borderColor: colors.primary, borderWidth: 1.5 },
               ])}
             >
               <View style={styles.questHeaderRow}>
@@ -399,7 +393,7 @@ export function HomeScreen() {
                       },
                     ]}
                   >
-                    {quizDone ? "✓ COMPLETED" : "DAILY QUEST · +50 XP"}
+                    {quizDone ? "✓ COMPLETED · UNLIMITED MODE ON" : "DAILY QUEST · +50 XP"}
                   </Text>
                 </View>
               </View>
@@ -421,7 +415,7 @@ export function HomeScreen() {
                       { color: colors.text, fontFamily: fonts.display },
                     ]}
                   >
-                    {t("homeTodaysQuest")}
+                    {quizDone ? t("quizPlayMore") : t("homeTodaysQuest")}
                   </Text>
                   <Text
                     style={[
@@ -429,29 +423,43 @@ export function HomeScreen() {
                       { color: colors.textMuted, fontFamily: fonts.body },
                     ]}
                   >
-                    {t("homeQuestMeta")}
+                    {quizDone
+                      ? "Play endless 5-question rounds for +XP & mastery!"
+                      : t("homeQuestMeta")}
                   </Text>
                 </View>
               </View>
 
               {quizDone ? (
-                <View
-                  style={[
-                    styles.questDoneBanner,
-                    { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: colors.green },
-                  ]}
-                >
-                  <Text
+                <View style={{ gap: 8 }}>
+                  <View
                     style={[
-                      styles.questDoneText,
-                      { color: colors.green, fontFamily: fonts.bodyBold },
+                      styles.questDoneBanner,
+                      { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: colors.green },
                     ]}
                   >
-                    🎉 {t("homeQuestDone", {
-                      score: data.dailyQuiz.score ?? 0,
-                      total: data.dailyQuiz.total,
-                    })}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.questDoneText,
+                        { color: colors.green, fontFamily: fonts.bodyBold },
+                      ]}
+                    >
+                      🎉 {t("homeQuestDone", {
+                        score: data.dailyQuiz.score ?? 0,
+                        total: data.dailyQuiz.total,
+                      })}
+                    </Text>
+                  </View>
+                  <View style={[styles.questCta, { backgroundColor: colors.primary }]}>
+                    <Text
+                      style={[
+                        styles.questCtaText,
+                        { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
+                      ]}
+                    >
+                      🎲 {t("quizPlayMore")} →
+                    </Text>
+                  </View>
                 </View>
               ) : (
                 <View style={[styles.questCta, { backgroundColor: colors.primary }]}>
@@ -468,175 +476,289 @@ export function HomeScreen() {
             </Card>
           </TouchableOpacity>
 
-          {/* Memory Blocks Mode Card */}
-          <TouchableOpacity
-            activeOpacity={0.88}
-            onPress={() => (navigation as any).navigate("MemoryPlay")}
-          >
-            <Card
-              style={StyleSheet.flatten([
-                styles.questCard,
-                {
-                  backgroundColor: colors.surfaceElevated,
-                  borderColor: colors.border,
-                  borderWidth: 1.5,
-                  marginTop: spacing.md,
-                },
-              ])}
-            >
-              <View style={styles.questMainContent}>
-                <View
-                  style={[
-                    styles.questIconBox,
-                    {
-                      width: 64,
-                      height: 64,
-                      borderRadius: 18,
-                      backgroundColor: "rgba(251, 146, 60, 0.16)",
-                      borderColor: "#FB923C",
-                      borderWidth: 1.5,
-                    },
-                  ]}
-                >
-                  <Text style={{ fontSize: 36 }}>🧩</Text>
-                </View>
-                <View style={styles.questBody}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <Text
-                      style={[
-                        styles.questTitle,
-                        { color: colors.text, fontFamily: fonts.display },
-                      ]}
-                    >
-                      {lang === "ne" ? "स्मरण ब्लकहरू" : "Memory Blocks"}
-                    </Text>
-                    <View
-                      style={{
-                        backgroundColor: "#10B981",
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        borderRadius: 6,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          fontFamily: fonts.bodyBold,
-                          color: "#FFFFFF",
-                        }}
-                      >
-                        NEW
-                      </Text>
-                    </View>
-                  </View>
-                  <Text
-                    style={[
-                      styles.questMeta,
-                      { color: colors.textMuted, fontFamily: fonts.body },
-                    ]}
-                  >
-                    {lang === "ne"
-                      ? "पाठ्यक्रम जोडा मिलाउने खेल • १२+ सक्रिय प्याकहरू"
-                      : "Syllabus match & recall cards • 12+ active packs"}
-                  </Text>
-                </View>
-              </View>
-              <View style={[styles.questCta, { backgroundColor: "#FB923C" }]}>
+          {/* Game Arena & Arcade Header */}
+          <View style={styles.arcadeHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 18 }}>🎮</Text>
                 <Text
                   style={[
-                    styles.questCtaText,
-                    { color: "#FFFFFF", fontFamily: fonts.bodyBold },
+                    styles.arcadeSectionTitle,
+                    { color: colors.text, fontFamily: fonts.display },
                   ]}
                 >
-                  {lang === "ne" ? "अहिले खेल्नुहोस्" : "PLAY MEMORY"} ⚡
+                  {t("homeArcadeHeader")}
                 </Text>
               </View>
-            </Card>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.arcadeSectionSub,
+                  { color: colors.textMuted, fontFamily: fonts.body },
+                ]}
+              >
+                {t("homeArcadeSub")}
+              </Text>
+            </View>
+          </View>
 
-          {/* Zip Path Puzzle Mode Card */}
-          <TouchableOpacity
-            activeOpacity={0.88}
-            onPress={() => (navigation as any).navigate("ZipPlay")}
-          >
-            <Card
-              style={StyleSheet.flatten([
-                styles.questCard,
-                {
-                  backgroundColor: colors.surfaceElevated,
-                  borderColor: colors.border,
-                  borderWidth: 1.5,
-                  marginTop: spacing.md,
-                },
-              ])}
+          {/* 2-Column Arcade Grid */}
+          <View style={styles.arcadeGrid}>
+            {/* Tile 1: Zip Path Puzzle */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.arcadeGridItem}
+              onPress={() => (navigation as any).navigate("ZipPlay")}
             >
-              <View style={styles.questMainContent}>
-                <View
-                  style={[
-                    styles.questIconBox,
-                    {
-                      width: 64,
-                      height: 64,
-                      borderRadius: 18,
-                      backgroundColor: "rgba(124, 58, 237, 0.16)",
-                      borderColor: "#8B5CF6",
-                      borderWidth: 1.5,
-                    },
-                  ]}
-                >
-                  <Text style={{ fontSize: 34 }}>⚡</Text>
-                </View>
-                <View style={styles.questBody}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <Text
-                      style={[
-                        styles.questTitle,
-                        { color: colors.text, fontFamily: fonts.display },
-                      ]}
-                    >
-                      {t("homeZipTitle")}
-                    </Text>
-                    <View
-                      style={{
-                        backgroundColor: "#8B5CF6",
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        borderRadius: 6,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          fontFamily: fonts.bodyBold,
-                          color: "#FFFFFF",
-                        }}
-                      >
-                        NEW
-                      </Text>
-                    </View>
-                  </View>
-                  <Text
+              <Card
+                style={StyleSheet.flatten([
+                  styles.arcadeCard,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ])}
+              >
+                <View style={styles.arcadeCardTop}>
+                  <View
                     style={[
-                      styles.questMeta,
-                      { color: colors.textMuted, fontFamily: fonts.body },
+                      styles.arcadeIconBox,
+                      { backgroundColor: "rgba(124, 58, 237, 0.15)", borderColor: "#8B5CF6" },
                     ]}
                   >
-                    {t("homeZipSub")}
-                  </Text>
+                    <Text style={styles.arcadeIconText}>⚡</Text>
+                  </View>
+                  <View style={[styles.arcadeBadge, { backgroundColor: "#8B5CF6" }]}>
+                    <Text style={styles.arcadeBadgeText}>DAILY</Text>
+                  </View>
                 </View>
-              </View>
-              <View style={[styles.questCta, { backgroundColor: "#7C3AED" }]}>
                 <Text
                   style={[
-                    styles.questCtaText,
-                    { color: "#FFFFFF", fontFamily: fonts.bodyBold },
+                    styles.arcadeItemTitle,
+                    { color: colors.text, fontFamily: fonts.display },
                   ]}
+                  numberOfLines={1}
                 >
-                  {t("homeZipPlay")} 🧩
+                  {t("homeZipTitle")}
                 </Text>
-              </View>
-            </Card>
-          </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.arcadeItemSub,
+                    { color: colors.textMuted, fontFamily: fonts.body },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {t("homeZipSub")}
+                </Text>
+                <View style={[styles.arcadeItemCta, { backgroundColor: "#7C3AED" }]}>
+                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
+                    {lang === "ne" ? "खेल्नुहोस्" : "PLAY"} →
+                  </Text>
+                </View>
+              </Card>
+            </TouchableOpacity>
+
+            {/* Tile 2: Word Search (शब्द खोज) - NEW */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.arcadeGridItem}
+              onPress={() => (navigation as any).navigate("WordSearchPlay")}
+            >
+              <Card
+                style={StyleSheet.flatten([
+                  styles.arcadeCard,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ])}
+              >
+                <View style={styles.arcadeCardTop}>
+                  <View
+                    style={[
+                      styles.arcadeIconBox,
+                      { backgroundColor: "rgba(236, 72, 153, 0.15)", borderColor: "#EC4899" },
+                    ]}
+                  >
+                    <Text style={styles.arcadeIconText}>🔤</Text>
+                  </View>
+                  <View style={[styles.arcadeBadge, { backgroundColor: "#EC4899" }]}>
+                    <Text style={styles.arcadeBadgeText}>NEW</Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.arcadeItemTitle,
+                    { color: colors.text, fontFamily: fonts.display },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {t("homeWordSearchTitle")}
+                </Text>
+                <Text
+                  style={[
+                    styles.arcadeItemSub,
+                    { color: colors.textMuted, fontFamily: fonts.body },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {t("homeWordSearchSub")}
+                </Text>
+                <View style={[styles.arcadeItemCta, { backgroundColor: "#DB2777" }]}>
+                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
+                    {lang === "ne" ? "खेल्नुहोस्" : "PLAY"} →
+                  </Text>
+                </View>
+              </Card>
+            </TouchableOpacity>
+
+
+            {/* Tile 4: Memory Blocks */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.arcadeGridItem}
+              onPress={() => (navigation as any).navigate("MemoryPlay")}
+            >
+              <Card
+                style={StyleSheet.flatten([
+                  styles.arcadeCard,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ])}
+              >
+                <View style={styles.arcadeCardTop}>
+                  <View
+                    style={[
+                      styles.arcadeIconBox,
+                      { backgroundColor: "rgba(251, 146, 60, 0.15)", borderColor: "#FB923C" },
+                    ]}
+                  >
+                    <Text style={styles.arcadeIconText}>🧠</Text>
+                  </View>
+                  <View style={[styles.arcadeBadge, { backgroundColor: "#FB923C" }]}>
+                    <Text style={styles.arcadeBadgeText}>CARDS</Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.arcadeItemTitle,
+                    { color: colors.text, fontFamily: fonts.display },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {lang === "ne" ? "स्मरण ब्लकहरू" : "Memory Blocks"}
+                </Text>
+                <Text
+                  style={[
+                    styles.arcadeItemSub,
+                    { color: colors.textMuted, fontFamily: fonts.body },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {lang === "ne" ? "पाठ्यक्रम जोडा मिलाउने खेल" : "Match pairs & test quick recall"}
+                </Text>
+                <View style={[styles.arcadeItemCta, { backgroundColor: "#EA580C" }]}>
+                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
+                    {lang === "ne" ? "खेल्नुहोस्" : "PLAY"} →
+                  </Text>
+                </View>
+              </Card>
+            </TouchableOpacity>
+
+            {/* Tile 5: 1v1 Battle Arena */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.arcadeGridItem}
+              onPress={() => (navigation as any).navigate("Battle")}
+            >
+              <Card
+                style={StyleSheet.flatten([
+                  styles.arcadeCard,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ])}
+              >
+                <View style={styles.arcadeCardTop}>
+                  <View
+                    style={[
+                      styles.arcadeIconBox,
+                      { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "#EF4444" },
+                    ]}
+                  >
+                    <Text style={styles.arcadeIconText}>⚔️</Text>
+                  </View>
+                  <View style={[styles.arcadeBadge, { backgroundColor: "#EF4444" }]}>
+                    <Text style={styles.arcadeBadgeText}>LIVE 1v1</Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.arcadeItemTitle,
+                    { color: colors.text, fontFamily: fonts.display },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {lang === "ne" ? "क्विज भिडन्त" : "Friend Battles"}
+                </Text>
+                <Text
+                  style={[
+                    styles.arcadeItemSub,
+                    { color: colors.textMuted, fontFamily: fonts.body },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {lang === "ne" ? "साथीहरूसँग प्रत्यक्ष प्रतिस्पर्धा" : "Real-time head-to-head battle"}
+                </Text>
+                <View style={[styles.arcadeItemCta, { backgroundColor: "#DC2626" }]}>
+                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
+                    {lang === "ne" ? "भिडन्त" : "BATTLE"} ⚔️
+                  </Text>
+                </View>
+              </Card>
+            </TouchableOpacity>
+
+            {/* Tile 6: Student Insights & Analytics - NEW */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.arcadeGridItem}
+              onPress={() => (navigation as any).navigate("GameInsights")}
+            >
+              <Card
+                style={StyleSheet.flatten([
+                  styles.arcadeCard,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, borderWidth: 1.5 },
+                ])}
+              >
+                <View style={styles.arcadeCardTop}>
+                  <View
+                    style={[
+                      styles.arcadeIconBox,
+                      { backgroundColor: "rgba(59, 130, 246, 0.15)", borderColor: colors.primary },
+                    ]}
+                  >
+                    <Text style={styles.arcadeIconText}>📊</Text>
+                  </View>
+                  <View style={[styles.arcadeBadge, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.arcadeBadgeText}>MASTERY</Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.arcadeItemTitle,
+                    { color: colors.text, fontFamily: fonts.display },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {t("homeInsightsTitle")}
+                </Text>
+                <Text
+                  style={[
+                    styles.arcadeItemSub,
+                    { color: colors.textMuted, fontFamily: fonts.body },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {t("homeInsightsSub")}
+                </Text>
+                <View style={[styles.arcadeItemCta, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
+                    {lang === "ne" ? "हेर्नुहोस्" : "VIEW"} 📈
+                  </Text>
+                </View>
+              </Card>
+            </TouchableOpacity>
+          </View>
 
           {/* Revenge Round Card */}
           {data.revengeAvailable && (
@@ -724,6 +846,24 @@ export function HomeScreen() {
                     📰 DAILY DIGEST
                   </Text>
                 </View>
+
+                {/* Instant Shuffle / Random Digest Fact Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.digestShuffleBtn,
+                    { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                  ]}
+                  onPress={() => {
+                    SoundEffects.playCardFlip();
+                    setFactSeed((prev) => (prev + 1) % 50);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.digestShuffleText, { color: colors.accent, fontFamily: fonts.bodyBold }]}>
+                    🎲 {lang === "ne" ? "अर्को रोचक तथ्य" : "New Fact"}
+                  </Text>
+                </TouchableOpacity>
+
                 <Text
                   style={[
                     styles.digestDate,
@@ -790,149 +930,6 @@ export function HomeScreen() {
                   {lang === "ne" && digest.nepalFactNe ? digest.nepalFactNe : digest.nepalFactEn}
                 </Text>
               </View>
-            </Card>
-          )}
-
-          {/* Today's Daily Riddle / Gaunkhane Katha Card */}
-          {data.riddle && (
-            <Card style={styles.riddleCard}>
-              <View style={styles.riddleHeader}>
-                <View style={styles.riddleBadge}>
-                  <Text style={[styles.riddleBadgeText, { color: "#F59E0B", fontFamily: fonts.bodyBold }]}>
-                    🧩 DAILY RIDDLE · {lang === "ne" ? "गाउँखाने कथा" : "BRAIN TEASER"}
-                  </Text>
-                </View>
-                <View style={[styles.riddleCatPill, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-                  <Text style={[styles.riddleCatText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
-                    {data.riddle.category.toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={[styles.riddleQuestion, { color: colors.text, fontFamily: fonts.displayMed }]}>
-                "{lang === "ne" && data.riddle.riddleNe ? data.riddle.riddleNe : data.riddle.riddleEn}"
-              </Text>
-
-              {/* Progressive Hints */}
-              <View style={styles.hintsRow}>
-                {[1, 2, 3].map((num) => {
-                  const isRevealed = revealedHints.includes(num);
-                  return (
-                    <TouchableOpacity
-                      key={num}
-                      activeOpacity={0.75}
-                      style={[
-                        styles.hintChip,
-                        {
-                          backgroundColor: isRevealed ? colors.primarySoft : colors.bgMid,
-                          borderColor: isRevealed ? colors.primary : colors.border,
-                        },
-                      ]}
-                      onPress={() => toggleHint(num)}
-                    >
-                      <Text style={[styles.hintChipText, { color: isRevealed ? colors.primary : colors.textMuted, fontFamily: fonts.bodyBold }]}>
-                        💡 {lang === "ne" ? `संकेत ${num}` : `Hint ${num}`} {isRevealed ? "▼" : "▶"}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Hint expanded details */}
-              {revealedHints.map((num) => {
-                const hintText =
-                  num === 1
-                    ? (lang === "ne" && data.riddle?.hint1Ne ? data.riddle.hint1Ne : data.riddle?.hint1En)
-                    : num === 2
-                    ? (lang === "ne" && data.riddle?.hint2Ne ? data.riddle.hint2Ne : data.riddle?.hint2En)
-                    : (lang === "ne" && data.riddle?.hint3Ne ? data.riddle.hint3Ne : data.riddle?.hint3En);
-
-                if (!hintText) return null;
-                return (
-                  <View key={num} style={[styles.hintBox, { backgroundColor: colors.bgMid, borderColor: colors.border }]}>
-                    <Text style={[styles.hintBoxTitle, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
-                      💡 {lang === "ne" ? `संकेत ${num}:` : `Clue ${num}:`}
-                    </Text>
-                    <Text style={[styles.hintBoxText, { color: colors.text, fontFamily: fonts.body }]}>
-                      {hintText}
-                    </Text>
-                  </View>
-                );
-              })}
-
-              {/* Solution Area */}
-              {answerRevealed ? (
-                <View style={[styles.answerContainer, { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: colors.green }]}>
-                  <Text style={[styles.answerLabel, { color: colors.green, fontFamily: fonts.bodyBold }]}>
-                    🎯 {lang === "ne" ? "उत्तर / समाधान:" : "Answer / Solution:"}
-                  </Text>
-                  <Text style={[styles.answerText, { color: colors.text, fontFamily: fonts.display }]}>
-                    {lang === "ne" && data.riddle.answerNe ? data.riddle.answerNe : data.riddle.answerEn}
-                  </Text>
-
-                  <View style={styles.riddleActionButtons}>
-                    {data.riddle.solved || riddleSolved ? (
-                      <View style={[styles.solvedBadge, { backgroundColor: colors.green }]}>
-                        <Text style={[styles.solvedBadgeText, { color: "#FFFFFF", fontFamily: fonts.bodyBold }]}>
-                          ✓ SOLVED · +15 XP EARNED 🎉
-                        </Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        disabled={solvingRiddle}
-                        style={[styles.claimXpBtn, { backgroundColor: colors.green }]}
-                        onPress={() => handleSolveRiddle(data.riddle!.id)}
-                      >
-                        <Text style={[styles.claimXpText, { color: "#FFFFFF", fontFamily: fonts.bodyBold }]}>
-                          {solvingRiddle ? "Claiming..." : "✨ I Solved It! (+15 XP)"}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={[styles.shareRiddleBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
-                      onPress={() =>
-                        handleShareRiddle(
-                          lang === "ne" && data.riddle?.riddleNe ? data.riddle.riddleNe : data.riddle?.riddleEn || ""
-                        )
-                      }
-                    >
-                      <Text style={[styles.shareRiddleText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
-                        📤 {lang === "ne" ? "साथीलाई सोध्नुहोस्" : "Challenge Friends"}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.riddleRevealRow}>
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    style={[styles.revealAnswerBtn, { backgroundColor: "#F59E0B" }]}
-                    onPress={() => {
-                      SoundEffects.playCardFlip();
-                      setAnswerRevealed(true);
-                    }}
-                  >
-                    <Text style={[styles.revealAnswerText, { color: "#FFFFFF", fontFamily: fonts.bodyBold }]}>
-                      🔍 {lang === "ne" ? "उत्तर हेर्नुहोस् (+15 XP)" : "Reveal Solution (+15 XP)"}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={[styles.shareRiddleSmallBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
-                    onPress={() =>
-                      handleShareRiddle(
-                        lang === "ne" && data.riddle?.riddleNe ? data.riddle.riddleNe : data.riddle?.riddleEn || ""
-                      )
-                    }
-                  >
-                    <Text style={{ fontSize: 16 }}>📤</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </Card>
           )}
 
@@ -1364,4 +1361,124 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  headerRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  notificationBellBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notificationBellIcon: {
+    fontSize: 20,
+  },
+  notificationBellBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  notificationBellBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+  },
+  digestShuffleBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+  },
+  digestShuffleText: {
+    fontSize: 11,
+  },
+  arcadeHeaderRow: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingHorizontal: 2,
+  },
+  arcadeSectionTitle: {
+    fontSize: 17,
+    letterSpacing: 0.3,
+  },
+  arcadeSectionSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  arcadeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  arcadeGridItem: {
+    width: "48%",
+  },
+  arcadeCard: {
+    padding: spacing.sm + 2,
+    borderRadius: radius.card,
+    borderWidth: 1.2,
+    minHeight: 180,
+    justifyContent: "space-between",
+  },
+  arcadeCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  arcadeIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  arcadeIconText: {
+    fontSize: 22,
+  },
+  arcadeBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  arcadeBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 0.5,
+  },
+  arcadeItemTitle: {
+    fontSize: 14,
+    marginBottom: 3,
+  },
+  arcadeItemSub: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 8,
+    flex: 1,
+  },
+  arcadeItemCta: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: radius.button,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  arcadeItemCtaText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
 });
+

@@ -233,6 +233,20 @@ CREATE TABLE IF NOT EXISTS user_riddle_solves (
   PRIMARY KEY (user_id, date)
 );
 CREATE INDEX IF NOT EXISTS idx_riddle_solves_user ON user_riddle_solves(user_id, date);
+
+CREATE TABLE IF NOT EXISTS word_search_scores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  puzzle_date TEXT NOT NULL,
+  category TEXT NOT NULL,
+  time_seconds INTEGER NOT NULL,
+  words_found INTEGER NOT NULL,
+  total_words INTEGER NOT NULL,
+  stars INTEGER NOT NULL DEFAULT 3,
+  xp_earned INTEGER NOT NULL DEFAULT 35,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_word_search_user ON word_search_scores(user_id, puzzle_date);
 `);
 
 // Safe column migrations for existing databases
