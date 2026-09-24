@@ -18,7 +18,8 @@ import { AppSplashVideoScreen } from "./src/screens/AppSplashVideoScreen";
 import { AuthProvider } from "./src/state/AuthContext";
 import { LanguageProvider } from "./src/state/LanguageContext";
 import { ThemeProvider, useTheme } from "./src/state/ThemeContext";
-import { registerForPushNotificationsAsync, scheduleDailyReminders } from "./src/utils/push";
+import { registerForPushNotificationsAsync, scheduleDailyReminders, setupNotificationResponseHandler } from "./src/utils/push";
+import { navigateFromNotification } from "./src/navigation/RootNavigator";
 
 function AppShell() {
   const { colors, ready } = useTheme();
@@ -39,12 +40,19 @@ function AppShell() {
     registerForPushNotificationsAsync().catch(() => {});
     scheduleDailyReminders().catch(() => {});
 
+    const unsubscribePushTap = setupNotificationResponseHandler((screen, params) => {
+      navigateFromNotification(screen, params);
+    });
+
     // Ensure fonts never indefinitely block app mounting if offline or slow
     const fontTimer = setTimeout(() => {
       setFontTimeout(true);
     }, 1200);
 
-    return () => clearTimeout(fontTimer);
+    return () => {
+      clearTimeout(fontTimer);
+      unsubscribePushTap();
+    };
   }, []);
 
   if (!splashFinished) {

@@ -6,7 +6,10 @@ import {
   Animated,
   Dimensions,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   PanResponder,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +19,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getDailyWordSearch, submitWordSearch } from "../api/client";
+import { queueOfflineSubmission } from "../utils/offlineStore";
 import { DailyWordSearchResponse } from "../api/types";
 import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
@@ -40,9 +44,15 @@ import {
   WordSearchPuzzle,
 } from "../utils/wordSearchGenerator";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const GRID_PADDING = spacing.md * 2;
-const MAX_BOARD_WIDTH = Math.min(SCREEN_WIDTH - GRID_PADDING, 390);
+// Cap board width by screen width and vertical height budget so grid and word bank fit harmoniously
+const MAX_BOARD_WIDTH = Math.min(SCREEN_WIDTH - GRID_PADDING, Math.floor(SCREEN_HEIGHT * 0.44), 380);
+
+/** Internal padding inside the grid container border */
+const GRID_CONTAINER_PADDING = 4;
+/** Gap between cells */
+const CELL_GAP = 2;
 
 type DifficultyTier = "easy" | "medium" | "hard";
 
@@ -56,10 +66,20 @@ interface DifficultyConfig {
 }
 
 const DIFFICULTY_CONFIGS: DifficultyConfig[] = [
-  { id: "easy", labelEn: "Easy", labelNe: "सजिलो", size: 8, wordCount: 5, icon: "🌱" },
-  { id: "medium", labelEn: "Medium", labelNe: "मध्यम", size: 10, wordCount: 7, icon: "⚡" },
-  { id: "hard", labelEn: "Hard", labelNe: "कडा", size: 12, wordCount: 9, icon: "🔥" },
+  { id: "easy", labelEn: "Easy", labelNe: "सजिलो", size: 10, wordCount: 6, icon: "🌱" },
+  { id: "medium", labelEn: "Medium", labelNe: "मध्यम", size: 13, wordCount: 10, icon: "⚡" },
+  { id: "hard", labelEn: "Hard", labelNe: "कडा", size: 16, wordCount: 14, icon: "🔥" },
 ];
+
+/**
+ * Compute the exact cell size and touchable area dimensions, matching render layout precisely.
+ * This ensures touch coordinates map 1:1 with rendered cell positions.
+ */
+function computeGridMetrics(gridSize: number) {
+  const innerWidth = MAX_BOARD_WIDTH - GRID_CONTAINER_PADDING * 2;
+  const cellSize = (innerWidth - CELL_GAP * (gridSize - 1)) / gridSize;
+  return { innerWidth, cellSize };
+}
 
 export function WordSearchPlayScreen() {
   const { colors } = useTheme();
@@ -87,18 +107,25 @@ export function WordSearchPlayScreen() {
   const [hintsLeft, setHintsLeft] = useState<number>(3);
   const [hintedCell, setHintedCell] = useState<{ row: number; col: number } | null>(null);
 
-  // Selection & Touch
+  // Selection & Touch — refs for PanResponder (avoids stale closures), state for rendering
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [tapAnchor, setTapAnchor] = useState<{ row: number; col: number } | null>(null);
-  const [selectionCells, setSelectionCells] = useState<{ row: number; col: number }[]>([]);
+  const [selectionCellsState, setSelectionCellsState] = useState<{ row: number; col: number }[]>([]);
+  const [tapAnchorState, setTapAnchorState] = useState<{ row: number; col: number } | null>(null);
+
+  // Mutable refs for PanResponder — updated synchronously, no stale closure issues
+  const selectionCellsRef = useRef<{ row: number; col: number }[]>([]);
+  const tapAnchorRef = useRef<{ row: number; col: number } | null>(null);
   const startCellRef = useRef<{ row: number; col: number } | null>(null);
   const currentCellRef = useRef<{ row: number; col: number } | null>(null);
+  const puzzleRef = useRef<WordSearchPuzzle | null>(null);
+  const foundWordsRef = useRef<Set<string>>(new Set());
+  const hintedCellRef = useRef<{ row: number; col: number } | null>(null);
 
-  // Board layout measurements
+  // Board layout measurements — refreshed on every touch via measureInWindow
   const gridContainerRef = useRef<View>(null);
-  const gridLayoutRef = useRef<{ pageX: number; pageY: number; width: number; height: number }>({
-    pageX: 0,
-    pageY: 0,
+  const gridLayoutRef = useRef<{ x: number; y: number; width: number; height: number }>({
+    x: 0,
+    y: 0,
     width: MAX_BOARD_WIDTH,
     height: MAX_BOARD_WIDTH,
   });
@@ -119,9 +146,65 @@ export function WordSearchPlayScreen() {
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const comboScaleAnim = useRef(new Animated.Value(1)).current;
+  const gridGlowAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const cellFoundAnim = useRef(new Animated.Value(1)).current;
+
+  // Vibration debounce to prevent excessive haptics during fast swipes
+  const lastVibrationRef = useRef<number>(0);
 
   // Categories list
   const categoryList = useMemo(() => getAllWordSearchCategories(), []);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    puzzleRef.current = puzzle;
+  }, [puzzle]);
+  useEffect(() => {
+    foundWordsRef.current = foundWords;
+  }, [foundWords]);
+  useEffect(() => {
+    hintedCellRef.current = hintedCell;
+  }, [hintedCell]);
+
+  // Sync selection state → ref
+  const updateSelectionCells = useCallback((cells: { row: number; col: number }[]) => {
+    selectionCellsRef.current = cells;
+    setSelectionCellsState(cells);
+  }, []);
+
+  const updateTapAnchor = useCallback((anchor: { row: number; col: number } | null) => {
+    tapAnchorRef.current = anchor;
+    setTapAnchorState(anchor);
+  }, []);
+
+  // Grid glow breathing animation
+  useEffect(() => {
+    if (puzzle && !showVictory) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(gridGlowAnim, { toValue: 1, duration: 2000, useNativeDriver: false }),
+          Animated.timing(gridGlowAnim, { toValue: 0, duration: 2000, useNativeDriver: false }),
+        ])
+      ).start();
+    }
+    return () => {
+      gridGlowAnim.stopAnimation();
+    };
+  }, [puzzle, showVictory]);
+
+  // Animate progress bar when words are found
+  useEffect(() => {
+    if (puzzle && puzzle.placedWords.length > 0) {
+      const progress = foundWords.size / puzzle.placedWords.length;
+      Animated.spring(progressAnim, {
+        toValue: progress,
+        tension: 60,
+        friction: 8,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [foundWords.size, puzzle]);
 
   // Timer interval effect
   useEffect(() => {
@@ -172,16 +255,17 @@ export function WordSearchPlayScreen() {
 
       setPuzzle(newPuzzle);
       setFoundWords(new Set());
-      setTapAnchor(null);
-      setSelectionCells([]);
+      updateTapAnchor(null);
+      updateSelectionCells([]);
       setTimeSeconds(0);
       setIsTimerRunning(true);
-      setHintsLeft(3);
+      setHintsLeft(diff === "hard" ? 1 : diff === "medium" ? 2 : 3);
       setHintedCell(null);
       setComboCount(0);
       setRevealedMystery(null);
       lastFoundTimestampRef.current = 0;
       setLoading(false);
+      progressAnim.setValue(0);
 
       return newPuzzle;
     },
@@ -256,14 +340,15 @@ export function WordSearchPlayScreen() {
   // Check victory condition when all words are found
   const checkVictory = useCallback(
     async (updatedFound: Set<string>) => {
-      if (!puzzle) return;
-      if (updatedFound.size === puzzle.placedWords.length) {
+      if (!puzzleRef.current) return;
+      const currentPuzzle = puzzleRef.current;
+      if (updatedFound.size === currentPuzzle.placedWords.length) {
         setIsTimerRunning(false);
         SoundEffects.playVictory();
 
         // Reveal secret mystery word if one was embedded in the puzzle
-        if (puzzle.mysteryWord) {
-          setRevealedMystery(puzzle.mysteryWord);
+        if (currentPuzzle.mysteryWord) {
+          setRevealedMystery(currentPuzzle.mysteryWord);
         }
 
         // Calculate stars based on completion time & difficulty
@@ -278,7 +363,7 @@ export function WordSearchPlayScreen() {
 
         // Calculate XP reward
         const baseBonus = difficulty === "easy" ? 25 : difficulty === "medium" ? 35 : 50;
-        const mysteryBonus = puzzle.mysteryWord ? 20 : 0;
+        const mysteryBonus = currentPuzzle.mysteryWord ? 20 : 0;
         const totalXp = baseBonus + earnedStars * 5 + mysteryBonus;
         setAwardedXp(totalXp);
         setShowVictory(true);
@@ -292,32 +377,41 @@ export function WordSearchPlayScreen() {
               category: selectedCategory,
               timeSeconds,
               wordsFound: updatedFound.size,
-              totalWords: puzzle.placedWords.length,
+              totalWords: currentPuzzle.placedWords.length,
               stars: earnedStars,
             });
             refreshUser();
           } catch (err) {
-            // Silently handle offline score sync
+            queueOfflineSubmission("wordsearch", "/games/wordsearch/daily/score", {
+              puzzleDate: dailyData?.puzzleDate || new Date().toISOString().slice(0, 10),
+              category: selectedCategory,
+              timeSeconds,
+              wordsFound: updatedFound.size,
+              totalWords: currentPuzzle.placedWords.length,
+              stars: earnedStars,
+            });
           } finally {
             setSubmitting(false);
           }
         }
       }
     },
-    [puzzle, gameMode, dailyData, selectedCategory, timeSeconds, difficulty, refreshUser]
+    [gameMode, dailyData, selectedCategory, timeSeconds, difficulty, refreshUser]
   );
 
   // Evaluate if given cells match an unfound placed word
   const checkWordMatch = useCallback(
     (cells: { row: number; col: number }[]) => {
-      if (!puzzle || cells.length < 2) return false;
+      const currentPuzzle = puzzleRef.current;
+      const currentFound = foundWordsRef.current;
+      if (!currentPuzzle || cells.length < 2) return false;
 
-      const forwardChars = cells.map((c) => puzzle.grid[c.row][c.col]).join("");
+      const forwardChars = cells.map((c) => currentPuzzle.grid[c.row][c.col]).join("");
       const backwardChars = [...forwardChars].reverse().join("");
 
       let matchedWord: PlacedWord | null = null;
-      for (const pw of puzzle.placedWords) {
-        if (!foundWords.has(pw.word)) {
+      for (const pw of currentPuzzle.placedWords) {
+        if (!currentFound.has(pw.word)) {
           if (pw.word === forwardChars || pw.word === backwardChars) {
             matchedWord = pw;
             break;
@@ -328,6 +422,12 @@ export function WordSearchPlayScreen() {
       if (matchedWord) {
         SoundEffects.playCorrect();
         Vibration.vibrate(40);
+
+        // Celebrate found word with cell pulse animation
+        Animated.sequence([
+          Animated.timing(cellFoundAnim, { toValue: 1.15, duration: 120, useNativeDriver: true }),
+          Animated.timing(cellFoundAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+        ]).start();
 
         // Combo calculation: found within 15 seconds
         const now = Date.now();
@@ -345,12 +445,13 @@ export function WordSearchPlayScreen() {
         }
         lastFoundTimestampRef.current = now;
 
-        const nextFound = new Set(foundWords);
+        const nextFound = new Set(currentFound);
         nextFound.add(matchedWord.word);
         setFoundWords(nextFound);
         setSelectedClue(matchedWord);
 
-        if (hintedCell && hintedCell.row === matchedWord.startRow && hintedCell.col === matchedWord.startCol) {
+        const currentHinted = hintedCellRef.current;
+        if (currentHinted && currentHinted.row === matchedWord.startRow && currentHinted.col === matchedWord.startCol) {
           setHintedCell(null);
         }
 
@@ -359,19 +460,62 @@ export function WordSearchPlayScreen() {
       }
       return false;
     },
-    [puzzle, foundWords, hintedCell, checkVictory, comboScaleAnim]
+    [checkVictory, comboScaleAnim, cellFoundAnim]
   );
 
-  // Measure board bounds
-  const measureGrid = useCallback(() => {
-    gridContainerRef.current?.measure((x, y, width, height, pageX, pageY) => {
-      if (width > 0 && height > 0) {
-        gridLayoutRef.current = { pageX, pageY, width, height };
+  /**
+   * Measure grid position using measureInWindow for scroll-proof coordinates.
+   * measureInWindow returns absolute screen coordinates regardless of scroll state.
+   */
+  const measureGridNow = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      if (gridContainerRef.current) {
+        gridContainerRef.current.measureInWindow((x, y, width, height) => {
+          if (width > 0 && height > 0) {
+            gridLayoutRef.current = { x, y, width, height };
+          }
+          resolve();
+        });
+      } else {
+        resolve();
       }
     });
   }, []);
 
-  // Responsive, fluid touch responder with continuous swipe and two-tap connect
+  /**
+   * Convert absolute screen touch coordinates to grid cell.
+   * Uses the EXACT same sizing math as the render layout to eliminate offset drift.
+   */
+  const touchToCell = useCallback(
+    (pageX: number, pageY: number, gridSize: number): { row: number; col: number } => {
+      const layout = gridLayoutRef.current;
+      const { cellSize } = computeGridMetrics(gridSize);
+
+      // Local coordinates within the grid container, accounting for container padding
+      const localX = pageX - layout.x - GRID_CONTAINER_PADDING;
+      const localY = pageY - layout.y - GRID_CONTAINER_PADDING;
+
+      // Divide by (cellSize + gap) to get cell index
+      const col = Math.max(0, Math.min(gridSize - 1, Math.floor(localX / (cellSize + CELL_GAP))));
+      const row = Math.max(0, Math.min(gridSize - 1, Math.floor(localY / (cellSize + CELL_GAP))));
+      return { row, col };
+    },
+    []
+  );
+
+  // Debounced vibration helper
+  const vibrateDebounced = useCallback((ms: number = 8) => {
+    const now = Date.now();
+    if (now - lastVibrationRef.current > 30) {
+      lastVibrationRef.current = now;
+      Vibration.vibrate(ms);
+    }
+  }, []);
+
+  /**
+   * PanResponder with ref-based state access — NO stale closures.
+   * Dependencies are minimal and stable: only utility functions.
+   */
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -383,99 +527,109 @@ export function WordSearchPlayScreen() {
         onShouldBlockNativeResponder: () => true,
 
         onPanResponderGrant: (evt) => {
-          if (!puzzle) return;
-          const { pageX, pageY, locationX, locationY } = evt.nativeEvent;
+          const currentPuzzle = puzzleRef.current;
+          if (!currentPuzzle) return;
+          const { pageX, pageY } = evt.nativeEvent;
 
-          const gridPageX = gridLayoutRef.current.pageX > 0 ? gridLayoutRef.current.pageX : pageX - locationX;
-          const gridPageY = gridLayoutRef.current.pageY > 0 ? gridLayoutRef.current.pageY : pageY - locationY;
-          gridLayoutRef.current = {
-            pageX: gridPageX,
-            pageY: gridPageY,
-            width: MAX_BOARD_WIDTH,
-            height: MAX_BOARD_WIDTH,
-          };
+          // Re-measure grid position on EVERY touch start for scroll-proof accuracy
+          if (gridContainerRef.current) {
+            gridContainerRef.current.measureInWindow((x, y, width, height) => {
+              if (width > 0 && height > 0) {
+                gridLayoutRef.current = { x, y, width, height };
+              }
 
-          setIsDragging(true);
+              setIsDragging(true);
 
-          const cellSize = MAX_BOARD_WIDTH / puzzle.size;
-          const localX = pageX - gridPageX;
-          const localY = pageY - gridPageY;
-          const col = Math.max(0, Math.min(puzzle.size - 1, Math.floor(localX / cellSize)));
-          const row = Math.max(0, Math.min(puzzle.size - 1, Math.floor(localY / cellSize)));
-          const cell = { row, col };
+              const cell = touchToCell(pageX, pageY, currentPuzzle.size);
+              startCellRef.current = cell;
+              currentCellRef.current = cell;
 
-          startCellRef.current = cell;
-          currentCellRef.current = cell;
-
-          if (!tapAnchor) {
-            setSelectionCells([cell]);
-          } else {
-            const previewLine = getStraightLineCells(tapAnchor.row, tapAnchor.col, cell.row, cell.col);
-            setSelectionCells(previewLine);
+              const anchor = tapAnchorRef.current;
+              if (!anchor) {
+                selectionCellsRef.current = [cell];
+                setSelectionCellsState([cell]);
+              } else {
+                const previewLine = getStraightLineCells(anchor.row, anchor.col, cell.row, cell.col);
+                selectionCellsRef.current = previewLine;
+                setSelectionCellsState(previewLine);
+              }
+              SoundEffects.playTap();
+            });
           }
-          SoundEffects.playTap();
         },
 
         onPanResponderMove: (evt) => {
-          if (!startCellRef.current || !puzzle || !gridLayoutRef.current) return;
+          const currentPuzzle = puzzleRef.current;
+          if (!startCellRef.current || !currentPuzzle) return;
           const { pageX, pageY } = evt.nativeEvent;
-          const localX = pageX - gridLayoutRef.current.pageX;
-          const localY = pageY - gridLayoutRef.current.pageY;
-          const cellSize = MAX_BOARD_WIDTH / puzzle.size;
 
-          const col = Math.max(0, Math.min(puzzle.size - 1, Math.floor(localX / cellSize)));
-          const row = Math.max(0, Math.min(puzzle.size - 1, Math.floor(localY / cellSize)));
-          const cell = { row, col };
+          const cell = touchToCell(pageX, pageY, currentPuzzle.size);
 
           if (cell.row !== currentCellRef.current?.row || cell.col !== currentCellRef.current?.col) {
             currentCellRef.current = cell;
-            Vibration.vibrate(8);
-            const fromCell = tapAnchor || startCellRef.current;
+            vibrateDebounced(8);
+            const fromCell = tapAnchorRef.current || startCellRef.current;
             const line = getStraightLineCells(fromCell.row, fromCell.col, cell.row, cell.col);
-            setSelectionCells(line);
+            selectionCellsRef.current = line;
+            setSelectionCellsState(line);
           }
         },
 
         onPanResponderRelease: () => {
           setIsDragging(false);
-          if (!puzzle || !startCellRef.current) {
-            setSelectionCells([]);
+          const currentPuzzle = puzzleRef.current;
+          if (!currentPuzzle || !startCellRef.current) {
+            selectionCellsRef.current = [];
+            setSelectionCellsState([]);
             startCellRef.current = null;
             currentCellRef.current = null;
             return;
           }
 
           const tappedCell = startCellRef.current;
-          const wasMultiCellDrag = selectionCells.length > 1;
+          const currentSelection = selectionCellsRef.current;
+          const anchor = tapAnchorRef.current;
+          const wasMultiCellDrag = currentSelection.length > 1;
 
-          if (wasMultiCellDrag && !tapAnchor) {
-            const matched = checkWordMatch(selectionCells);
+          if (wasMultiCellDrag && !anchor) {
+            const matched = checkWordMatch(currentSelection);
             if (!matched) {
               SoundEffects.playCardFlip();
             }
-            setSelectionCells([]);
-            setTapAnchor(null);
+            selectionCellsRef.current = [];
+            setSelectionCellsState([]);
+            tapAnchorRef.current = null;
+            setTapAnchorState(null);
           } else {
-            if (!tapAnchor) {
-              setTapAnchor(tappedCell);
-              setSelectionCells([tappedCell]);
+            if (!anchor) {
+              tapAnchorRef.current = tappedCell;
+              setTapAnchorState(tappedCell);
+              selectionCellsRef.current = [tappedCell];
+              setSelectionCellsState([tappedCell]);
               SoundEffects.playTap();
             } else {
-              if (tapAnchor.row === tappedCell.row && tapAnchor.col === tappedCell.col) {
-                setTapAnchor(null);
-                setSelectionCells([]);
+              if (anchor.row === tappedCell.row && anchor.col === tappedCell.col) {
+                tapAnchorRef.current = null;
+                setTapAnchorState(null);
+                selectionCellsRef.current = [];
+                setSelectionCellsState([]);
                 SoundEffects.playTap();
               } else {
-                const line = getStraightLineCells(tapAnchor.row, tapAnchor.col, tappedCell.row, tappedCell.col);
-                setSelectionCells(line);
+                const line = getStraightLineCells(anchor.row, anchor.col, tappedCell.row, tappedCell.col);
+                selectionCellsRef.current = line;
+                setSelectionCellsState(line);
                 const matched = checkWordMatch(line);
                 if (matched) {
-                  setTapAnchor(null);
-                  setSelectionCells([]);
+                  tapAnchorRef.current = null;
+                  setTapAnchorState(null);
+                  selectionCellsRef.current = [];
+                  setSelectionCellsState([]);
                 } else {
                   SoundEffects.playTap();
-                  setTapAnchor(tappedCell);
-                  setSelectionCells([tappedCell]);
+                  tapAnchorRef.current = tappedCell;
+                  setTapAnchorState(tappedCell);
+                  selectionCellsRef.current = [tappedCell];
+                  setSelectionCellsState([tappedCell]);
                 }
               }
             }
@@ -487,12 +641,13 @@ export function WordSearchPlayScreen() {
 
         onPanResponderTerminate: () => {
           setIsDragging(false);
-          setSelectionCells([]);
+          selectionCellsRef.current = [];
+          setSelectionCellsState([]);
           startCellRef.current = null;
           currentCellRef.current = null;
         },
       }),
-    [puzzle, selectionCells, tapAnchor, checkWordMatch]
+    [touchToCell, checkWordMatch, vibrateDebounced]
   );
 
   // Use a hint to highlight the first letter of an unfound word
@@ -541,15 +696,31 @@ export function WordSearchPlayScreen() {
     );
   }, [categoryList, selectedCategory]);
 
-  return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]} edges={["top", "bottom"]}>
-      <Atmosphere />
+  // Animated border color for grid glow
+  const gridBorderColor = gridGlowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.border, colors.primary + "80"],
+  });
 
-      {/* Top App Header */}
-      <View style={styles.header}>
+  const gridShadowOpacity = gridGlowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.2, 0.5],
+  });
+
+  // Compute progress percentage for progress bar
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  });
+
+  return (
+    <Atmosphere>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+        {/* Top App Header */}
+        <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={[styles.iconButton, { backgroundColor: colors.surface }]}
+          style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           accessibilityLabel="Go back"
         >
           <Text style={[styles.backText, { color: colors.text }]}>←</Text>
@@ -571,14 +742,17 @@ export function WordSearchPlayScreen() {
         <View style={styles.headerActions}>
           <TouchableOpacity
             onPress={toggleSound}
-            style={[styles.iconButton, { backgroundColor: colors.surface, marginRight: 8 }]}
+            style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border, marginRight: 8 }]}
           >
             <Text style={styles.actionIcon}>{isSoundEnabled ? "🔊" : "🔇"}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleUseHint}
-            style={[styles.hintButton, { backgroundColor: colors.accent + "25", borderColor: colors.accent }]}
+            style={[styles.hintButton, {
+              backgroundColor: colors.accent + "18",
+              borderColor: colors.accent + "60",
+            }]}
           >
             <Text style={[styles.hintButtonText, { color: colors.accent }]}>💡 {hintsLeft}</Text>
           </TouchableOpacity>
@@ -588,7 +762,7 @@ export function WordSearchPlayScreen() {
       {/* Mode & Difficulty Segmented Controls */}
       <View style={styles.controlsRow}>
         {/* Game Mode Tab */}
-        <View style={[styles.segmentedPillContainer, { backgroundColor: colors.surface }]}>
+        <View style={[styles.segmentedPillContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <TouchableOpacity
             style={[
               styles.segmentOption,
@@ -631,7 +805,7 @@ export function WordSearchPlayScreen() {
         </View>
 
         {/* Difficulty Tier Selector */}
-        <View style={[styles.difficultySelector, { backgroundColor: colors.surface }]}>
+        <View style={[styles.difficultySelector, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {DIFFICULTY_CONFIGS.map((d) => {
             const isDiffActive = difficulty === d.id;
             return (
@@ -704,7 +878,7 @@ export function WordSearchPlayScreen() {
       )}
 
       {/* Glassmorphic Stats & Live HUD Bar */}
-      <View style={[styles.statsBar, { backgroundColor: colors.surface }]}>
+      <View style={[styles.statsBar, { backgroundColor: colors.surface + "E0", borderColor: colors.border }]}>
         <View style={styles.statBadge}>
           <Text style={[styles.statLabel, { color: colors.textMuted }]}>
             {lang === "ne" ? "समय" : "Time"}
@@ -737,7 +911,7 @@ export function WordSearchPlayScreen() {
 
         {/* Instant Shuffle / Regenerate Button */}
         <TouchableOpacity
-          style={[styles.shuffleButton, { backgroundColor: colors.primary + "18", borderColor: colors.primary }]}
+          style={[styles.shuffleButton, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "50" }]}
           onPress={() => {
             SoundEffects.playTap();
             if (gameMode === "practice") {
@@ -748,12 +922,27 @@ export function WordSearchPlayScreen() {
           }}
         >
           <Text style={[styles.shuffleButtonText, { color: colors.primary }]}>
-            🔄 {lang === "ne" ? "नयाँ खेल" : "Shuffle"}
+            🔄 {lang === "ne" ? "नयाँ" : "New"}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Main Board View */}
+      {/* Animated Progress Bar */}
+      {puzzle && (
+        <View style={[styles.progressBarContainer, { backgroundColor: colors.surface }]}>
+          <Animated.View
+            style={[
+              styles.progressBarFill,
+              {
+                width: progressWidth,
+                backgroundColor: foundWords.size === puzzle.placedWords.length ? colors.green : colors.primary,
+              },
+            ]}
+          />
+        </View>
+      )}
+
+      {/* Main Board View — Grid is OUTSIDE ScrollView to prevent touch offset issues */}
       {loading || !puzzle ? (
         <View style={styles.loaderContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -762,23 +951,19 @@ export function WordSearchPlayScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={!isDragging}
-        >
+        <View style={styles.gameArea}>
           {/* Active Clue Notification Banner */}
           {selectedClue && (
             <TouchableOpacity
               style={[
                 styles.clueBanner,
-                { backgroundColor: selectedClue.color + "20", borderColor: selectedClue.color },
+                { backgroundColor: selectedClue.color + "15", borderColor: selectedClue.color + "50" },
               ]}
               onPress={() => setClueModalVisible(true)}
             >
               <View style={styles.clueBannerLeft}>
                 <Text style={[styles.clueBannerWord, { color: selectedClue.color }]}>
-                  {selectedClue.word}
+                  ✓ {selectedClue.word}
                 </Text>
                 <Text style={[styles.clueBannerText, { color: colors.text }]} numberOfLines={1}>
                   💡 {lang === "ne" ? selectedClue.clueNe : selectedClue.clueEn}
@@ -789,8 +974,8 @@ export function WordSearchPlayScreen() {
           )}
 
           {/* Tap-to-Connect Prompt */}
-          {tapAnchor && (
-            <View style={[styles.clueBanner, { backgroundColor: colors.accent + "20", borderColor: colors.accent }]}>
+          {tapAnchorState && (
+            <View style={[styles.clueBanner, { backgroundColor: colors.accent + "15", borderColor: colors.accent + "50" }]}>
               <Text style={[styles.clueBannerWord, { color: colors.accent }]}>
                 📍 {lang === "ne" ? "सुरुको अक्षर छानियो" : "Start Letter Selected"}
               </Text>
@@ -802,149 +987,190 @@ export function WordSearchPlayScreen() {
             </View>
           )}
 
-          {/* Attractive Letter Grid with PanResponder */}
-          <View
-            ref={gridContainerRef}
+          {/* Attractive Letter Grid with PanResponder — positioned outside ScrollView */}
+          <Animated.View
             style={[
-              styles.gridContainer,
+              styles.gridOuterGlow,
               {
-                width: MAX_BOARD_WIDTH,
-                height: MAX_BOARD_WIDTH,
-                backgroundColor: colors.bg,
-                borderColor: colors.border,
+                borderColor: gridBorderColor,
+                shadowColor: colors.primary,
+                shadowOpacity: gridShadowOpacity as any,
               },
             ]}
-            onLayout={measureGrid}
-            {...panResponder.panHandlers}
           >
-            {puzzle.grid.map((rowArr, rIdx) => (
-              <View key={`row-${rIdx}`} style={styles.gridRow} pointerEvents="none">
-                {rowArr.map((letter, cIdx) => {
-                  const key = `${rIdx},${cIdx}`;
-                  const isFound = cellColorMap.has(key);
-                  const foundColor = cellColorMap.get(key) || colors.primary;
+            <View
+              ref={gridContainerRef}
+              style={[
+                styles.gridContainer,
+                {
+                  width: MAX_BOARD_WIDTH,
+                  height: MAX_BOARD_WIDTH,
+                  backgroundColor: colors.bg,
+                  borderColor: colors.border + "60",
+                  padding: GRID_CONTAINER_PADDING,
+                },
+              ]}
+              onLayout={() => {
+                // Initial measurement after layout
+                setTimeout(() => measureGridNow(), 50);
+              }}
+              {...panResponder.panHandlers}
+            >
+              {puzzle.grid.map((rowArr, rIdx) => (
+                <View key={`row-${rIdx}`} style={styles.gridRow} pointerEvents="none">
+                  {rowArr.map((letter, cIdx) => {
+                    const key = `${rIdx},${cIdx}`;
+                    const isFound = cellColorMap.has(key);
+                    const foundColor = cellColorMap.get(key) || colors.primary;
 
-                  const isSelected = selectionCells.some((c) => c.row === rIdx && c.col === cIdx);
-                  const isAnchor = tapAnchor?.row === rIdx && tapAnchor?.col === cIdx;
-                  const isHinted = hintedCell && hintedCell.row === rIdx && hintedCell.col === cIdx;
+                    const isSelected = selectionCellsState.some((c) => c.row === rIdx && c.col === cIdx);
+                    const isAnchor = tapAnchorState?.row === rIdx && tapAnchorState?.col === cIdx;
+                    const isHinted = hintedCell && hintedCell.row === rIdx && hintedCell.col === cIdx;
 
-                  let cellBg = colors.surface;
-                  let cellTextColor = colors.text;
+                    let cellBg = colors.surface;
+                    let cellTextColor = colors.text;
+                    let cellBorderColor = "transparent";
 
-                  if (isFound) {
-                    cellBg = foundColor;
-                    cellTextColor = "#FFFFFF";
-                  } else if (isSelected) {
-                    cellBg = colors.primary;
-                    cellTextColor = "#FFFFFF";
-                  } else if (isAnchor) {
-                    cellBg = colors.accent + "40";
-                    cellTextColor = colors.accent;
-                  }
+                    if (isFound) {
+                      cellBg = foundColor;
+                      cellTextColor = "#FFFFFF";
+                      cellBorderColor = foundColor;
+                    } else if (isSelected) {
+                      cellBg = colors.primary;
+                      cellTextColor = "#FFFFFF";
+                      cellBorderColor = colors.primary;
+                    } else if (isAnchor) {
+                      cellBg = colors.accent + "30";
+                      cellTextColor = colors.accent;
+                      cellBorderColor = colors.accent;
+                    }
 
-                  const cellSize = Math.floor(MAX_BOARD_WIDTH / puzzle.size) - 4;
+                    const { cellSize } = computeGridMetrics(puzzle.size);
 
-                  return (
-                    <Animated.View
-                      key={`cell-${rIdx}-${cIdx}`}
-                      pointerEvents="none"
-                      style={[
-                        styles.cell,
-                        {
-                          width: cellSize,
-                          height: cellSize,
-                          backgroundColor: cellBg,
-                          borderRadius: puzzle.size > 10 ? 6 : 8,
-                          shadowColor: isFound ? foundColor : "#000",
-                        },
-                        isSelected && styles.cellSelected,
-                        isAnchor && {
-                          borderColor: colors.accent,
-                          borderWidth: 2.5,
-                        },
-                        isFound && {
-                          borderColor: foundColor,
-                          borderWidth: 1,
-                        },
-                        isHinted && {
-                          borderColor: colors.accent,
-                          borderWidth: 2.5,
-                          transform: [{ scale: pulseAnim }],
-                        },
-                      ]}
-                    >
-                      <Text
+                    return (
+                      <Animated.View
+                        key={`cell-${rIdx}-${cIdx}`}
                         pointerEvents="none"
                         style={[
-                          styles.cellLetter,
+                          styles.cell,
                           {
-                            color: cellTextColor,
-                            fontSize: puzzle.size > 10 ? 14 : puzzle.size === 10 ? 16 : 18,
-                            fontWeight: isFound || isSelected ? "800" : "600",
+                            width: cellSize,
+                            height: cellSize,
+                            backgroundColor: cellBg,
+                            borderRadius: puzzle.size >= 16 ? 4 : puzzle.size > 10 ? 6 : 8,
+                            borderColor: cellBorderColor,
+                            borderWidth: isFound || isAnchor ? 1.5 : 0.5,
+                            shadowColor: isFound ? foundColor : "transparent",
+                            shadowOpacity: isFound ? 0.4 : 0,
+                            shadowRadius: isFound ? 6 : 0,
+                            shadowOffset: { width: 0, height: isFound ? 2 : 0 },
+                            elevation: isFound ? 4 : 1,
+                          },
+                          isSelected && {
+                            transform: [{ scale: 1.06 }],
+                            zIndex: 10,
+                            borderWidth: 1.5,
+                          },
+                          isHinted && {
+                            borderColor: colors.accent,
+                            borderWidth: 2.5,
+                            transform: [{ scale: pulseAnim as any }],
                           },
                         ]}
                       >
-                        {letter}
+                        <Text
+                          pointerEvents="none"
+                          style={[
+                            styles.cellLetter,
+                            {
+                              color: cellTextColor,
+                              fontSize:
+                                puzzle.size >= 16
+                                  ? 11.5
+                                  : puzzle.size >= 13
+                                  ? 13
+                                  : puzzle.size === 10
+                                  ? 15
+                                  : 17,
+                              fontWeight: isFound || isSelected ? "800" : "600",
+                              textShadowColor: isFound ? "rgba(0,0,0,0.3)" : "transparent",
+                              textShadowOffset: { width: 0, height: 1 },
+                              textShadowRadius: isFound ? 2 : 0,
+                            },
+                          ]}
+                        >
+                          {letter}
+                        </Text>
+                      </Animated.View>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+
+          {/* Word Bank Card with Interactive Chips — inside a scroll area below grid */}
+          <ScrollView
+            style={styles.wordBankScroll}
+            contentContainerStyle={styles.wordBankScrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            overScrollMode="never"
+            keyboardShouldPersistTaps="handled"
+          >
+            <Card style={[styles.wordBankCard, { borderColor: colors.border }]}>
+              <View style={styles.wordBankHeader}>
+                <Text style={[styles.wordBankTitle, { color: colors.text }]}>
+                  📝 {lang === "ne" ? "खोज्नुपर्ने शब्दहरू" : "Word Bank"} ({foundWords.size}/
+                  {puzzle.placedWords.length})
+                </Text>
+                <Text style={[styles.wordBankSub, { color: colors.textMuted }]}>
+                  {lang === "ne"
+                    ? "औँला तान्नुहोस् वा अक्षर थिच्नुहोस् • अर्थ हेर्न शब्द छुनुहोस्"
+                    : "Swipe across letters • Tap word to see meaning"}
+                </Text>
+              </View>
+
+              <View style={styles.wordBankGrid}>
+                {puzzle.placedWords.map((pw) => {
+                  const isFound = foundWords.has(pw.word);
+                  return (
+                    <TouchableOpacity
+                      key={pw.word}
+                      style={[
+                        styles.wordChip,
+                        {
+                          backgroundColor: isFound ? pw.color + "20" : colors.surface,
+                          borderColor: isFound ? pw.color : colors.border,
+                          borderWidth: isFound ? 1.5 : 1,
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedClue(pw);
+                        setClueModalVisible(true);
+                        SoundEffects.playTap();
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.wordChipText,
+                          {
+                            color: isFound ? pw.color : colors.text,
+                            textDecorationLine: isFound ? "line-through" : "none",
+                            fontWeight: isFound ? "800" : "600",
+                          },
+                        ]}
+                      >
+                        {isFound ? "✓ " : "○ "}
+                        {pw.word}
                       </Text>
-                    </Animated.View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
-            ))}
-          </View>
-
-          {/* Word Bank Card with Interactive Chips */}
-          <Card style={styles.wordBankCard}>
-            <View style={styles.wordBankHeader}>
-              <Text style={[styles.wordBankTitle, { color: colors.text }]}>
-                📝 {lang === "ne" ? "खोज्नुपर्ने शब्दहरू" : "Word Bank"} ({foundWords.size}/
-                {puzzle.placedWords.length})
-              </Text>
-              <Text style={[styles.wordBankSub, { color: colors.textMuted }]}>
-                {lang === "ne"
-                  ? "औँला तान्नुहोस् वा अक्षर थिच्नुहोस् • अर्थ हेर्न शब्द छुनुहोस्"
-                  : "Swipe across letters • Tap word to see meaning"}
-              </Text>
-            </View>
-
-            <View style={styles.wordBankGrid}>
-              {puzzle.placedWords.map((pw) => {
-                const isFound = foundWords.has(pw.word);
-                return (
-                  <TouchableOpacity
-                    key={pw.word}
-                    style={[
-                      styles.wordChip,
-                      {
-                        backgroundColor: isFound ? pw.color : colors.surface,
-                        borderColor: isFound ? pw.color : colors.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      setSelectedClue(pw);
-                      setClueModalVisible(true);
-                      SoundEffects.playTap();
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.wordChipText,
-                        {
-                          color: isFound ? "#FFF" : colors.text,
-                          textDecorationLine: isFound ? "line-through" : "none",
-                          fontWeight: isFound ? "800" : "600",
-                        },
-                      ]}
-                    >
-                      {isFound ? "✓ " : ""}
-                      {pw.word}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </Card>
-        </ScrollView>
+            </Card>
+          </ScrollView>
+        </View>
       )}
 
       {/* Bilingual Clue Detail Bottom Sheet / Modal */}
@@ -955,21 +1181,23 @@ export function WordSearchPlayScreen() {
         onRequestClose={() => setClueModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.clueModalCard, { backgroundColor: colors.surface }]}>
+          <View style={[styles.clueModalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.clueModalHeader}>
-              <Text style={[styles.clueModalWord, { color: selectedClue?.color || colors.primary }]}>
-                {selectedClue?.word}
-              </Text>
+              <View style={[styles.clueModalWordBadge, { backgroundColor: (selectedClue?.color || colors.primary) + "20" }]}>
+                <Text style={[styles.clueModalWord, { color: selectedClue?.color || colors.primary }]}>
+                  {selectedClue?.word}
+                </Text>
+              </View>
               <TouchableOpacity
                 onPress={() => setClueModalVisible(false)}
-                style={styles.closeModalButton}
+                style={[styles.closeModalButton, { backgroundColor: colors.bg }]}
               >
                 <Text style={[styles.closeModalText, { color: colors.textMuted }]}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.clueModalBody}>
-              <View style={styles.clueSection}>
+              <View style={[styles.clueSection, { backgroundColor: colors.bg + "80" }]}>
                 <Text style={[styles.clueSectionHeader, { color: colors.textMuted }]}>
                   🇳🇵 नेपाली अर्थ (Nepali Context):
                 </Text>
@@ -978,7 +1206,7 @@ export function WordSearchPlayScreen() {
                 </Text>
               </View>
 
-              <View style={[styles.clueSection, { marginTop: 12 }]}>
+              <View style={[styles.clueSection, { marginTop: 12, backgroundColor: colors.bg + "80" }]}>
                 <Text style={[styles.clueSectionHeader, { color: colors.textMuted }]}>
                   🇬🇧 English Definition & Clue:
                 </Text>
@@ -1001,7 +1229,7 @@ export function WordSearchPlayScreen() {
       <Modal visible={showVictory} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <ConfettiEffect count={70} />
-          <View style={[styles.victoryCard, { backgroundColor: colors.surface }]}>
+          <View style={[styles.victoryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={styles.victoryEmoji}>🏆</Text>
             <Text style={[styles.victoryTitle, { color: colors.text }]}>
               {lang === "ne" ? "उत्कृष्ट! शब्दहरू भेट्टाउनुभयो!" : "Splendid! Puzzle Solved!"}
@@ -1023,7 +1251,7 @@ export function WordSearchPlayScreen() {
 
             {/* Secret Mystery Word Reveal Card */}
             {revealedMystery && (
-              <View style={styles.mysteryWordCard}>
+              <View style={[styles.mysteryWordCard, { borderColor: colors.gold || "#FFD700" }]}>
                 <Text style={styles.mysteryWordLabel}>
                   ✨ {lang === "ne" ? "रहस्यमय शब्द खुल्यो!" : "SECRET MYSTERY WORD REVEALED!"}
                 </Text>
@@ -1036,7 +1264,7 @@ export function WordSearchPlayScreen() {
             )}
 
             {/* XP Award Pill */}
-            <View style={[styles.xpPill, { backgroundColor: colors.primary + "20" }]}>
+            <View style={[styles.xpPill, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
               <Text style={[styles.xpPillText, { color: colors.primary }]}>
                 +{awardedXp} XP EARNED
               </Text>
@@ -1069,6 +1297,7 @@ export function WordSearchPlayScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+  </Atmosphere>
   );
 }
 
@@ -1089,7 +1318,8 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    ...shadow.nepalButton,
+    borderWidth: 1,
+    ...shadow.sm,
   },
   backText: {
     fontSize: 20,
@@ -1097,14 +1327,17 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     alignItems: "center",
+    flex: 1,
+    marginHorizontal: 8,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "800",
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 11,
+    fontWeight: "600",
     marginTop: 1,
   },
   headerActions: {
@@ -1118,7 +1351,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: radius.pill,
     borderWidth: 1.2,
   },
@@ -1138,6 +1371,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderRadius: radius.pill,
     padding: 3,
+    borderWidth: 1,
     ...shadow.sm,
   },
   segmentOption: {
@@ -1156,6 +1390,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderRadius: radius.pill,
     padding: 3,
+    borderWidth: 1,
     ...shadow.sm,
   },
   diffButton: {
@@ -1200,22 +1435,22 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginTop: 8,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
     ...shadow.sm,
   },
   statBadge: {
     alignItems: "center",
   },
   statLabel: {
-    fontSize: 10,
-    fontWeight: "600",
+    fontSize: 9,
+    fontWeight: "700",
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   statValue: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
     marginTop: 2,
   },
@@ -1224,11 +1459,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: radius.pill,
+    ...shadow.nepalButton,
   },
   comboText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "900",
+    letterSpacing: 0.5,
   },
   shuffleButton: {
     paddingHorizontal: 10,
@@ -1240,6 +1477,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
   },
+  progressBarContainer: {
+    marginHorizontal: spacing.md,
+    marginTop: 6,
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
   loaderContainer: {
     flex: 1,
     alignItems: "center",
@@ -1250,10 +1498,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  scrollContent: {
+  gameArea: {
+    flex: 1,
     alignItems: "center",
-    paddingVertical: 10,
-    paddingBottom: 40,
+    paddingTop: 6,
   },
   clueBanner: {
     width: MAX_BOARD_WIDTH,
@@ -1261,57 +1509,67 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 12,
-    borderWidth: 1.2,
-    marginBottom: 8,
+    borderWidth: 1,
+    marginBottom: 6,
   },
   clueBannerLeft: {
     flex: 1,
   },
   clueBannerWord: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
     letterSpacing: 1,
   },
   clueBannerText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
-    marginTop: 2,
+    marginTop: 1,
   },
   clueBannerDetailIcon: {
-    fontSize: 16,
+    fontSize: 14,
     marginLeft: 8,
+  },
+  gridOuterGlow: {
+    borderRadius: 18,
+    borderWidth: 2,
+    padding: 0,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   gridContainer: {
     borderRadius: 16,
-    borderWidth: 1.5,
-    padding: 6,
-    justifyContent: "space-around",
-    ...shadow.card,
+    borderWidth: 1,
+    justifyContent: "space-between",
+    overflow: "hidden",
   },
   gridRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     alignItems: "center",
   },
   cell: {
     alignItems: "center",
     justifyContent: "center",
-    margin: 1,
-    ...shadow.sm,
-  },
-  cellSelected: {
-    transform: [{ scale: 1.08 }],
-    zIndex: 10,
   },
   cellLetter: {
     fontFamily: fonts.bodyBold,
     textAlign: "center",
   },
+  wordBankScroll: {
+    flex: 1,
+    width: "100%",
+    marginTop: 8,
+  },
+  wordBankScrollContent: {
+    alignItems: "center",
+    paddingBottom: 30,
+    paddingHorizontal: spacing.md,
+  },
   wordBankCard: {
     width: MAX_BOARD_WIDTH,
-    marginTop: 12,
     padding: 12,
     borderRadius: 16,
   },
@@ -1319,12 +1577,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   wordBankTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
+    letterSpacing: 0.3,
   },
   wordBankSub: {
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 2,
+    lineHeight: 14,
   },
   wordBankGrid: {
     flexDirection: "row",
@@ -1335,7 +1595,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: radius.pill,
-    borderWidth: 1,
   },
   wordChipText: {
     fontSize: 12,
@@ -1343,7 +1602,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.65)",
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.md,
@@ -1351,7 +1610,8 @@ const styles = StyleSheet.create({
   clueModalCard: {
     width: "100%",
     maxWidth: 380,
-    borderRadius: 20,
+    borderRadius: 22,
+    borderWidth: 1,
     padding: spacing.lg,
     ...shadow.card,
   },
@@ -1361,30 +1621,39 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
+  clueModalWordBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+  },
   clueModalWord: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "900",
     letterSpacing: 1.5,
   },
   closeModalButton: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   closeModalText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
   },
   clueModalBody: {
     marginVertical: 8,
   },
   clueSection: {
-    backgroundColor: "rgba(0,0,0,0.04)",
-    padding: 10,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 12,
   },
   clueSectionHeader: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     textTransform: "uppercase",
+    letterSpacing: 0.5,
     marginBottom: 4,
   },
   clueSectionText: {
@@ -1396,6 +1665,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
     borderRadius: 24,
+    borderWidth: 1,
     padding: spacing.xl,
     alignItems: "center",
     ...shadow.card,
@@ -1424,8 +1694,7 @@ const styles = StyleSheet.create({
   },
   mysteryWordCard: {
     width: "100%",
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
-    borderColor: "#FFD700",
+    backgroundColor: "rgba(255, 215, 0, 0.12)",
     borderWidth: 1.5,
     borderRadius: 14,
     padding: 10,
@@ -1461,6 +1730,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: radius.pill,
+    borderWidth: 1,
     marginBottom: 16,
   },
   xpPillText: {

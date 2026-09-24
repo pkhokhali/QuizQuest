@@ -183,9 +183,17 @@ export async function pushDigestNotification({ digest, isManual = false, adminEm
 }
 
 /**
- * Sends a direct push notification to a specific user (e.g. for Zip nudges).
+ * Sends a direct push notification to a specific user (e.g. for Zip nudges and 1v1 challenges).
  */
-export async function sendPushToUser({ userId, title, body, data = {} }) {
+export async function sendPushToUser({
+  userId,
+  title,
+  body,
+  data = {},
+  channelId = "challenges",
+  priority = "high",
+  sound = "default",
+}) {
   const rows = db.prepare("SELECT token FROM push_tokens WHERE user_id = ? AND token != ''").all(userId);
   if (!rows.length) return { total: 0, success: 0, failed: 0 };
   const expoMessages = [];
@@ -193,12 +201,27 @@ export async function sendPushToUser({ userId, title, body, data = {} }) {
   for (const row of rows) {
     const t = row.token.trim();
     if (t.startsWith("ExponentPushToken") || t.startsWith("ExpoPushToken")) {
-      expoMessages.push({ to: t, sound: "default", title, body, data });
+      expoMessages.push({
+        to: t,
+        sound,
+        title,
+        body,
+        data,
+        channelId,
+        priority,
+      });
     } else {
       fcmMessages.push({
         token: t,
         notification: { title, body },
         data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+        android: {
+          priority,
+          notification: {
+            channelId,
+            sound,
+          },
+        },
       });
     }
   }
@@ -212,3 +235,4 @@ export async function sendPushToUser({ userId, title, body, data = {} }) {
     failed: expoRes.failed + fcmRes.failed,
   };
 }
+

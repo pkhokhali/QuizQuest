@@ -27,7 +27,12 @@ import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { IconShield } from "../components/QuestIcons";
-import { connectBattleSocket, getBattleSocket } from "../socket/battleSocket";
+import {
+  connectBattleSocket,
+  getBattleSocket,
+  startOfflineBotBattle,
+} from "../socket/battleSocket";
+import { getCachedQuestions } from "../utils/offlineStore";
 import { SoundEffects } from "../utils/audio";
 import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
@@ -150,12 +155,44 @@ export function BattleScreen() {
   };
 
   const startBotBattle = async () => {
-    if (!token) return;
     SoundEffects.playTap();
-    const socket = await connectBattleSocket(token);
-    socket.emit("battle:bot");
-    setSearching(true);
-    setQueuePosition(null);
+    // Try online bot battle if token & socket available
+    if (token) {
+      try {
+        const socket = await connectBattleSocket(token);
+        if (socket && socket.connected) {
+          socket.emit("battle:bot");
+          setSearching(true);
+          setQueuePosition(null);
+          return;
+        }
+      } catch {
+        // Fallback to offline bot
+      }
+    }
+
+    // Instant offline bot duel!
+    const gradeBand = user?.grade
+      ? user.grade <= 3
+        ? "1-3"
+        : user.grade <= 5
+        ? "4-5"
+        : user.grade <= 8
+        ? "6-8"
+        : "9-10"
+      : "4-5";
+    const questions = await getCachedQuestions({
+      count: 5,
+      gradeBand,
+      lang: (user?.language as "en" | "ne") || "en",
+    });
+
+    startOfflineBotBattle(questions, (startEvent) => {
+      setSearching(false);
+      setQueuePosition(null);
+      setIncoming(null);
+      navigation.navigate("BattleLive", { start: startEvent });
+    });
   };
 
   const cancelQueue = async () => {
@@ -320,7 +357,7 @@ export function BattleScreen() {
                   onPress={startBotBattle}
                 >
                   <Text style={[styles.botPracticeText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
-                    🤖 Practice with AI Bot (Instant · 0s)
+                    🤖 Duel vs AI Bot (Instant · Online & Offline)
                   </Text>
                 </TouchableOpacity>
               </View>

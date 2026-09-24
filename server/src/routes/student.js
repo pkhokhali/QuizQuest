@@ -61,7 +61,7 @@ function ensureDemoFriend(userId) {
 const router = Router();
 router.use(requireAuth);
 
-const COUNTRIES = ["nepal", "india", "usa", "japan", "uk", "china", "australia"];
+const COUNTRIES = ["nepal", "india", "usa", "japan", "uk", "china", "australia", "global"];
 const SUBJECTS = ["math", "science", "social", "english", "nepali", "gk", "current"];
 
 // ---------- Profile ----------
@@ -90,20 +90,39 @@ router.put("/me", (req, res) => {
     const school = db.prepare("SELECT id FROM schools WHERE join_code = ?").get(b.joinCode.trim().toUpperCase());
     if (school) { sets.push("school_id = ?"); params.push(school.id); }
   }
+  const oldGrade = req.user.grade;
+  const oldHomeCountry = req.user.home_country;
+  const oldExtras = req.user.extra_countries;
+
   if (sets.length) {
     db.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).run(...params, req.user.id);
   }
+
+  // If grade or country syllabus changed, immediately invalidate today's daily quiz
+  // so the user gets fresh questions strictly tailored to their newly selected class & country!
+  const gradeChanged = Number.isInteger(b.grade) && b.grade !== oldGrade;
+  const countryChanged = b.homeCountry && b.homeCountry !== oldHomeCountry;
+  const extrasChanged = Array.isArray(b.extraCountries) && JSON.stringify(b.extraCountries) !== oldExtras;
+  if (gradeChanged || countryChanged || extrasChanged) {
+    db.prepare("DELETE FROM quizzes WHERE user_id = ? AND date = ? AND kind = 'daily'").run(req.user.id, today());
+  }
+
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
   res.json({ user: serializeUser(user) });
 });
 
-router.post("/me/push-token", (req, res) => {
+function handlePushTokenRegistration(req, res) {
   const token = req.body?.token;
   if (typeof token === "string" && token.trim()) {
-    db.prepare("INSERT OR REPLACE INTO push_tokens (user_id, token) VALUES (?, ?)").run(req.user.id, token.trim());
+    const cleanToken = token.trim();
+    db.prepare("INSERT OR REPLACE INTO push_tokens (user_id, token) VALUES (?, ?)").run(req.user.id, cleanToken);
+    console.log(`[Push] Registered token for user ${req.user.id} (${cleanToken.slice(0, 25)}...)`);
   }
   res.json({ ok: true });
-});
+}
+
+router.post("/me/push-token", handlePushTokenRegistration);
+router.post("/push-token", handlePushTokenRegistration);
 
 // Join a school (or class) by its code so class/school ranks light up.
 router.post("/school/join", (req, res) => {
@@ -416,9 +435,24 @@ function getDailyZipSpecs(dateStr) {
     { row: 0, col: size - 1 },
     { row: size - 1, col: 0 },
     { row: size - 1, col: size - 1 },
+    { row: Math.floor(size / 2), col: 0 },
+    { row: 0, col: Math.floor(size / 2) },
+    { row: Math.floor(size / 2), col: size - 1 },
+    { row: size - 1, col: Math.floor(size / 2) },
   ];
-  const start = corners[Math.floor(rng() * corners.length)];
-  if (!backtrack(start.row, start.col)) {
+  const shuffledCorners = [...corners].sort(() => rng() - 0.5);
+  let pathFound = false;
+  for (const st of shuffledCorners) {
+    backtrackSteps = 0;
+    for (let r = 0; r < size; r++) visited[r].fill(false);
+    path.length = 0;
+    if (backtrack(st.row, st.col)) {
+      pathFound = true;
+      break;
+    }
+  }
+
+  if (!pathFound) {
     path.length = 0;
     for (let r = 0; r < size; r++) {
       if (r % 2 === 0) {
@@ -429,58 +463,101 @@ function getDailyZipSpecs(dateStr) {
     }
   }
 
-  // Checkpoints: up to 14 numbers for hardness and progression
-  const targetCheckpoints = size === 5 ? 7 : size === 6 ? 9 : size === 7 ? 12 : 14;
+  // Checkpoints: authentic LinkedIn number dilemma
+  const targetCheckpoints = size === 5 ? 7 : size === 6 ? 9 : size === 7 ? 11 : 13;
   const numCheckpoints = Math.min(total, targetCheckpoints);
-  const step = (total - 1) / (numCheckpoints - 1);
-  const checkpoints = {};
-  const numbers = {};
-  let cpNum = 1;
 
-  checkpoints[`${path[0].row}-${path[0].col}`] = 1;
-  numbers[`${path[0].row},${path[0].col}`] = 1;
-
-  for (let i = 1; i < numCheckpoints - 1; i++) {
-    const baseIdx = Math.round(i * step);
-    const cell = path[baseIdx];
-    if (cell && !numbers[`${cell.row},${cell.col}`]) {
-      cpNum++;
-      checkpoints[`${cell.row}-${cell.col}`] = cpNum;
-      numbers[`${cell.row},${cell.col}`] = cpNum;
+  const selectedIndices = [0];
+  const innerCount = numCheckpoints - 2;
+  if (innerCount > 0) {
+    const idealStep = (total - 1) / (numCheckpoints - 1);
+    for (let i = 1; i <= innerCount; i++) {
+      const idealIdx = Math.round(i * idealStep);
+      const jitter = Math.floor(rng() * 3) - 1;
+      const minAllowed = selectedIndices[selectedIndices.length - 1] + 1;
+      const maxAllowed = total - 1 - (innerCount - i + 1);
+      const chosenIdx = Math.max(minAllowed, Math.min(maxAllowed, idealIdx + jitter));
+      selectedIndices.push(chosenIdx);
     }
   }
-  const endCell = path[path.length - 1];
-  cpNum++;
-  checkpoints[`${endCell.row}-${endCell.col}`] = cpNum;
-  numbers[`${endCell.row},${endCell.col}`] = cpNum;
+  selectedIndices.push(total - 1);
 
-  // Strategic wall barriers: up to 12 obstacle walls
-  const targetWalls = size === 5 ? 4 : size === 6 ? 7 : size === 7 ? 10 : 12;
+  const checkpoints = {};
+  const numbers = {};
+  selectedIndices.forEach((idx, cpIdx) => {
+    const cell = path[idx];
+    const num = cpIdx + 1;
+    checkpoints[`${cell.row}-${cell.col}`] = num;
+    numbers[`${cell.row},${cell.col}`] = num;
+  });
+  const cpNum = selectedIndices.length;
+
+  // Strategic connected obstacle walls (L-shapes, U-shapes, and corridor dividers)
+  const targetWalls = size <= 5 ? 3 : size <= 6 ? 5 : size <= 7 ? 7 : 9;
   const walls = [];
   const wallsSet = new Set();
   const pathIndexMap = new Map();
   path.forEach((p, idx) => pathIndexMap.set(`${p.row},${p.col}`, idx));
 
-  for (let i = 0; i < path.length; i++) {
-    if (walls.length >= targetWalls) break;
+  // Count walls surrounding each cell so no cell becomes enclosed
+  const cellWallCount = new Map();
+  const getWallCount = (r, c) => cellWallCount.get(`${r},${c}`) || 0;
+  const incWallCount = (r, c) => cellWallCount.set(`${r},${c}`, getWallCount(r, c) + 1);
+
+  const canPlaceWall = (rA, cA, rB, cB) => {
+    const keyA = `${rA},${cA}`;
+    const keyB = `${rB},${cB}`;
+    const idxA = pathIndexMap.get(keyA);
+    const idxB = pathIndexMap.get(keyB);
+    if (idxA === undefined || idxB === undefined) return false;
+    // Wall can NEVER cross consecutive steps in the solution path
+    if (Math.abs(idxA - idxB) <= 1) return false;
+    const wKey = keyA < keyB ? `${keyA}|${keyB}` : `${keyB}|${keyA}`;
+    if (wallsSet.has(wKey)) return false;
+    // Prevent blocking any cell completely (need at least 2 open exits)
+    if (getWallCount(rA, cA) >= 2 || getWallCount(rB, cB) >= 2) return false;
+    return true;
+  };
+
+  const addWall = (rA, cA, rB, cB) => {
+    const keyA = `${rA},${cA}`;
+    const keyB = `${rB},${cB}`;
+    const wKey = keyA < keyB ? `${keyA}|${keyB}` : `${keyB}|${keyA}`;
+    wallsSet.add(wKey);
+    walls.push({ between: [keyA, keyB] });
+    incWallCount(rA, cA);
+    incWallCount(rB, cB);
+  };
+
+  // Grow walls into continuous multi-segment corridors / L-shapes
+  for (let i = 0; i < path.length && walls.length < targetWalls; i++) {
     const p = path[i];
-    const deltas = [
-      [1, 0],
-      [0, 1],
-    ];
+    const deltas = [[1, 0], [0, 1]];
     for (const [dr, dc] of deltas) {
+      if (walls.length >= targetWalls) break;
       const nr = p.row + dr;
       const nc = p.col + dc;
-      if (nr < size && nc < size) {
-        const neighborKey = `${nr},${nc}`;
-        const idxA = i;
-        const idxB = pathIndexMap.get(neighborKey) ?? 0;
-        if (Math.abs(idxA - idxB) > 3) {
-          const currentKey = `${p.row},${p.col}`;
-          const wKey = currentKey < neighborKey ? `${currentKey}|${neighborKey}` : `${neighborKey}|${currentKey}`;
-          if (!wallsSet.has(wKey)) {
-            wallsSet.add(wKey);
-            walls.push({ between: [currentKey, neighborKey] });
+      if (nr < size && nc < size && canPlaceWall(p.row, p.col, nr, nc)) {
+        addWall(p.row, p.col, nr, nc);
+
+        // Try chaining an extension (creating an L-corner or 2-3 segment run)
+        const extensions = [
+          // Continuation along same line
+          dr !== 0 ? [p.row + dr, p.col, p.row + 2 * dr, p.col] : [p.row, p.col + dc, p.row, p.col + 2 * dc],
+          // L-corner turn
+          dr !== 0 ? [p.row, p.col, p.row, p.col + 1] : [p.row, p.col, p.row + 1, p.col],
+          dr !== 0 ? [p.row, p.col, p.row, p.col - 1] : [p.row, p.col, p.row - 1, p.col],
+        ];
+
+        for (const [erA, ecA, erB, ecB] of extensions) {
+          if (walls.length >= targetWalls) break;
+          if (
+            erA >= 0 && erA < size && ecA >= 0 && ecA < size &&
+            erB >= 0 && erB < size && ecB >= 0 && ecB < size &&
+            canPlaceWall(erA, ecA, erB, ecB)
+          ) {
+            addWall(erA, ecA, erB, ecB);
+            break;
           }
         }
       }
@@ -922,6 +999,22 @@ function getOrCreateQuiz(user, kind) {
   let quiz = db
     .prepare("SELECT * FROM quizzes WHERE user_id = ? AND date = ? AND kind = ?")
     .get(user.id, today(), kind);
+
+  // If daily quiz already exists, verify that its questions actually match the student's current grade band!
+  if (quiz && kind === "daily") {
+    const targetBand = gradeBandFor(user.grade || 8);
+    const ids = JSON.parse(quiz.question_ids || "[]");
+    if (ids.length) {
+      const ph = ids.map(() => "?").join(",");
+      const qRows = db.prepare(`SELECT grade_band FROM questions WHERE id IN (${ph})`).all(...ids);
+      const wrongBand = qRows.some((q) => q.grade_band !== targetBand);
+      if (wrongBand) {
+        db.prepare("DELETE FROM quizzes WHERE id = ?").run(quiz.id);
+        quiz = null;
+      }
+    }
+  }
+
   if (!quiz) {
     const questions = kind === "daily" ? composeDailyQuiz(user) : composeRevengeRound(user);
     if (!questions.length) return null;

@@ -19,13 +19,14 @@ import { Card } from "../components/Card";
 import { Chip } from "../components/Chip";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { IconLogout } from "../components/QuestIcons";
-import { AVATAR_BGS, AVATAR_EMOJIS, EXTRA_COUNTRIES, SUBJECTS } from "../constants";
+import { ALL_COUNTRIES, AVATAR_BGS, AVATAR_EMOJIS, EXTRA_COUNTRIES, SUBJECTS, countrySyllabus } from "../constants";
 import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { PALETTES, fonts, radius, spacing } from "../theme";
 import { SoundEffects, useSoundEnabled } from "../utils/audio";
+import { clearCachedQuestions } from "../utils/offlineStore";
 
 export function ProfileScreen() {
   const { t, lang, setLang } = useI18n();
@@ -36,6 +37,7 @@ export function ProfileScreen() {
 
   const [name, setName] = useState(user?.name ?? "");
   const [grade, setGrade] = useState<number | null>(user?.grade ?? null);
+  const [homeCountry, setHomeCountry] = useState<string>(user?.homeCountry || "nepal");
   const [extraCountries, setExtraCountries] = useState<string[]>(
     user?.extraCountries ?? []
   );
@@ -173,6 +175,7 @@ export function ProfileScreen() {
   const dirty =
     name !== user.name ||
     grade !== user.grade ||
+    homeCountry !== (user.homeCountry || "nepal") ||
     emoji !== user.avatar.emoji ||
     bg !== user.avatar.bg ||
     photoUrl !== user.avatar.photoUrl ||
@@ -213,11 +216,13 @@ export function ProfileScreen() {
       const { user: updated } = await updateMe({
         name: name.trim() || user.name,
         grade: grade ?? undefined,
+        homeCountry,
         extraCountries,
         subjects,
         avatar: { emoji, bg, photoUrl },
       });
       setUser(updated);
+      await clearCachedQuestions();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
@@ -801,11 +806,39 @@ export function ProfileScreen() {
             <Text
               style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}
             >
-              {t("profileCountries")}
+              {lang === "ne" ? "पाठ्यक्रम देश" : "Country Syllabus"}
+            </Text>
+            <Text
+              style={[styles.note, { color: colors.textMuted, fontFamily: fonts.body, marginBottom: spacing.sm }]}
+            >
+              {countrySyllabus(homeCountry, lang)}
             </Text>
             <View style={styles.chipWrap}>
-              <Chip label={`🇳🇵 ${t("countryNepal")}`} selected disabled />
-              {EXTRA_COUNTRIES.map((c) => (
+              {ALL_COUNTRIES.map((c) => (
+                <Chip
+                  key={c.code}
+                  label={`${c.flag} ${t(c.labelKey)}`}
+                  selected={homeCountry === c.code}
+                  onPress={() => {
+                    setHomeCountry(c.code);
+                    setExtraCountries((prev) => prev.filter((x) => x !== c.code));
+                  }}
+                />
+              ))}
+            </View>
+
+            <Text
+              style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold, marginTop: spacing.md }]}
+            >
+              {t("profileCountries")}
+            </Text>
+            <Text
+              style={[styles.note, { color: colors.textMuted, fontFamily: fonts.body, marginBottom: spacing.sm }]}
+            >
+              {lang === "ne" ? "दैनिक क्विजमा समावेश गर्न थप २ देशहरू (वैकल्पिक)" : "Include questions from up to 2 extra countries in daily quests"}
+            </Text>
+            <View style={styles.chipWrap}>
+              {ALL_COUNTRIES.filter((c) => c.code !== homeCountry && c.code !== "global").map((c) => (
                 <Chip
                   key={c.code}
                   label={`${c.flag} ${t(c.labelKey)}`}

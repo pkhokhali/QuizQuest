@@ -4,12 +4,16 @@
 import db from "../src/db.js";
 import { generateMath } from "./generators/math.js";
 import { generateFacts } from "./generators/facts.js";
+import { generateGK } from "./generators/gk.js";
+import { generateHistory } from "./generators/history.js";
+import { generateScienceExpanded } from "./generators/science_expanded.js";
+import { generateEnglishExpanded } from "./generators/english_expanded.js";
 import { CURATED } from "./data/curated.js";
 import { COUNTRY_SYLLABUS } from "./data/country_syllabus.js";
 import { MEMORY_PACKS } from "./data/memory_packs.js";
 import { GRADE_BANDS, today, daysAgo, shuffle } from "../src/util.js";
 
-const SCALE = Math.max(0.1, Number(process.env.QUESTION_SCALE) || 1);
+const SCALE = Math.max(0.1, Number(process.env.QUESTION_SCALE) || 6.5);
 // Math is universal curriculum content: spread it across countries so every
 // bucket of the daily mix (home / extra / global) has volume.
 const MATH_COUNTRY_WEIGHTS = [["nepal", 50], ["india", 15], ["usa", 15], ["global", 20]];
@@ -58,7 +62,7 @@ const insertMany = db.transaction((rows) => {
 });
 
 console.log("Generating math templates...");
-const math = generateMath(SCALE * 7); // volume driver
+const math = generateMath(SCALE); // ~90k volume driver at scale 4
 insertMany(math);
 console.log(`  math: ${math.length}`);
 
@@ -66,6 +70,26 @@ console.log("Expanding fact tables...");
 const facts = generateFacts();
 insertMany(facts);
 console.log(`  facts: ${facts.length}`);
+
+console.log("Generating General Knowledge across 195 countries...");
+const gk = generateGK(SCALE);
+insertMany(gk);
+console.log(`  gk: ${gk.length}`);
+
+console.log("Generating History & Social Studies...");
+const history = generateHistory();
+insertMany(history);
+console.log(`  history: ${history.length}`);
+
+console.log("Generating Expanded Science...");
+const scienceExpanded = generateScienceExpanded();
+insertMany(scienceExpanded);
+console.log(`  science: ${scienceExpanded.length}`);
+
+console.log("Generating Expanded English...");
+const englishExpanded = generateEnglishExpanded();
+insertMany(englishExpanded);
+console.log(`  english: ${englishExpanded.length}`);
 
 const curatedRows = CURATED.flatMap(
   ([textEn, textNe, corr, dist, corrNe, distNe, country, subject, bands, difficulty, topic]) =>

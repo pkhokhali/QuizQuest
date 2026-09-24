@@ -13,6 +13,7 @@ import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { fonts, radius, shadow, spacing } from "../theme";
+import { clearCachedQuestions } from "../utils/offlineStore";
 
 interface CountrySelectorModalProps {
   visible: boolean;
@@ -44,6 +45,7 @@ export function CountrySelectorModal({
         homeCountry: code,
       });
       setUser(updated);
+      await clearCachedQuestions();
       onCountryChanged?.(code);
       onClose();
     } catch (err) {

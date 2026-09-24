@@ -21,6 +21,7 @@ import {
   nudgeDailyZipFriend,
   submitDailyZipScore,
 } from "../api/client";
+import { queueOfflineSubmission } from "../utils/offlineStore";
 import {
   DailyZipLeaderboardResponse,
   DailyZipPuzzleResponse,
@@ -84,7 +85,7 @@ export function getZipRibbonColor(index: number, total: number): string {
 }
 
 export function ZipPlayScreen() {
-  const { colors } = useTheme();
+  const { colors, paletteId } = useTheme();
   const { lang, t } = useI18n();
   const navigation = useNavigation();
   const { refreshUser } = useAuth();
@@ -311,7 +312,30 @@ export function ZipPlayScreen() {
       SoundEffects.playZipSolve();
 
       const elapsed = secondsRef.current;
-      const stars = elapsed <= 45 ? 3 : elapsed <= 90 ? 2 : 1;
+      const dim = puzzleRef.current.size.rows;
+      const diff = puzzleRef.current.difficulty;
+      let cutoff3 = 45;
+      let cutoff2 = 90;
+      if (dim <= 5) {
+        cutoff3 = diff === "hard" || diff === "impossible" ? 25 : 35;
+        cutoff2 = diff === "hard" || diff === "impossible" ? 50 : 70;
+      } else if (dim === 6) {
+        cutoff3 = diff === "hard" || diff === "impossible" ? 40 : 55;
+        cutoff2 = diff === "hard" || diff === "impossible" ? 80 : 100;
+      } else if (dim === 7) {
+        cutoff3 = diff === "hard" || diff === "impossible" ? 60 : 80;
+        cutoff2 = diff === "hard" || diff === "impossible" ? 110 : 140;
+      } else if (dim === 8) {
+        cutoff3 = diff === "hard" || diff === "impossible" ? 80 : 110;
+        cutoff2 = diff === "hard" || diff === "impossible" ? 140 : 180;
+      } else if (dim === 9) {
+        cutoff3 = diff === "hard" || diff === "impossible" ? 110 : 150;
+        cutoff2 = diff === "hard" || diff === "impossible" ? 180 : 240;
+      } else {
+        cutoff3 = diff === "hard" || diff === "impossible" ? 140 : 200;
+        cutoff2 = diff === "hard" || diff === "impossible" ? 240 : 320;
+      }
+      const stars = elapsed <= cutoff3 ? 3 : elapsed <= cutoff2 ? 2 : 1;
 
       if (gameMode === "daily") {
         try {
@@ -333,7 +357,21 @@ export function ZipPlayScreen() {
             refreshUser();
           }
         } catch {
-          // handled gracefully
+          const earnedXp = stars * 15;
+          setOfficialXpAwarded(earnedXp);
+          setMyDailyScore({
+            timeSeconds: elapsed,
+            moves: totalMoves,
+            stars,
+            xpEarned: earnedXp,
+            completedAt: new Date().toISOString(),
+          });
+          queueOfflineSubmission("zip", "/games/zip/daily/score", {
+            puzzleDate: dailyData?.date || new Date().toISOString().slice(0, 10),
+            timeSeconds: elapsed,
+            moves: totalMoves,
+            stars,
+          });
         }
       } else {
         refreshUser();
@@ -725,7 +763,7 @@ export function ZipPlayScreen() {
 
   return (
     <Atmosphere>
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         {/* Top Header Bar (Clean LinkedIn-styled header) */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -873,40 +911,7 @@ export function ZipPlayScreen() {
             </View>
           )}
 
-          {/* Sub-bar directly above the board */}
-          <View style={styles.subBar}>
-            <View style={styles.subBarLeft}>
-              <Text style={[styles.subBarTimer, { color: colors.text, fontFamily: fonts.display }]}>
-                ⏱ {formatTimer(seconds)}
-              </Text>
-            </View>
-
-            <View style={styles.subBarActions}>
-              {gameMode === "practice" && (
-                <TouchableOpacity
-                  onPress={() => initPracticeGame(practiceSize, practiceDifficulty)}
-                  style={[styles.newBoardBtn, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.newBoardBtnText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
-                    🎲 New Board
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                onPress={handleReset}
-                style={styles.subBarResetBtn}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.subBarResetText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
-                  Reset
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Practice Mode Size & Difficulty Selectors */}
+          {/* Practice Mode Size & Difficulty Selectors (Placed at the top of controls) */}
           {gameMode === "practice" && (
             <View
               style={[
@@ -922,8 +927,12 @@ export function ZipPlayScreen() {
                 <Text style={[styles.selectorLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
                   SIZE
                 </Text>
-                <View style={styles.pillsGroup}>
-                  {([5, 6, 7, 8] as ZipDimension[]).map((s) => {
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pillsGroupScroll}
+                >
+                  {([5, 6, 7, 8, 9, 10] as ZipDimension[]).map((s) => {
                     const active = practiceSize === s;
                     return (
                       <TouchableOpacity
@@ -954,18 +963,29 @@ export function ZipPlayScreen() {
                       </TouchableOpacity>
                     );
                   })}
-                </View>
+                </ScrollView>
               </View>
 
-              {/* Row 2: Difficulty Level (Easy, Medium, Hard) & New Board Shuffle */}
+              {/* Row 2: Difficulty Level (Easy, Medium, Hard, Impossible) & New Board Shuffle */}
               <View style={styles.selectorRow}>
                 <Text style={[styles.selectorLabel, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
                   LEVEL
                 </Text>
-                <View style={styles.pillsGroup}>
-                  {(["easy", "medium", "hard"] as ZipDifficulty[]).map((d) => {
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pillsGroupScroll}
+                >
+                  {(["easy", "medium", "hard", "impossible"] as ZipDifficulty[]).map((d) => {
                     const active = practiceDifficulty === d;
-                    const activeColor = d === "easy" ? "#10B981" : d === "medium" ? "#F59E0B" : "#EF4444";
+                    const activeColor =
+                      d === "easy"
+                        ? "#10B981"
+                        : d === "medium"
+                        ? "#F59E0B"
+                        : d === "hard"
+                        ? "#EF4444"
+                        : "#A855F7";
                     return (
                       <TouchableOpacity
                         key={`diff-${d}`}
@@ -990,7 +1010,13 @@ export function ZipPlayScreen() {
                             },
                           ]}
                         >
-                          {d === "easy" ? "🟢 Easy" : d === "medium" ? "🟡 Med" : "🔴 Hard"}
+                          {d === "easy"
+                            ? "🟢 Easy"
+                            : d === "medium"
+                            ? "🟡 Med"
+                            : d === "hard"
+                            ? "🔴 Hard"
+                            : "💀 Impossible"}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -1005,7 +1031,7 @@ export function ZipPlayScreen() {
                       🎲 New
                     </Text>
                   </TouchableOpacity>
-                </View>
+                </ScrollView>
               </View>
             </View>
           )}
@@ -1026,6 +1052,69 @@ export function ZipPlayScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          {/* Live In-Game HUD directly anchored above the board */}
+          <View style={styles.hudBar}>
+            <View style={styles.hudLeft}>
+              <View style={[styles.timerBadge, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+                <Text style={[styles.timerText, { color: colors.text, fontFamily: fonts.display }]}>
+                  ⏱ {formatTimer(seconds)}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.targetBadge,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: nextExpectedCheckpoint <= puzzle.maxCheckpoint ? colors.accent : colors.green,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.targetBadgeText,
+                    {
+                      color: nextExpectedCheckpoint <= puzzle.maxCheckpoint ? colors.accent : colors.green,
+                      fontFamily: fonts.bodyBold,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {nextExpectedCheckpoint <= puzzle.maxCheckpoint
+                    ? `🎯 Target #${nextExpectedCheckpoint}`
+                    : "🏁 Fill Board!"}
+                </Text>
+                <Text style={[styles.targetProgressText, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                  {`(${Math.min(nextExpectedCheckpoint - 1, puzzle.maxCheckpoint)}/${puzzle.maxCheckpoint})`}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.hudRight}>
+              {gameMode === "practice" && (
+                <TouchableOpacity
+                  onPress={() => initPracticeGame(practiceSize, practiceDifficulty)}
+                  style={[styles.hudActionBtn, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.hudActionBtnText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                    🎲 New Board
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                onPress={handleReset}
+                style={[styles.hudActionBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.hudActionBtnText, { color: colors.textMuted, fontFamily: fonts.bodyBold }]}>
+                  ↺ Reset
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           {/* The Interactive Zip Grid with Continuous Vector Ribbon & Physical Wall Barriers */}
           {dailyLoading ? (
@@ -1132,15 +1221,19 @@ export function ZipPlayScreen() {
                     );
                   })()}
 
-                {/* 4. Physical Wall Barriers with Rounded Caps */}
+                {/* 4. Physical Obstacle Maze Walls (Continuous Seamless High-Contrast Corridors) */}
                 {puzzle.walls.map((w, wIdx) => {
                   const a = parseKey(w.between[0]);
                   const b = parseKey(w.between[1]);
+                  const wallColor = paletteId === "dawn" ? "#0F172A" : "#F8FAFC";
+                  const wWidth = Math.max(5, Math.round(cellSize * 0.13));
+
                   if (a.row === b.row) {
+                    // Vertical wall segment between adjacent columns
                     const colBorder = Math.max(a.col, b.col);
                     const x = colBorder * cellSize;
-                    const y1 = a.row * cellSize + 3;
-                    const y2 = (a.row + 1) * cellSize - 3;
+                    const y1 = a.row * cellSize;
+                    const y2 = (a.row + 1) * cellSize;
                     return (
                       <Line
                         key={`wall-${wIdx}`}
@@ -1148,16 +1241,18 @@ export function ZipPlayScreen() {
                         y1={y1}
                         x2={x}
                         y2={y2}
-                        stroke={colors.text}
-                        strokeWidth={wallThickness}
+                        stroke={wallColor}
+                        strokeWidth={wWidth}
                         strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
                     );
                   } else {
+                    // Horizontal wall segment between adjacent rows
                     const rowBorder = Math.max(a.row, b.row);
                     const y = rowBorder * cellSize;
-                    const x1 = a.col * cellSize + 3;
-                    const x2 = (a.col + 1) * cellSize - 3;
+                    const x1 = a.col * cellSize;
+                    const x2 = (a.col + 1) * cellSize;
                     return (
                       <Line
                         key={`wall-${wIdx}`}
@@ -1165,9 +1260,10 @@ export function ZipPlayScreen() {
                         y1={y}
                         x2={x2}
                         y2={y}
-                        stroke={colors.text}
-                        strokeWidth={wallThickness}
+                        stroke={wallColor}
+                        strokeWidth={wWidth}
                         strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
                     );
                   }
@@ -1227,11 +1323,15 @@ export function ZipPlayScreen() {
                           fontFamily: fonts.display,
                           fontSize:
                             num >= 10
-                              ? puzzle.size.cols >= 8
+                              ? puzzle.size.cols >= 9
+                                ? 9.5
+                                : puzzle.size.cols >= 8
                                 ? 11
                                 : 13
+                              : puzzle.size.cols >= 9
+                              ? 11.5
                               : puzzle.size.cols >= 8
-                              ? 14
+                              ? 13.5
                               : 17,
                           fontWeight: "900",
                         },
@@ -1712,26 +1812,71 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     alignItems: "center",
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.xxl + 20,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
   },
-  subBar: {
+  hudBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     width: MAX_BOARD_WIDTH,
-    paddingVertical: 4,
+    paddingVertical: 6,
     paddingHorizontal: 2,
   },
-  subBarLeft: {
-    flex: 1,
-    alignItems: "flex-start",
+  hudLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
   },
-  subBarTimer: {
-    fontSize: 14,
-    fontWeight: "700",
+  timerBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  timerText: {
+    fontSize: 13,
     letterSpacing: 0.5,
+  },
+  targetBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    gap: 5,
+    flexShrink: 0,
+  },
+  targetBadgeText: {
+    fontSize: 12,
+    letterSpacing: 0.2,
+  },
+  targetProgressText: {
+    fontSize: 11,
+  },
+  hudRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  hudActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hudActionBtnText: {
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
   difficultyPill: {
     paddingHorizontal: spacing.md,
@@ -1768,6 +1913,12 @@ const styles = StyleSheet.create({
     gap: 6,
     flexWrap: "wrap",
   },
+  pillsGroupScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingRight: 8,
+  },
   chipPill: {
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -1793,14 +1944,6 @@ const styles = StyleSheet.create({
   shuffleBtnText: {
     fontSize: 11,
     letterSpacing: 0.2,
-  },
-  subBarResetBtn: {
-    flex: 1,
-    alignItems: "flex-end",
-    paddingVertical: 4,
-  },
-  subBarResetText: {
-    fontSize: 13,
   },
   rivalBanner: {
     flexDirection: "row",
@@ -2187,19 +2330,5 @@ const styles = StyleSheet.create({
   dailySolvedPlayMoreText: {
     fontSize: 11,
     color: "#FFFFFF",
-  },
-  subBarActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  newBoardBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: radius.chip,
-    borderWidth: 1,
-  },
-  newBoardBtnText: {
-    fontSize: 11,
   },
 });

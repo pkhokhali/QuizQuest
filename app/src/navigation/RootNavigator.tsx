@@ -1,5 +1,9 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  DefaultTheme,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
@@ -36,6 +40,24 @@ import {
   MainTabParamList,
   RootStackParamList,
 } from "./types";
+
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+export function navigateFromNotification(screen: string, _params?: Record<string, any>) {
+  if (navigationRef.isReady()) {
+    if (screen === "Battle") {
+      navigationRef.navigate("Tabs", { screen: "Battle" });
+    } else if (screen === "ZipPlay") {
+      navigationRef.navigate("ZipPlay");
+    } else if (screen === "DailyQuiz") {
+      navigationRef.navigate("DailyQuiz");
+    } else if (screen === "RiddlePlay") {
+      navigationRef.navigate("RiddlePlay");
+    } else if (screen === "Home") {
+      navigationRef.navigate("Tabs", { screen: "Home" });
+    }
+  }
+}
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -154,7 +176,7 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       {!token || !user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Phone" component={PhoneScreen} />

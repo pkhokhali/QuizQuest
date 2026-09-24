@@ -4,52 +4,130 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { registerPushToken } from '../api/client';
 
-export async function registerForPushNotificationsAsync() {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#7C3AED',
-    });
+// Configure foreground presentation behavior globally
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
-    await Notifications.setNotificationChannelAsync('challenges', {
-      name: '1v1 Challenges',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 350, 200, 350],
-      lightColor: '#EF4444',
-      sound: 'default',
-    });
+export async function registerForPushNotificationsAsync(retries = 2) {
+  if (Platform.OS === 'android') {
+    try {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#7C3AED',
+      });
+
+      await Notifications.setNotificationChannelAsync('challenges', {
+        name: '1v1 Challenges',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 350, 200, 350],
+        lightColor: '#EF4444',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
+      });
+
+      await Notifications.setNotificationChannelAsync('reminders', {
+        name: 'Daily Reminders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#7C3AED',
+      });
+    } catch (channelErr) {
+      console.log('[Push] Android notification channel error:', channelErr);
+    }
   }
 
   if (Device.isDevice) {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notification!');
-      return;
-    }
     try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        console.log('[Push] Notification permission not granted:', finalStatus);
+        return;
+      }
+
+      let pushTokenString: string | null = null;
       const projectId =
         Constants.expoConfig?.extra?.eas?.projectId ??
         Constants.easConfig?.projectId ??
         '8209eeb8-c465-4463-89f5-d14dd9d2188f';
-      const pushTokenString = (await Notifications.getExpoPushTokenAsync({
-        projectId,
-      })).data;
-      
-      // Register with the backend
-      await registerPushToken(pushTokenString);
+
+      try {
+        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+        pushTokenString = tokenData.data;
+      } catch (expoErr) {
+        console.log('[Push] Expo push token fetch error, attempting native device token:', expoErr);
+        try {
+          const deviceTokenData = await Notifications.getDevicePushTokenAsync();
+          pushTokenString = deviceTokenData.data;
+        } catch (deviceErr) {
+          console.log('[Push] Device token fetch error:', deviceErr);
+        }
+      }
+
+      if (pushTokenString) {
+        console.log('[Push] Acquired token, registering with server...');
+        let attempt = 0;
+        let registered = false;
+        while (attempt <= retries && !registered) {
+          try {
+            await registerPushToken(pushTokenString);
+            registered = true;
+            console.log('[Push] Successfully registered push token with backend.');
+          } catch (regErr) {
+            attempt++;
+            if (attempt <= retries) {
+              await new Promise((r) => setTimeout(r, 1500));
+            } else {
+              console.log('[Push] Failed to register push token with backend:', regErr);
+            }
+          }
+        }
+      }
     } catch (e) {
-      console.log('Push token registration error: ', e);
+      console.log('[Push] Token acquisition exception: ', e);
     }
   } else {
-    console.log('Must use physical device for Push Notifications');
+    console.log('[Push] Must use physical device for Push Notifications');
   }
+}
+
+export function setupNotificationResponseHandler(
+  onNavigate: (screen: string, params?: Record<string, any>) => void
+) {
+  const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+    try {
+      const data = response.notification.request.content.data;
+      const target = data?.screen || data?.type;
+      if (target === 'Battle' || target === 'challenge') {
+        onNavigate('Battle', { challengeId: data?.challengeId });
+      } else if (target === 'ZipPlay' || target === 'zip_nudge') {
+        onNavigate('ZipPlay');
+      } else if (target === 'DailyQuiz' || target === 'daily_digest') {
+        onNavigate('DailyQuiz');
+      } else if (target === 'RiddlePlay') {
+        onNavigate('RiddlePlay');
+      } else if (target === 'Home') {
+        onNavigate('Home');
+      }
+    } catch (e) {
+      console.log('[Push] Notification response handling error:', e);
+    }
+  });
+  return () => subscription.remove();
 }
 
 export async function scheduleDailyReminders() {

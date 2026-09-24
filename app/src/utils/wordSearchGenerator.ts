@@ -109,10 +109,11 @@ export function generateWordSearchPuzzle(
       ? HARD_DIRECTIONS
       : MEDIUM_DIRECTIONS;
 
-  // Filter and sort words by length descending for optimal grid fitting
+  // Enforce minimum word length by difficulty: Easy: min 4, Medium: min 5, Hard: min 6
+  const minLen = difficulty === "hard" ? 6 : difficulty === "medium" ? 5 : 4;
   const sanitizedWords = [...words]
     .map((w) => ({ ...w, word: w.word.toUpperCase().replace(/[^A-Z]/g, "") }))
-    .filter((w) => w.word.length >= 2 && w.word.length <= size)
+    .filter((w) => w.word.length >= minLen && w.word.length <= size)
     .sort((a, b) => b.word.length - a.word.length);
 
   function tryPlaceWord(
@@ -197,11 +198,30 @@ export function generateWordSearchPuzzle(
     }
   }
 
-  // 3. Fill remaining null cells with balanced random English letters
-  // Weighted towards high-frequency letters for realistic aesthetics
+  // 3. Fill remaining null cells with adversarial letter distribution
+  // On hard/medium: heavily weight letters from placed target words to create deceptive red-herrings
+  const targetLetters: string[] = [];
+  placedWords.forEach((pw) => {
+    // Extra weight for prefix letters (creates false word starts)
+    for (let k = 0; k < Math.min(3, pw.word.length); k++) {
+      targetLetters.push(pw.word[k], pw.word[k]);
+    }
+    for (let k = 0; k < pw.word.length; k++) {
+      targetLetters.push(pw.word[k]);
+    }
+  });
+
   const COMMON_LETTERS = "AAAAAABBBCCCDDDEEEEEEEFFGGHHIIIIIIJKLLLLMMNNNNNOOOOOOPPQRRRRRSSSSSTTTTTTUUUUVWWXYZ";
+  const adversarialBias = difficulty === "hard" ? 0.65 : difficulty === "medium" ? 0.45 : 0.15;
+
   const finalGrid: string[][] = grid.map((row) =>
-    row.map((cell) => (cell !== null ? cell : COMMON_LETTERS[Math.floor(rng() * COMMON_LETTERS.length)]))
+    row.map((cell) => {
+      if (cell !== null) return cell;
+      if (targetLetters.length > 0 && rng() < adversarialBias) {
+        return targetLetters[Math.floor(rng() * targetLetters.length)];
+      }
+      return COMMON_LETTERS[Math.floor(rng() * COMMON_LETTERS.length)];
+    })
   );
 
   return {

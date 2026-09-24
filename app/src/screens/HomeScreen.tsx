@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { getHome, updateMe } from "../api/client";
 import { SoundEffects } from "../utils/audio";
 import { HomeData } from "../api/types";
+import { getCachedHome, saveCachedHome, syncOfflineQueue } from "../utils/offlineStore";
 import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Card } from "../components/Card";
@@ -35,7 +36,7 @@ import { fonts, radius, spacing } from "../theme";
 
 export function HomeScreen() {
   const { t, lang } = useI18n();
-  const { user, setUser } = useAuth();
+  const { user, setUser, token } = useAuth();
   const { colors } = useTheme();
   const navigation = useNavigation();
   const pulse = useRef(new Animated.Value(1)).current;
@@ -45,6 +46,7 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
@@ -89,14 +91,25 @@ export function HomeScreen() {
         const home = await getHome();
         setData(home);
         setUser(home.user);
+        setIsOffline(false);
+        saveCachedHome(home);
+        if (token) {
+          syncOfflineQueue(token).catch(() => {});
+        }
       } catch {
-        if (!asRefresh) setFailed(true);
+        const cached = await getCachedHome();
+        if (cached) {
+          setData(cached);
+          setIsOffline(true);
+        } else if (!asRefresh) {
+          setFailed(true);
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [setUser]
+    [setUser, token]
   );
 
   useFocusEffect(
@@ -127,6 +140,31 @@ export function HomeScreen() {
             />
           }
         >
+          {/* Offline Mode Banner */}
+          {isOffline && (
+            <View
+              style={[
+                styles.offlineBanner,
+                {
+                  backgroundColor: colors.amberSoft,
+                  borderColor: colors.amber,
+                },
+              ]}
+            >
+              <Text style={styles.offlineBannerIcon}>📡</Text>
+              <Text
+                style={[
+                  styles.offlineBannerText,
+                  { color: colors.amber, fontFamily: fonts.bodyBold },
+                ]}
+              >
+                {lang === "ne"
+                  ? "अफलाइन मोड सक्रिय: क्यास गरिएका प्रश्न र खेलहरू उपलब्ध छन्। इन्टरनेट आएपछि स्कोर स्वतः सिङ्क हुनेछ।"
+                  : "Offline Mode Active: Quizzes and games are playable offline. Progress will sync when reconnected!"}
+              </Text>
+            </View>
+          )}
+
           {/* Student Profile & Greeting HUD */}
           <View style={styles.greetingRow}>
             <View style={styles.greetingText}>
@@ -1479,6 +1517,24 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 11,
     letterSpacing: 0.5,
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  offlineBannerIcon: {
+    fontSize: 18,
+  },
+  offlineBannerText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });
 

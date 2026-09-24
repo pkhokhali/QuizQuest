@@ -19,7 +19,7 @@ export interface ZipPuzzle {
   numbers: Record<string, number>; // "r,c" -> numberValue (1, 2, ... K)
   walls: ZipWall[];                // barriers on edges between adjacent cells
   solution: string[];             // full ordered Hamiltonian path ["r,c", "r,c", ...]
-  difficulty: "easy" | "medium" | "hard";
+  difficulty: "easy" | "medium" | "hard" | "impossible";
   maxCheckpoint: number;
 }
 
@@ -94,11 +94,11 @@ function generateHamiltonianPath(rows: number, cols: number, seed?: number): str
 
   const path: string[] = [];
   let steps = 0;
-  const MAX_STEPS = 1200;
+  const MAX_STEPS = 15000;
 
   function backtrack(r: number, c: number): boolean {
     if (++steps > MAX_STEPS) {
-      return false; // Time out gracefully to avoid blocking JS thread
+      return false;
     }
     visited[r][c] = true;
     path.push(cellKey(r, c));
@@ -113,7 +113,6 @@ function generateHamiltonianPath(rows: number, cols: number, seed?: number): str
     for (const n of nbrs) {
       const deg = neighbors(n.row, n.col).length;
       if (deg === 0 && path.length < total - 1) {
-        // Dead end cell detected
         visited[r][c] = false;
         path.pop();
         return false;
@@ -139,7 +138,7 @@ function generateHamiltonianPath(rows: number, cols: number, seed?: number): str
     return false;
   }
 
-  // Start from a corner or border for balanced, winding paths
+  // Start from corners or borders for balanced, winding paths
   const startPoints = [
     { row: 0, col: 0 },
     { row: 0, col: cols - 1 },
@@ -150,10 +149,16 @@ function generateHamiltonianPath(rows: number, cols: number, seed?: number): str
     { row: Math.floor(rows / 2), col: cols - 1 },
     { row: rows - 1, col: Math.floor(cols / 2) },
   ];
-  const start = startPoints[Math.floor(rng() * startPoints.length)];
 
-  if (backtrack(start.row, start.col)) {
-    return path;
+  // Try multiple starting points before any fallback
+  const shuffledStarts = [...startPoints].sort(() => rng() - 0.5);
+  for (const st of shuffledStarts) {
+    steps = 0;
+    for (let r = 0; r < rows; r++) visited[r].fill(false);
+    path.length = 0;
+    if (backtrack(st.row, st.col)) {
+      return path;
+    }
   }
 
   // Instant O(N) fallback: randomized serpentine pattern (guaranteed Hamiltonian path)
@@ -284,8 +289,8 @@ export function countSolutions(
 // 3. PUZZLE GENERATOR
 // ---------------------------------------------------------------------------
 
-export type ZipDimension = 5 | 6 | 7 | 8;
-export type ZipDifficulty = "easy" | "medium" | "hard";
+export type ZipDimension = 5 | 6 | 7 | 8 | 9 | 10;
+export type ZipDifficulty = "easy" | "medium" | "hard" | "impossible";
 
 export function createZipPuzzle(
   dimension: ZipDimension = 6,
@@ -305,22 +310,24 @@ export function createZipPuzzle(
   // 1. Generate full Hamiltonian solution path
   const solution = generateHamiltonianPath(rows, cols, activeSeed);
 
-  // 2. Choose checkpoints based on size & difficulty
-  // Easy: generous spacing
-  // Medium: balanced checkpoints
-  // Hard: expanded checkpoints up to 14 numbers (on 6x6) and up to 18 (on 8x8) with dense obstacle walls
+  // 2. Checkpoint scaling (Authentic LinkedIn "Number Dilemma"):
+  // Higher number density (up to 14 numbers on Hard 8x8) creates strict spatial dilemmas.
+  // Each number acts as a rigid anchor, forcing the player to plan detours and lookaheads
+  // to fill all empty cells around a number without self-trapping or blocking future checkpoints.
   let numCheckpoints: number;
   if (difficulty === "easy") {
-    numCheckpoints = dimension === 5 ? 5 : dimension === 6 ? 7 : dimension === 7 ? 9 : 11;
+    numCheckpoints = dimension === 5 ? 5 : dimension === 6 ? 6 : dimension === 7 ? 7 : dimension === 8 ? 8 : dimension === 9 ? 9 : 10;
+  } else if (difficulty === "medium") {
+    numCheckpoints = dimension === 5 ? 6 : dimension === 6 ? 8 : dimension === 7 ? 10 : dimension === 8 ? 11 : dimension === 9 ? 12 : 13;
   } else if (difficulty === "hard") {
-    numCheckpoints = dimension === 5 ? 8 : dimension === 6 ? 14 : dimension === 7 ? 16 : 18;
+    // Hard tier: authentic dense number dilemma (up to 14 numbers on 8x8)
+    numCheckpoints = dimension === 5 ? 8 : dimension === 6 ? 11 : dimension === 7 ? 13 : dimension === 8 ? 14 : dimension === 9 ? 16 : 18;
   } else {
-    // medium
-    numCheckpoints = dimension === 5 ? 6 : dimension === 6 ? 9 : dimension === 7 ? 12 : 14;
+    // Impossible tier: maximum number dilemma density (up to 16-20 numbers) + tight maze walls
+    numCheckpoints = dimension === 5 ? 9 : dimension === 6 ? 12 : dimension === 7 ? 14 : dimension === 8 ? 16 : dimension === 9 ? 18 : 20;
   }
 
   numCheckpoints = Math.max(2, Math.min(total, numCheckpoints));
-  const step = (total - 1) / (numCheckpoints - 1);
 
   let rngVal = activeSeed || 12345;
   const rng = () => {
@@ -328,30 +335,40 @@ export function createZipPuzzle(
     return rngVal / 233280;
   };
 
-  const numbers: Record<string, number> = {};
-  numbers[solution[0]] = 1;
-  let cpNum = 1;
-
-  for (let i = 1; i < numCheckpoints - 1; i++) {
-    const baseIdx = Math.round(i * step);
-    const jitter = Math.floor(rng() * 3) - 1;
-    const clampedIdx = Math.max(1, Math.min(total - 2, baseIdx + jitter));
-    if (!numbers[solution[clampedIdx]]) {
-      cpNum++;
-      numbers[solution[clampedIdx]] = cpNum;
+  // Select strictly monotonic checkpoint indices along the Hamiltonian path:
+  // Guarantees exact desired number of checkpoints without duplicates or dropped numbers.
+  const selectedIndices: number[] = [0];
+  const innerCount = numCheckpoints - 2;
+  if (innerCount > 0) {
+    const idealStep = (total - 1) / (numCheckpoints - 1);
+    for (let i = 1; i <= innerCount; i++) {
+      const idealIdx = Math.round(i * idealStep);
+      const jitter = Math.floor(rng() * 3) - 1; // -1, 0, or +1
+      const minAllowed = selectedIndices[selectedIndices.length - 1] + 1;
+      const maxAllowed = total - 1 - (innerCount - i + 1);
+      const chosenIdx = Math.max(minAllowed, Math.min(maxAllowed, idealIdx + jitter));
+      selectedIndices.push(chosenIdx);
     }
   }
-  cpNum++;
-  numbers[solution[solution.length - 1]] = cpNum;
+  selectedIndices.push(total - 1);
 
-  // 3. Inject strategic walls based on difficulty (up to 16 walls for maximum hardness)
+  const numbers: Record<string, number> = {};
+  selectedIndices.forEach((idx, cpIdx) => {
+    numbers[solution[idx]] = cpIdx + 1;
+  });
+  const cpNum = selectedIndices.length;
+
+  // 3. Inject strategic connected wall obstacles (Corridors, L-shapes, and barriers)
   let maxWalls: number;
   if (difficulty === "easy") {
-    maxWalls = dimension <= 6 ? 4 : 6;
+    maxWalls = dimension <= 5 ? 2 : dimension <= 6 ? 4 : 5;
+  } else if (difficulty === "medium") {
+    maxWalls = dimension <= 5 ? 3 : dimension <= 6 ? 6 : dimension <= 7 ? 8 : 10;
   } else if (difficulty === "hard") {
-    maxWalls = dimension === 5 ? 6 : dimension === 6 ? 11 : dimension === 7 ? 14 : 16;
+    maxWalls = dimension <= 5 ? 4 : dimension <= 6 ? 7 : dimension <= 7 ? 9 : 12;
   } else {
-    maxWalls = dimension === 5 ? 5 : dimension === 6 ? 8 : dimension === 7 ? 10 : 12;
+    // impossible
+    maxWalls = dimension <= 5 ? 5 : dimension <= 6 ? 8 : dimension <= 7 ? 11 : 14;
   }
 
   const walls: ZipWall[] = [];
@@ -359,26 +376,65 @@ export function createZipPuzzle(
   const pathIndexMap = new Map<string, number>();
   solution.forEach((k, idx) => pathIndexMap.set(k, idx));
 
-  for (let i = 0; i < solution.length; i++) {
-    if (walls.length >= maxWalls) break;
+  // Count walls surrounding each cell so no cell becomes enclosed
+  const cellWallCount = new Map<string, number>();
+  const getWallCount = (r: number, c: number) => cellWallCount.get(cellKey(r, c)) || 0;
+  const incWallCount = (r: number, c: number) => cellWallCount.set(cellKey(r, c), getWallCount(r, c) + 1);
+
+  const canPlaceWall = (rA: number, cA: number, rB: number, cB: number): boolean => {
+    const keyA = cellKey(rA, cA);
+    const keyB = cellKey(rB, cB);
+    const idxA = pathIndexMap.get(keyA);
+    const idxB = pathIndexMap.get(keyB);
+    if (idxA === undefined || idxB === undefined) return false;
+    // Wall can NEVER cross consecutive steps in the solution path
+    if (Math.abs(idxA - idxB) <= 1) return false;
+    const wKey = wallKey(keyA, keyB);
+    if (wallsSet.has(wKey)) return false;
+    // Prevent blocking any cell completely (need at least 2 open exits)
+    if (getWallCount(rA, cA) >= 2 || getWallCount(rB, cB) >= 2) return false;
+    return true;
+  };
+
+  const addWall = (rA: number, cA: number, rB: number, cB: number) => {
+    const keyA = cellKey(rA, cA);
+    const keyB = cellKey(rB, cB);
+    const wKey = wallKey(keyA, keyB);
+    wallsSet.add(wKey);
+    walls.push({ between: [keyA, keyB] });
+    incWallCount(rA, cA);
+    incWallCount(rB, cB);
+  };
+
+  // Grow walls into continuous multi-segment corridors / L-shapes
+  for (let i = 0; i < solution.length && walls.length < maxWalls; i++) {
     const { row, col } = parseKey(solution[i]);
-    const deltas = [
-      [1, 0],
-      [0, 1],
-    ];
+    const deltas = [[1, 0], [0, 1]];
     for (const [dr, dc] of deltas) {
+      if (walls.length >= maxWalls) break;
       const nr = row + dr;
       const nc = col + dc;
-      if (nr < rows && nc < cols) {
-        const neighborKey = cellKey(nr, nc);
-        const idxA = i;
-        const idxB = pathIndexMap.get(neighborKey) ?? 0;
-        // If adjacent geometrically but distant in path, placing a wall prunes shortcuts
-        if (Math.abs(idxA - idxB) > 3) {
-          const wKey = wallKey(solution[i], neighborKey);
-          if (!wallsSet.has(wKey)) {
-            wallsSet.add(wKey);
-            walls.push({ between: [solution[i], neighborKey] });
+      if (nr < rows && nc < cols && canPlaceWall(row, col, nr, nc)) {
+        addWall(row, col, nr, nc);
+
+        // Try chaining an extension (creating an L-corner or 2-3 segment run)
+        const extensions = [
+          // Continuation along same line
+          dr !== 0 ? [row + dr, col, row + 2 * dr, col] : [row, col + dc, row, col + 2 * dc],
+          // L-corner turn
+          dr !== 0 ? [row, col, row, col + 1] : [row, col, row + 1, col],
+          dr !== 0 ? [row, col, row, col - 1] : [row, col, row - 1, col],
+        ];
+
+        for (const [erA, ecA, erB, ecB] of extensions) {
+          if (walls.length >= maxWalls) break;
+          if (
+            erA >= 0 && erA < rows && ecA >= 0 && ecA < cols &&
+            erB >= 0 && erB < rows && ecB >= 0 && ecB < cols &&
+            canPlaceWall(erA, ecA, erB, ecB)
+          ) {
+            addWall(erA, ecA, erB, ecB);
+            break;
           }
         }
       }
@@ -410,15 +466,19 @@ export function getSample6x6(): ZipPuzzle {
     "5,5","5,4","5,3","5,2","5,1","5,0"
   ];
   return {
-    id: "sample-6x6-easy",
+    id: "sample-6x6-dilemma",
     size: { rows: 6, cols: 6 },
     numbers: {
       "0,0": 1,
-      "1,2": 2,
-      "2,5": 3,
-      "3,1": 4,
-      "4,4": 5,
-      "5,0": 6,
+      "0,3": 2,
+      "1,4": 3,
+      "1,0": 4,
+      "2,3": 5,
+      "3,4": 6,
+      "3,0": 7,
+      "4,3": 8,
+      "5,4": 9,
+      "5,0": 10,
     },
     walls: [
       { between: ["0,0", "1,0"] },
@@ -429,8 +489,8 @@ export function getSample6x6(): ZipPuzzle {
       { between: ["0,2", "1,2"] },
     ],
     solution,
-    difficulty: "easy",
-    maxCheckpoint: 6,
+    difficulty: "hard",
+    maxCheckpoint: 10,
   };
 }
 
@@ -447,17 +507,23 @@ export function getSample8x8(): ZipPuzzle {
   }
 
   return {
-    id: "sample-8x8-focus",
+    id: "sample-8x8-master-14",
     size: { rows: 8, cols: 8 },
     numbers: {
       "0,0": 1,
-      "0,7": 2,
-      "1,1": 3,
-      "2,6": 4,
-      "4,2": 5,
-      "5,5": 6,
-      "6,1": 7,
-      "7,0": 8,
+      "0,4": 2,
+      "1,6": 3,
+      "1,1": 4,
+      "2,3": 5,
+      "3,7": 6,
+      "3,2": 7,
+      "4,2": 8,
+      "4,7": 9,
+      "5,3": 10,
+      "6,0": 11,
+      "6,5": 12,
+      "7,5": 13,
+      "7,0": 14,
     },
     walls: [
       { between: ["0,0", "1,0"] },
@@ -470,8 +536,8 @@ export function getSample8x8(): ZipPuzzle {
       { between: ["4,5", "5,5"] },
     ],
     solution,
-    difficulty: "medium",
-    maxCheckpoint: 8,
+    difficulty: "hard",
+    maxCheckpoint: 14,
   };
 }
 
@@ -487,21 +553,17 @@ export function getSample10x10(): ZipPuzzle {
     }
   }
 
+  // 18 dense checkpoints along the 100-cell serpentine path
+  const checkIndices = [0, 5, 11, 17, 23, 29, 35, 41, 47, 53, 59, 65, 71, 77, 83, 89, 94, 99];
+  const numbers: Record<string, number> = {};
+  checkIndices.forEach((idx, i) => {
+    numbers[solution[idx]] = i + 1;
+  });
+
   return {
     id: "sample-10x10-master",
     size: { rows: 10, cols: 10 },
-    numbers: {
-      "0,0": 1,
-      "0,9": 2,
-      "1,2": 3,
-      "2,8": 4,
-      "3,1": 5,
-      "4,7": 6,
-      "6,3": 7,
-      "7,6": 8,
-      "8,1": 9,
-      "9,0": 10,
-    },
+    numbers,
     walls: [
       { between: ["0,0", "1,0"] },
       { between: ["1,9", "2,9"] },
@@ -516,7 +578,7 @@ export function getSample10x10(): ZipPuzzle {
     ],
     solution,
     difficulty: "hard",
-    maxCheckpoint: 10,
+    maxCheckpoint: 18,
   };
 }
 
@@ -532,7 +594,7 @@ export function getDailyZipPuzzle(dateStr?: string): ZipPuzzle {
 
   // Day-of-week progression matching server:
   // Mon/Wed: 5x5, Tue/Thu/Fri: 6x6, Sun: 7x7, Sat (Weekend Master): 8x8
-  const dimension: 5 | 6 | 7 | 8 =
+  const dimension: ZipDimension =
     dayOfWeek === 6 ? 8 : dayOfWeek === 0 ? 7 : [1, 3].includes(dayOfWeek) ? 5 : 6;
   const difficulty = "hard";
 

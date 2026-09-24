@@ -19,7 +19,18 @@ import {
   submitPracticeQuiz,
   submitRevengeQuiz,
 } from "../api/client";
-import { AnswerInput, StudentQuestion, SubmitQuizResponse } from "../api/types";
+import {
+  AnswerInput,
+  CorrectEntry,
+  StudentQuestion,
+  SubmitQuizResponse,
+} from "../api/types";
+import {
+  getCachedQuestions,
+  OfflineQuestion,
+  queueOfflineSubmission,
+  saveCachedQuestions,
+} from "../utils/offlineStore";
 import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
 import { EmojiBurst } from "../components/EmojiBurst";
@@ -54,9 +65,9 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
   const mode = currentMode;
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigation = useNavigation();
-  const { refreshUser } = useAuth();
+  const { refreshUser, user } = useAuth();
   const { isSoundEnabled, toggleSound } = useSoundEnabled();
 
   const [phase, setPhase] = useState<Phase>("loading");
@@ -68,6 +79,7 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
   const [answered, setAnswered] = useState(false);
   const [result, setResult] = useState<SubmitQuizResponse | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
 
   const answersRef = useRef<AnswerInput[]>([]);
   const questionShownAt = useRef(Date.now());
@@ -98,8 +110,10 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
         setPhase("empty");
         return;
       }
+      setIsOfflineMode(false);
       setQuizId(data.quizId);
       setQuestions(data.questions);
+      saveCachedQuestions(data.questions);
       answersRef.current = [];
       setIndex(0);
       setSelected(null);
@@ -113,10 +127,39 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
         setEmptyMessage(t("quizEmptyDaily"));
         setPhase("empty");
       } else {
-        setPhase("error");
+        // Fallback to offline questions (smart cache + procedural math)
+        const gradeBand = user?.grade
+          ? user.grade <= 3
+            ? "1-3"
+            : user.grade <= 5
+            ? "4-5"
+            : user.grade <= 8
+            ? "6-8"
+            : "9-10"
+          : "4-5";
+        const offlineList = await getCachedQuestions({
+          subject: initialSubject,
+          count: 10,
+          gradeBand,
+          lang: (user?.language as "en" | "ne") || "en",
+        });
+
+        if (offlineList.length > 0) {
+          setIsOfflineMode(true);
+          setQuizId(999999);
+          setQuestions(offlineList);
+          answersRef.current = [];
+          setIndex(0);
+          setSelected(null);
+          setAnswered(false);
+          questionShownAt.current = Date.now();
+          setPhase("playing");
+        } else {
+          setPhase("error");
+        }
       }
     }
-  }, [mode, initialSubject, t]);
+  }, [mode, initialSubject, t, user?.grade, user?.homeCountry, user?.language]);
 
   useEffect(() => {
     load();
@@ -128,6 +171,48 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
   const submit = useCallback(
     async (answers: AnswerInput[], id: number) => {
       setPhase("submitting");
+
+      // Local offline submission evaluation
+      if (isOfflineMode || id === 999999) {
+        let score = 0;
+        const correctEntries: CorrectEntry[] = [];
+        questions.forEach((q) => {
+          const offQ = q as OfflineQuestion;
+          const userAns = answers.find((a) => a.questionId === q.id);
+          const cIdx = typeof offQ.correctIndex === "number" ? offQ.correctIndex : 0;
+          correctEntries.push({ questionId: q.id, correctIndex: cIdx });
+          if (userAns && userAns.choice === cIdx) {
+            score++;
+          }
+        });
+        const xpEarned = score * 10;
+        const offlineResult: SubmitQuizResponse = {
+          score,
+          total: questions.length,
+          xpEarned,
+          xp: (user?.xp ?? 0) + xpEarned,
+          level: user?.level ?? 1,
+          streak: (user?.streak ?? 0) + (score > 0 ? 1 : 0),
+          newAwards: [],
+          correct: correctEntries,
+        };
+        const endpoint =
+          mode === "daily"
+            ? "/quizzes/daily/submit"
+            : mode === "practice"
+            ? "/quizzes/practice/submit"
+            : "/quizzes/revenge/submit";
+        queueOfflineSubmission("quiz", endpoint, {
+          quizId: id,
+          answers,
+          offlineScore: score,
+          offlineTimestamp: Date.now(),
+        });
+        setResult(offlineResult);
+        setPhase("results");
+        return;
+      }
+
       try {
         const res =
           mode === "daily"
@@ -139,6 +224,18 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
         setPhase("results");
         refreshUser();
 
+        // Update cached questions with verified correct index for offline play
+        if (res.correct && res.correct.length > 0) {
+          const questionMap = new Map(questions.map((q) => [q.id, q]));
+          const verified = res.correct
+            .map((c) => {
+              const q = questionMap.get(c.questionId);
+              return q ? { ...q, correctIndex: c.correctIndex } : null;
+            })
+            .filter(Boolean) as (StudentQuestion & { correctIndex: number })[];
+          saveCachedQuestions(verified);
+        }
+
         // Log Firebase Analytics events for Play Games leaderboards & achievements
         logPostScore(res.score, mode === "daily" ? "daily_quiz_leaderboard" : "practice_quiz_leaderboard");
         if (res.newAwards && Array.isArray(res.newAwards)) {
@@ -147,10 +244,46 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
           }
         }
       } catch {
-        setPhase("error");
+        // Submission network failed - preserve user progress with offline queue
+        let score = 0;
+        const correctEntries: CorrectEntry[] = [];
+        questions.forEach((q) => {
+          const offQ = q as OfflineQuestion;
+          const userAns = answers.find((a) => a.questionId === q.id);
+          const cIdx = typeof offQ.correctIndex === "number" ? offQ.correctIndex : 0;
+          correctEntries.push({ questionId: q.id, correctIndex: cIdx });
+          if (userAns && userAns.choice === cIdx) {
+            score++;
+          }
+        });
+        const xpEarned = score * 10;
+        const fallbackResult: SubmitQuizResponse = {
+          score,
+          total: questions.length,
+          xpEarned,
+          xp: (user?.xp ?? 0) + xpEarned,
+          level: user?.level ?? 1,
+          streak: (user?.streak ?? 0) + (score > 0 ? 1 : 0),
+          newAwards: [],
+          correct: correctEntries,
+        };
+        const endpoint =
+          mode === "daily"
+            ? "/quizzes/daily/submit"
+            : mode === "practice"
+            ? "/quizzes/practice/submit"
+            : "/quizzes/revenge/submit";
+        queueOfflineSubmission("quiz", endpoint, {
+          quizId: id,
+          answers,
+          offlineScore: score,
+          offlineTimestamp: Date.now(),
+        });
+        setResult(fallbackResult);
+        setPhase("results");
       }
     },
-    [mode, refreshUser]
+    [mode, isOfflineMode, questions, user, refreshUser]
   );
 
   const advance = useCallback(
@@ -270,7 +403,7 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
 
   return (
     <Atmosphere>
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.close}>
             <Text style={[styles.closeText, { color: colors.textMuted }]}>✕</Text>
@@ -279,6 +412,13 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
             <Text style={[styles.progressText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
               {t("quizProgress", { n: index + 1, total: questions.length })}
             </Text>
+            {isOfflineMode && (
+              <View style={[styles.offlinePill, { backgroundColor: colors.amberSoft }]}>
+                <Text style={[styles.offlinePillText, { color: colors.amber, fontFamily: fonts.bodyBold }]}>
+                  📡 {lang === "ne" ? "अफलाइन मोड" : "Offline Mode"}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.headerRightControls}>
             <TouchableOpacity
@@ -402,7 +542,7 @@ function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: R
 
   return (
     <Atmosphere>
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <ScrollView
           contentContainerStyle={styles.resultsContent}
           showsVerticalScrollIndicator={false}
@@ -691,6 +831,15 @@ function createStyles(colors: ColorTokens) {
     },
     progressText: {
       fontSize: 14,
+    },
+    offlinePill: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderRadius: radius.pill,
+      marginTop: 2,
+    },
+    offlinePillText: {
+      fontSize: 11,
     },
     progressBar: {
       marginHorizontal: spacing.lg,

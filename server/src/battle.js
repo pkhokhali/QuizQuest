@@ -35,15 +35,15 @@ function pickBattleQuestions(gradeBand) {
       )
       .get(subj, gradeBand);
 
-    // 2. If no question in exact gradeBand, pull from adjacent or any approved band for this subject
+    // 2. If no question in exact difficulty, pull from any difficulty in the SAME gradeBand
     if (!q) {
       q = db
         .prepare(
           `SELECT * FROM questions 
-           WHERE status = 'approved' AND subject = ? AND difficulty <= 4
+           WHERE status = 'approved' AND subject = ? AND grade_band = ?
            ORDER BY RANDOM() LIMIT 1`
         )
-        .get(subj);
+        .get(subj, gradeBand);
     }
 
     if (q && !pickedIds.has(q.id)) {
@@ -52,17 +52,17 @@ function pickBattleQuestions(gradeBand) {
     }
   }
 
-  // 6th question: pick from nepali, science, gk or social to keep non-math variety high
+  // 6th question: pick from nepali, science, gk or social to keep non-math variety high (in SAME gradeBand)
   const bonusSubjects = ["nepali", "science", "gk", "social"];
   for (const bonusSubj of bonusSubjects) {
     if (picked.length >= TOTAL_QUESTIONS) break;
     const q = db
       .prepare(
         `SELECT * FROM questions 
-         WHERE status = 'approved' AND subject = ? AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+         WHERE status = 'approved' AND subject = ? AND grade_band = ? AND id NOT IN (${[...pickedIds].join(",") || "-1"})
          ORDER BY RANDOM() LIMIT 1`
       )
-      .get(bonusSubj);
+      .get(bonusSubj, gradeBand);
     if (q && !pickedIds.has(q.id)) {
       picked.push(q);
       pickedIds.add(q.id);
@@ -226,7 +226,7 @@ export function initBattle(io) {
         id: challengeId,
         from: { socket, user },
         toUserId: targetId,
-        expires: Date.now() + 180000, // 3 minutes
+        expires: Date.now() + 300000, // 5 minutes
       });
 
       const target = onlineSockets.get(targetId);
@@ -241,11 +241,15 @@ export function initBattle(io) {
           title: `⚔️ 1v1 Quiz Challenge!`,
           body: `${user.name || "A classmate"} challenged you to a live Quiz Duel! Tap to accept now! 🔥`,
           data: {
+            type: "challenge",
             screen: "Battle",
             challengeId,
             fromUserId: user.id,
             fromName: user.name || "Player",
           },
+          channelId: "challenges",
+          priority: "high",
+          sound: "default",
         });
       } catch (err) {
         console.warn("[Battle] Failed to send challenge push notification:", err);
@@ -259,10 +263,12 @@ export function initBattle(io) {
         return;
       }
       challenges.delete(Number(challengeId));
-      if (!ch.from.socket.connected) {
+      const fromSocket = ch.from.socket?.connected ? ch.from.socket : onlineSockets.get(ch.from.user.id);
+      if (!fromSocket || !fromSocket.connected) {
         socket.emit("challenge:expired", { message: "Challenger is no longer connected" });
         return;
       }
+      ch.from.socket = fromSocket;
       const band = gradeBandFor(ch.from.user.grade || user.grade || 8);
       startBattle(ch.from, { socket, user }, band);
     });

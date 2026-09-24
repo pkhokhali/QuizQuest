@@ -360,7 +360,7 @@ export function MemoryPlayScreen() {
 
   return (
     <Atmosphere>
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         {/* Header HUD */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -705,7 +705,7 @@ const styles = StyleSheet.create({
   gridContainer: {
     padding: spacing.lg,
     alignItems: "center",
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 20,
   },
   grid: {
     flexDirection: "row",

@@ -327,6 +327,118 @@ export const WORD_SEARCH_DATA: Record<string, WordSearchCategoryConfig> = {
       { word: "SENSOR", clueEn: "Device detecting physical stimuli like heat, light, and motion", clueNe: "वातावरणको परिवर्तन महसुस गर्ने सेन्सर" },
       { word: "CLOUD", clueEn: "Remote network of servers providing on-demand compute & storage", clueNe: "इन्टरनेटमार्फत डाटा सुरक्षित राख्ने क्लाउड प्रविधि" },
       { word: "BINARY", clueEn: "Base-2 numeral code consisting purely of zeros and ones", clueNe: "कम्प्युटरले बुझ्ने ० र १ को बाइनरी कोड" },
+      { word: "COMPILER", clueEn: "Software converting high-level source code to machine binaries", clueNe: "प्रोग्रामलाई मेसिन कोडमा बदल्ने कम्पाइलर" },
+      { word: "BANDWIDTH", clueEn: "Maximum rate of data transfer across a given network path", clueNe: "इन्टरनेट डाटा प्रसारणको अधिकतम गति (ब्यान्डविथ)" },
+      { word: "ENCRYPTION", clueEn: "Process of encoding data so only authorized parties can read it", clueNe: "डाटा सुरक्षित राख्ने गुप्तिकरण (इन्क्रिप्सन)" },
+      { word: "MAINFRAME", clueEn: "Ultra-reliable computer used for enterprise-critical transactions", clueNe: "ठूला संस्थाले प्रयोग गर्ने विशाल कम्प्युटर" },
+    ],
+  },
+  world_geography: {
+    id: "world_geography",
+    titleEn: "World Geography & Oceans",
+    titleNe: "विश्व भूगोल र महासागर",
+    icon: "🌍",
+    mysteryWord: {
+      word: "PLANET",
+      clueEn: "Celestial body orbiting a star, clearing its surrounding neighborhood",
+      clueNe: "सूर्य वा तारालाई परिक्रमा गर्ने खगोलीय पिण्ड (ग्रह)",
+    },
+    words: [
+      { word: "CONTINENT", clueEn: "One of Earth seven massive continuous land expanses", clueNe: "पृथ्वीका सात ठूला महादेशहरूमध्ये एक" },
+      { word: "ATLANTIC", clueEn: "Second-largest ocean separating the Americas from Europe and Africa", clueNe: "विश्वको दोस्रो ठूलो आन्द्र महासागर" },
+      { word: "PACIFIC", clueEn: "Earth largest and deepest ocean spanning over 165 million km²", clueNe: "विश्वकै सबैभन्दा ठूलो र गहिरो प्रशान्त महासागर" },
+      { word: "AMAZONAS", clueEn: "Vast South American river basin holding world largest rainforest", clueNe: "दक्षिण अमेरिकाको विशाल अमेजन वर्षावन र नदी" },
+      { word: "HIMALAYA", clueEn: "Highest mountain range on Earth home to Mount Everest", clueNe: "विश्वको सर्वोच्च हिमशृङ्खला हिमालय" },
+      { word: "ANTARCTICA", clueEn: "Earth southernmost continent buried in thick ice sheets", clueNe: "सधैँ हिउँले ढाकिएको दक्षिणी महादेश अन्टार्कटिका" },
+      { word: "SAHARA", clueEn: "Vast sub-tropical hot desert spanning most of North Africa", clueNe: "अफ्रिका महादेशको विश्वप्रसिद्ध सहारा मरुभूमि" },
+      { word: "MEDITERRANEAN", clueEn: "Historic sea connected to the Atlantic, surrounded by three continents", clueNe: "युरोप, एसिया र अफ्रिका बीचको भूमध्य सागर" },
+      { word: "GREENLAND", clueEn: "World largest island that is not a continent, located in Arctic", clueNe: "विश्वको सबैभन्दा ठूलो टापु ग्रिनल्यान्ड" },
+      { word: "MADAGASCAR", clueEn: "Large biodiversity island off southeast coast of Africa", clueNe: "अफ्रिका नजिकको जैविक विविधतायुक्त टापु माडागास्कर" },
+      { word: "KILIMANJARO", clueEn: "Dormant stratovolcano and highest peak in Africa (Tanzania)", clueNe: "अफ्रिका महादेशको सर्वोच्च शिखर किलिमन्जारो" },
+      { word: "MISSISSIPPI", clueEn: "Major North American river draining 31 US states", clueNe: "उत्तर अमेरिकाको प्रसिद्ध मिसिसिपी नदी" },
+      { word: "DANUBE", clueEn: "Second-longest European river flowing through 10 nations", clueNe: "१० देश भएर बग्ने युरोपको ड्यान्युब नदी" },
+      { word: "CARIBBEAN", clueEn: "Tropical sea dotted with hundreds of sunny island nations", clueNe: "टापुहरूले घेरिएको क्यारिबियन सागर" },
+      { word: "ARCHIPELAGO", clueEn: "Extensive cluster, chain, or collection of multiple islands", clueNe: "टापुहरूको समूह (द्वीपसमूह)" },
+      { word: "PENINSULA", clueEn: "Piece of land almost entirely surrounded by water on three sides", clueNe: "तीनतिर पानीले घेरिएको जमिन (प्रायद्वीप)" },
+      { word: "EQUATOR", clueEn: "Imaginary zero-degree latitude line dividing northern and southern hemispheres", clueNe: "पृथ्वीको मध्य भागबाट कोरिएको शून्य डिग्री भूमध्यरेखा" },
+      { word: "MERIDIAN", clueEn: "Line of longitude passing through Royal Observatory Greenwich", clueNe: "देशान्तर रेखा (प्राइम मेरिडियन)" },
+      { word: "GIBRALTAR", clueEn: "Strategic strait connecting Mediterranean Sea to Atlantic Ocean", clueNe: "जिब्राल्टार जलडमरूमध्य" },
+      { word: "VICTORIA", clueEn: "Africa largest freshwater tropical lake, source of the White Nile", clueNe: "अफ्रिकाको सबैभन्दा ठूलो भिक्टोरिया ताल" },
+      { word: "VOLCANO", clueEn: "Rupture in Earth crust allowing hot lava, ash, and gases to escape", clueNe: "लाभा र धुवाँ ओकल्ने ज्वालामुखी" },
+      { word: "GLACIER", clueEn: "Slowly moving persistent mass of dense compacted ice on mountains", clueNe: "हिमालमा बिस्तारै सर्ने बरफको नदी (हिमनदी)" },
+      { word: "SAVANNA", clueEn: "Tropical grassland biome scattered with individual acacia trees", clueNe: "अफ्रिकाको घाँसे मैदान (सभान्हा)" },
+    ],
+  },
+  sports_games: {
+    id: "sports_games",
+    titleEn: "Sports & Athletics",
+    titleNe: "खेलकुद र प्रतियोगिता",
+    icon: "⚽",
+    mysteryWord: {
+      word: "OLYMPIC",
+      clueEn: "Quadrennial international athletic festival uniting world nations",
+      clueNe: "हरेक चार वर्षमा हुने विश्वको सबैभन्दा ठूलो खेल महोत्सव ओलम्पिक",
+    },
+    words: [
+      { word: "FOOTBALL", clueEn: "World most popular team sport kicked on grass pitches", clueNe: "विश्वकै सबैभन्दा लोकप्रिय खेल फुटबल" },
+      { word: "CRICKET", clueEn: "Bat-and-ball game played between two teams of eleven players", clueNe: "ब्याट र बलले खेलिने क्रिकेट खेल" },
+      { word: "BASKETBALL", clueEn: "Fast-paced indoor sport shooting hoops through elevated nets", clueNe: "बास्केटमा बल हालेर खेलिने बास्केटबल" },
+      { word: "VOLLEYBALL", clueEn: "Team sport where players hit ball back and forth over a net", clueNe: "नेपालको राष्ट्रिय खेल भलिबल" },
+      { word: "MARATHON", clueEn: "Historic long-distance foot race spanning 42.195 kilometers", clueNe: "४२.१९५ किलोमिटर लामो म्याराथन दौड" },
+      { word: "BADMINTON", clueEn: "Racquet sport played with lightweight shuttles over a high net", clueNe: "र्याकेट र कर्कले खेलिने ब्याडमिन्टन" },
+      { word: "CHAMPION", clueEn: "Person or team that has defeated all rivals in a contest", clueNe: "प्रतियोगिता जित्ने विजेता वा च्याम्पियन" },
+      { word: "ATHLETE", clueEn: "Person proficient in physical fitness, exercises, and agility", clueNe: "दौड र खेलकुदमा सिपालु खेलाडी (एथलिट)" },
+      { word: "TOURNAMENT", clueEn: "Series of contests in a sport leading to a single championship", clueNe: "विभिन्न टिमहरू बीच हुने खेल प्रतियोगिता" },
+      { word: "STADIUM", clueEn: "Large arena with tiered spectator seating for sporting events", clueNe: "दर्शकहरू बसेर खेल हेर्ने ठूलो रङ्गशाला" },
+      { word: "GYMNASTICS", clueEn: "Exercises testing balance, strength, flexibility, and agility", clueNe: "सन्तुलन र लचकता प्रदर्शन गर्ने जिम्नास्टिक" },
+      { word: "SWIMMING", clueEn: "Propulsion of the human body through water using rhythmic strokes", clueNe: "पानीमा हातगोडा चलाएर पौडिने पौडी खेल" },
+      { word: "ARCHERY", clueEn: "Art and sport of shooting arrows with a recurve or compound bow", clueNe: "धनुष र बाणले निशाना लगाउने तिरन्दाजी" },
+      { word: "TAEKWONDO", clueEn: "Korean martial art characterized by high, fast jumping kicks", clueNe: "नेपालले अन्तर्राष्ट्रिय पदक जितेको तेक्वान्दो खेल" },
+      { word: "TRIATHLON", clueEn: "Multi-sport endurance race combining swim, cycle, and run", clueNe: "पौडी, साइकल र दौड समावेश भएको ट्राइयाथलन" },
+      { word: "WRESTLING", clueEn: "Combat sport involving grappling, takedowns, and pins", clueNe: "कुस्ती (रेस्लिङ)" },
+      { word: "SURFING", clueEn: "Surface water sport where athlete rides breaking ocean waves", clueNe: "समुद्रका छालमा बोर्डमा सन्तुलन मिलाउने सर्फिङ" },
+      { word: "CYCLING", clueEn: "Sport and recreation of riding two-wheeled pedal bicycles", clueNe: "साइकल दौड प्रतियोगिता" },
+      { word: "DEFENDER", clueEn: "Player positioned to stop opposing team from scoring goals", clueNe: "फुटबलमा विपक्षीलाई गोल गर्न रोक्ने डिफेन्डर" },
+      { word: "STRIKER", clueEn: "Forward whose primary role is to shoot and score goals", clueNe: "अग्रपङ्क्तिमा गोल गर्ने मुख्य स्ट्राइकर" },
+      { word: "REFEREE", clueEn: "Official responsible for enforcing sports rules during play", clueNe: "खेलका नियम पालना गराउने निष्पक्ष रेफ्री" },
+      { word: "MEDALIST", clueEn: "Sports competitor who has won gold, silver, or bronze award", clueNe: "पदक जित्न सफल खेलाडी" },
+      { word: "SPRINTER", clueEn: "Runner specializing in ultra-fast explosive short distance dashes", clueNe: "छोटो दूरीमा तीव्र गतिमा कुद्ने धावक" },
+    ],
+  },
+  math_logic: {
+    id: "math_logic",
+    titleEn: "Mathematics & Logic",
+    titleNe: "गणित र तार्किक ज्ञान",
+    icon: "📐",
+    mysteryWord: {
+      word: "EQUATION",
+      clueEn: "Mathematical statement showing that two expressions are equal",
+      clueNe: "दुईवटा गणितीय व्यञ्जक बराबर भएको देखाउने समीकरण",
+    },
+    words: [
+      { word: "GEOMETRY", clueEn: "Branch of mathematics dealing with points, shapes, and space", clueNe: "आकार, कोण र क्षेत्रहरूको अध्ययन गर्ने ज्यामिति" },
+      { word: "CALCULUS", clueEn: "Mathematical study of continuous change, limits, and rates", clueNe: "परिवर्तन र सीमाहरूको अध्ययन गर्ने क्यालकुलस" },
+      { word: "ALGEBRA", clueEn: "Branch of mathematics where letters represent unknown numbers", clueNe: "अज्ञात सङ्ख्याको सट्टा अक्षर राखेर हिसाब गरिने बीजगणित" },
+      { word: "THEOREM", clueEn: "Statement proven using previously established facts and axioms", clueNe: "तर्क र प्रमाणद्वारा पुष्टि गरिएको साध्य (थ्योरम)" },
+      { word: "FRACTION", clueEn: "Numerical quantity that is not a whole number (numerator/denominator)", clueNe: "अंश र हर भएको भिन्न सङ्ख्या" },
+      { word: "DECIMAL", clueEn: "Number expressed in base ten positional numeral system", clueNe: "दशमलब सङ्ख्या प्रणाली" },
+      { word: "TRIANGLE", clueEn: "Three-sided polygon whose interior angles sum to 180 degrees", clueNe: "तीनवटा भुजा र तीन कोण भएको त्रिभुज" },
+      { word: "POLYGON", clueEn: "Flat two-dimensional closed shape bound by straight line sides", clueNe: "सिधा रेखाहरू मिलेर बनेको बहुभुज" },
+      { word: "SYMMETRY", clueEn: "Balanced proportion where one half mirrors the other half perfectly", clueNe: "दुवैतर्फ बराबर र मिल्दोजुल्दो आकार (सममिति)" },
+      { word: "VARIABLE", clueEn: "Symbol representing a quantity that can assume different values", clueNe: "मान परिवर्तन भइरहने गणितीय चर (Variable)" },
+      { word: "EXPONENT", clueEn: "Quantity representing power to which a base number is raised", clueNe: "सङ्ख्याको घात वा पावर (एक्सपोनेन्ट)" },
+      { word: "LOGARITHM", clueEn: "Inverse operation to exponentiation (power to get a number)", clueNe: "घातको उल्टो विधि लघुगणक (लग)" },
+      { word: "INTEGRAL", clueEn: "Mathematical tool computing total accumulation and areas under curves", clueNe: "वक्र रेखा मुनिको क्षेत्रफल निकाल्ने इन्टिग्रल" },
+      { word: "DERIVATIVE", clueEn: "Rate at which a function changes with respect to its variable", clueNe: "परिवर्तनको दर नाप्ने डेरिभेटिभ" },
+      { word: "PROBABILITY", clueEn: "Likelihood or chance of a given event occurring between 0 and 1", clueNe: "कुनै घटना घट्ने सम्भाव्यता" },
+      { word: "STATISTICS", clueEn: "Science of collecting, analyzing, presenting, and interpreting data", clueNe: "तथ्याङ्क सङ्कलन र विश्लेषण गर्ने तथ्याङ्कशास्त्र" },
+      { word: "FACTORIAL", clueEn: "Product of an integer and all the positive integers below it", clueNe: "सङ्ख्या र त्यो भन्दा साना सबै पूर्णाङ्कको गुणनफल" },
+      { word: "PERIMETER", clueEn: "Continuous path and total boundary distance around a 2D shape", clueNe: "कुनै पनि बन्द आकारको बाहिरी घेरा (परिमिति)" },
+      { word: "DIAMETER", clueEn: "Straight line segment passing through center of circle from edge to edge", clueNe: "वृत्तको केन्द्र भएर जाने सिधा रेखा (व्यास)" },
+      { word: "PARALLEL", clueEn: "Lines in a plane that never intersect and remain equidistant", clueNe: "कहिले नजोडिने सिधा समानान्तर रेखाहरू" },
+      { word: "PYTHAGORAS", clueEn: "Ancient Greek mathematician famed for right-triangle theorem", clueNe: "समकोण त्रिभुजको नियम पत्ता लगाउने पाइथागोरस" },
+      { word: "FIBONACCI", clueEn: "Number sequence where each term is the sum of previous two", clueNe: "अघिल्ला दुई पद जोडेर बन्ने फिबोनाची शृङ्खला" },
+      { word: "INFINITY", clueEn: "Concept describing something that is boundless and without end", clueNe: "अन्त नभएको असीमित अवस्था (अनन्त)" },
     ],
   },
 };
@@ -356,13 +468,18 @@ export function sampleCategoryWords(
 ): { selectedWords: WordEntry[]; mysteryWord: WordEntry } {
   const category = WORD_SEARCH_DATA[categoryId] || WORD_SEARCH_DATA["nepal_heritage"];
   
-  // Max word length filter depending on grid dimension
-  const maxLen = difficulty === "easy" ? 8 : difficulty === "medium" ? 10 : 12;
+  // Min and max word length filters based on difficulty:
+  // Easy: 10x10 grid (min 4, max 9)
+  // Medium: 13x13 grid (min 5, max 12)
+  // Hard: 16x16 grid (min 6, max 15)
+  const minLen = difficulty === "easy" ? 4 : difficulty === "medium" ? 5 : 6;
+  const maxLen = difficulty === "easy" ? 9 : difficulty === "medium" ? 12 : 15;
   const filtered = category.words.filter(
-    (w) => w.word.length >= 3 && w.word.length <= maxLen
+    (w) => w.word.length >= minLen && w.word.length <= maxLen
   );
 
-  const pool = filtered.length >= count ? filtered : category.words;
+  const fallbackPool = category.words.filter((w) => w.word.length <= maxLen);
+  const pool = filtered.length >= count ? filtered : fallbackPool.length >= count ? fallbackPool : category.words;
   const shuffled = [...pool];
 
   // Cryptographically inspired Fisher-Yates shuffle

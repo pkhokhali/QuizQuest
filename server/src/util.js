@@ -139,6 +139,7 @@ export function studentQuestion(q, language = "en", sessionId = null) {
     options,
     subject: q.subject,
     country: q.country,
+    gradeBand: q.grade_band,
     difficulty: q.difficulty,
     topic: q.topic,
   };

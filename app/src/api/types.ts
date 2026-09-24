@@ -61,6 +61,7 @@ export interface StudentQuestion {
   options: string[];
   subject: Subject;
   country: string;
+  gradeBand?: GradeBand;
   difficulty: number;
   topic: string;
 }

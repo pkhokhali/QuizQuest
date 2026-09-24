@@ -43,31 +43,104 @@ function diverseSubjects(count, preferred) {
   return shuffle(slots);
 }
 
+export const COUNTRY_ALIASES = {
+  nepal: ["nepal", "np"],
+  india: ["india", "in"],
+  usa: ["usa", "us"],
+  uk: ["uk", "gb"],
+  japan: ["japan", "jp"],
+  china: ["china", "cn"],
+  australia: ["australia", "au"],
+  global: ["global"],
+};
+
+export function expandCountryCodes(countryList) {
+  const result = new Set();
+  for (const c of countryList || []) {
+    if (!c) continue;
+    const norm = String(c).toLowerCase().trim();
+    const aliases = COUNTRY_ALIASES[norm] || [norm];
+    aliases.forEach((a) => result.add(a));
+  }
+  return [...result];
+}
+
 /**
  * Pick one question matching constraints with progressive fallbacks so a thin
- * content bank never breaks quiz composition.
+ * content bank never breaks quiz composition and never leaks questions to the wrong grade or unrelated country.
  */
 function pickQuestion({ countries, gradeBand, subject, difficulty, excludeIds }) {
+  const expandedCountries = expandCountryCodes(countries);
   const excl = excludeIds.size ? [...excludeIds] : [-1];
   const exclPh = excl.map(() => "?").join(",");
-  const cPh = countries.map(() => "?").join(",");
-  const attempts = [
-    { sql: `AND subject = ? AND ABS(difficulty - ?) <= 1`, params: [subject, difficulty] },
-    { sql: `AND subject = ?`, params: [subject] },
-    { sql: ``, params: [] },
-  ];
-  for (const a of attempts) {
-    const q = db
-      .prepare(
-        `SELECT * FROM questions
-         WHERE status = 'approved' AND grade_band = ? AND country IN (${cPh})
-         AND id NOT IN (${exclPh}) ${a.sql}
-         ORDER BY RANDOM() LIMIT 1`
-      )
-      .get(gradeBand, ...countries, ...excl, ...a.params);
-    if (q) return q;
-  }
-  // Last resort: any approved question in the band.
+  const cPh = expandedCountries.map(() => "?").join(",");
+
+  // Attempt 1: Target countries + subject + matching difficulty
+  let q = db
+    .prepare(
+      `SELECT * FROM questions
+       WHERE status = 'approved' AND grade_band = ? AND country IN (${cPh})
+       AND id NOT IN (${exclPh}) AND subject = ? AND ABS(difficulty - ?) <= 1
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .get(gradeBand, ...expandedCountries, ...excl, subject, difficulty);
+  if (q) return q;
+
+  // Attempt 2: Target countries + subject (any difficulty in this grade band)
+  q = db
+    .prepare(
+      `SELECT * FROM questions
+       WHERE status = 'approved' AND grade_band = ? AND country IN (${cPh})
+       AND id NOT IN (${exclPh}) AND subject = ?
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .get(gradeBand, ...expandedCountries, ...excl, subject);
+  if (q) return q;
+
+  // Attempt 3: Target countries (any subject in this grade band)
+  q = db
+    .prepare(
+      `SELECT * FROM questions
+       WHERE status = 'approved' AND grade_band = ? AND country IN (${cPh})
+       AND id NOT IN (${exclPh})
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .get(gradeBand, ...expandedCountries, ...excl);
+  if (q) return q;
+
+  // Attempt 4: If target country questions exhausted in this grade band, fall back to "global" curriculum
+  q = db
+    .prepare(
+      `SELECT * FROM questions
+       WHERE status = 'approved' AND grade_band = ? AND country = 'global'
+       AND id NOT IN (${exclPh}) AND subject = ?
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .get(gradeBand, ...excl, subject);
+  if (q) return q;
+
+  q = db
+    .prepare(
+      `SELECT * FROM questions
+       WHERE status = 'approved' AND grade_band = ? AND country = 'global'
+       AND id NOT IN (${exclPh})
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .get(gradeBand, ...excl);
+  if (q) return q;
+
+  // Attempt 5: Universal math/science questions in this grade band (universal curriculum)
+  q = db
+    .prepare(
+      `SELECT * FROM questions
+       WHERE status = 'approved' AND grade_band = ? AND subject IN ('math', 'science')
+       AND id NOT IN (${exclPh})
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .get(gradeBand, ...excl);
+  if (q) return q;
+
+  // Last resort: any approved question in this exact grade band (STRICTLY within gradeBand!)
   return db
     .prepare(
       `SELECT * FROM questions WHERE status = 'approved' AND grade_band = ? AND id NOT IN (${exclPh})
@@ -101,7 +174,7 @@ export function composeDailyQuiz(user) {
 
   const buckets = [
     ...Array(homeCount).fill([home]),
-    ...Array(extraCount).fill(extras),
+    ...Array(extraCount).fill(extras.length ? extras : [home]),
     ...Array(globalCount).fill(["global"]),
   ];
 
@@ -150,6 +223,9 @@ export function revengeAvailable(user) {
 /** Compose a 5-question unlimited/practice round with balanced subjects across Science, GK, Social, Language, and Math. */
 export function composePracticeQuiz(user, subjectFilter = null) {
   const gradeBand = gradeBandFor(user.grade || 8);
+  const home = user.home_country || "nepal";
+  const extras = JSON.parse(user.extra_countries || "[]");
+  const preferredCountries = expandCountryCodes([home, ...extras, "global"]);
   const PRACTICE_SIZE = 5;
   const targetSubjects = subjectFilter
     ? Array(PRACTICE_SIZE).fill(subjectFilter)
@@ -157,26 +233,44 @@ export function composePracticeQuiz(user, subjectFilter = null) {
 
   const picked = [];
   const pickedIds = new Set();
+  const cPh = preferredCountries.map(() => "?").join(",");
 
   for (const subj of targetSubjects) {
+    const excl = pickedIds.size ? [...pickedIds] : [-1];
+    const exclPh = excl.map(() => "?").join(",");
+
+    // 1. Try preferred countries + exact subject + exact grade band
     let q = db
       .prepare(
         `SELECT * FROM questions
-         WHERE status = 'approved' AND subject = ? AND grade_band = ? AND difficulty <= 4
-           AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+         WHERE status = 'approved' AND subject = ? AND grade_band = ? AND country IN (${cPh})
+           AND id NOT IN (${exclPh})
          ORDER BY RANDOM() LIMIT 1`
       )
-      .get(subj, gradeBand);
+      .get(subj, gradeBand, ...preferredCountries, ...excl);
 
+    // 2. Try global + exact subject + exact grade band
     if (!q) {
       q = db
         .prepare(
           `SELECT * FROM questions
-           WHERE status = 'approved' AND subject = ? AND difficulty <= 4
-             AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+           WHERE status = 'approved' AND subject = ? AND grade_band = ? AND country = 'global'
+             AND id NOT IN (${exclPh})
            ORDER BY RANDOM() LIMIT 1`
         )
-        .get(subj);
+        .get(subj, gradeBand, ...excl);
+    }
+
+    // 3. Try any approved question for this subject in the SAME grade band
+    if (!q) {
+      q = db
+        .prepare(
+          `SELECT * FROM questions
+           WHERE status = 'approved' AND subject = ? AND grade_band = ?
+             AND id NOT IN (${exclPh})
+           ORDER BY RANDOM() LIMIT 1`
+        )
+        .get(subj, gradeBand, ...excl);
     }
 
     if (q && !pickedIds.has(q.id)) {
@@ -185,16 +279,18 @@ export function composePracticeQuiz(user, subjectFilter = null) {
     }
   }
 
-  // Backfill if needed
+  // Backfill if needed (STRICTLY within the user's grade band!)
   while (picked.length < PRACTICE_SIZE) {
+    const excl = pickedIds.size ? [...pickedIds] : [-1];
+    const exclPh = excl.map(() => "?").join(",");
     const q = db
       .prepare(
         `SELECT * FROM questions
          WHERE status = 'approved' AND grade_band = ?
-           AND id NOT IN (${[...pickedIds].join(",") || "-1"})
+           AND id NOT IN (${exclPh})
          ORDER BY RANDOM() LIMIT 1`
       )
-      .get(gradeBand);
+      .get(gradeBand, ...excl);
     if (!q) break;
     picked.push(q);
     pickedIds.add(q.id);
