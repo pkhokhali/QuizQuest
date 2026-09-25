@@ -382,7 +382,7 @@ export function WordSearchPlayScreen() {
             });
             refreshUser();
           } catch (err) {
-            queueOfflineSubmission("wordsearch", "/games/wordsearch/daily/score", {
+            queueOfflineSubmission("wordsearch", "/api/wordsearch/submit", {
               puzzleDate: dailyData?.puzzleDate || new Date().toISOString().slice(0, 10),
               category: selectedCategory,
               timeSeconds,

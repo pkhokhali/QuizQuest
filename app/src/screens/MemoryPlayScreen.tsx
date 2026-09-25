@@ -286,7 +286,7 @@ export function MemoryPlayScreen() {
         // Check if all matched
         if (nextMatched.length === (currentPack?.pairs.length || 6)) {
           if (timerRef.current) clearInterval(timerRef.current);
-          handleGameWon();
+          handleGameWon(moves + 1);
         }
       } else {
         // MISMATCH — flip back after short pause
@@ -299,16 +299,17 @@ export function MemoryPlayScreen() {
     }
   };
 
-  const handleGameWon = async () => {
+  const handleGameWon = async (finalMoves?: number) => {
     setGameEnded(true);
     SoundEffects.playVictory();
     const timeSpent = Math.max(1000, Date.now() - startTimeRef.current);
+    const accurateMoves = finalMoves !== undefined ? finalMoves : moves;
 
     if (currentPack) {
       try {
         const res = await submitMemoryScore({
           packId: currentPack.id,
-          moves: moves + 1,
+          moves: accurateMoves,
           timeMs: timeSpent,
         });
         setEarnedStars(res.stars);

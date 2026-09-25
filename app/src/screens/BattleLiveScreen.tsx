@@ -63,6 +63,7 @@ export function BattleLiveScreen({ route, navigation }: Props) {
       SoundEffects.playCardFlip();
       setQuestion(e);
       setChoice(null);
+      choiceRef.current = null;
       setReveal(null);
       questionShownAt.current = Date.now();
     };
@@ -143,12 +144,12 @@ export function BattleLiveScreen({ route, navigation }: Props) {
 
   const choiceRef = useRef<number | null>(null);
   const answer = (i: number) => {
-    if (choice !== null || reveal || !question) return;
+    if (choiceRef.current !== null || choice !== null || reveal || !question) return;
     const socket = getBattleSocket();
     if (!socket) return;
+    choiceRef.current = i;
     SoundEffects.playTap();
     setChoice(i);
-    choiceRef.current = i;
     socket.emit("battle:answer", {
       battleId: start.battleId,
       questionIndex: question.index,

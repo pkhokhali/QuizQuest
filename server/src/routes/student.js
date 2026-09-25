@@ -627,7 +627,7 @@ router.get("/zip/daily", (req, res) => {
   });
 });
 
-router.post("/zip/daily/submit", (req, res) => {
+router.post(["/zip/daily/submit", "/games/zip/daily/score"], (req, res) => {
   const { puzzleDate, timeSeconds, moves, stars = 3 } = req.body || {};
   const dateStr = puzzleDate || today();
 
@@ -1101,13 +1101,25 @@ function submitQuiz(req, res, kind) {
   for (const qid of ids) {
     const q = byId[qid];
     if (!q) continue;
-    const ans = answers.find((a) => a && a.questionId === qid);
-    const choice = originalChoiceIndex(quiz.id, qid, ans?.choice ?? null);
-    const isCorrect = choice != null && choice === q.correct_index;
+
+    // Robust answer lookup:
+    // Match question ID loosely / numerically, and prioritize the latest non-null choice if duplicate entries exist
+    const matchingAnswers = answers.filter((a) => a && Number(a.questionId) === Number(qid));
+    let ans = null;
+    if (matchingAnswers.length > 0) {
+      const nonNullAns = matchingAnswers.filter((a) => a.choice !== null && a.choice !== undefined);
+      ans = nonNullAns.length > 0 ? nonNullAns[nonNullAns.length - 1] : matchingAnswers[matchingAnswers.length - 1];
+    }
+
+    const order = optionOrder(quiz.id, qid);
+    const correctIndex = order.indexOf(q.correct_index);
     correct.push({
       questionId: qid,
-      correctIndex: optionOrder(quiz.id, qid).indexOf(q.correct_index),
+      correctIndex,
     });
+
+    const isCorrect = ans != null && ans.choice !== null && ans.choice !== undefined && Number(ans.choice) === correctIndex;
+
     if (isCorrect) {
       score += 1;
       if (kind === "daily") {
@@ -1161,6 +1173,10 @@ function submitQuiz(req, res, kind) {
 router.post("/quiz/daily/submit", (req, res) => submitQuiz(req, res, "daily"));
 router.post("/quiz/practice/submit", (req, res) => submitQuiz(req, res, "practice"));
 router.post("/quiz/revenge/submit", (req, res) => submitQuiz(req, res, "revenge"));
+// Compatibility aliases for legacy/offline queue submissions
+router.post("/quizzes/daily/submit", (req, res) => submitQuiz(req, res, "daily"));
+router.post("/quizzes/practice/submit", (req, res) => submitQuiz(req, res, "practice"));
+router.post("/quizzes/revenge/submit", (req, res) => submitQuiz(req, res, "revenge"));
 
 // ---------- Battles history ----------
 
@@ -1527,7 +1543,7 @@ router.get("/wordsearch/random", (req, res) => {
   });
 });
 
-router.post("/wordsearch/submit", (req, res) => {
+router.post(["/wordsearch/submit", "/games/wordsearch/daily/score"], (req, res) => {
   const { puzzleDate, category = "daily", timeSeconds, wordsFound, totalWords, stars = 3 } = req.body || {};
   const dateStr = puzzleDate || today();
 

@@ -366,7 +366,7 @@ export function ZipPlayScreen() {
             xpEarned: earnedXp,
             completedAt: new Date().toISOString(),
           });
-          queueOfflineSubmission("zip", "/games/zip/daily/score", {
+          queueOfflineSubmission("zip", "/api/zip/daily/submit", {
             puzzleDate: dailyData?.date || new Date().toISOString().slice(0, 10),
             timeSeconds: elapsed,
             moves: totalMoves,

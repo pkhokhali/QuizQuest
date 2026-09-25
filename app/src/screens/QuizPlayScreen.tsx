@@ -178,10 +178,10 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
         const correctEntries: CorrectEntry[] = [];
         questions.forEach((q) => {
           const offQ = q as OfflineQuestion;
-          const userAns = answers.find((a) => a.questionId === q.id);
+          const userAns = answers.find((a) => Number(a.questionId) === Number(q.id));
           const cIdx = typeof offQ.correctIndex === "number" ? offQ.correctIndex : 0;
           correctEntries.push({ questionId: q.id, correctIndex: cIdx });
-          if (userAns && userAns.choice === cIdx) {
+          if (userAns && userAns.choice !== null && userAns.choice !== undefined && Number(userAns.choice) === cIdx) {
             score++;
           }
         });
@@ -198,10 +198,10 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
         };
         const endpoint =
           mode === "daily"
-            ? "/quizzes/daily/submit"
+            ? "/api/quiz/daily/submit"
             : mode === "practice"
-            ? "/quizzes/practice/submit"
-            : "/quizzes/revenge/submit";
+            ? "/api/quiz/practice/submit"
+            : "/api/quiz/revenge/submit";
         queueOfflineSubmission("quiz", endpoint, {
           quizId: id,
           answers,
@@ -249,10 +249,10 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
         const correctEntries: CorrectEntry[] = [];
         questions.forEach((q) => {
           const offQ = q as OfflineQuestion;
-          const userAns = answers.find((a) => a.questionId === q.id);
+          const userAns = answers.find((a) => Number(a.questionId) === Number(q.id));
           const cIdx = typeof offQ.correctIndex === "number" ? offQ.correctIndex : 0;
           correctEntries.push({ questionId: q.id, correctIndex: cIdx });
-          if (userAns && userAns.choice === cIdx) {
+          if (userAns && userAns.choice !== null && userAns.choice !== undefined && Number(userAns.choice) === cIdx) {
             score++;
           }
         });
@@ -269,10 +269,10 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
         };
         const endpoint =
           mode === "daily"
-            ? "/quizzes/daily/submit"
+            ? "/api/quiz/daily/submit"
             : mode === "practice"
-            ? "/quizzes/practice/submit"
-            : "/quizzes/revenge/submit";
+            ? "/api/quiz/practice/submit"
+            : "/api/quiz/revenge/submit";
         queueOfflineSubmission("quiz", endpoint, {
           quizId: id,
           answers,
@@ -293,20 +293,36 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
       const currentQuizId = quizIdRef.current;
       if (currentQuizId === null) return;
 
+      if (answeredRef.current) return;
+      answeredRef.current = true;
       setAnswered(true);
       setSelected(choice);
+
+      if (advanceTimer.current) {
+        clearTimeout(advanceTimer.current);
+        advanceTimer.current = null;
+      }
+
       const timeMs = Date.now() - questionShownAt.current;
-      answersRef.current.push({
-        questionId: currentQuestions[currentIndex].id,
-        choice,
-        timeMs,
-      });
+      const currentQ = currentQuestions[currentIndex];
+      if (currentQ) {
+        // Deduplicate: replace any existing answer for this question
+        answersRef.current = answersRef.current.filter(
+          (a) => Number(a.questionId) !== Number(currentQ.id)
+        );
+        answersRef.current.push({
+          questionId: currentQ.id,
+          choice,
+          timeMs,
+        });
+      }
 
       advanceTimer.current = setTimeout(() => {
         if (currentIndex + 1 < currentQuestions.length) {
           setIndex(currentIndex + 1);
           setSelected(null);
           setAnswered(false);
+          answeredRef.current = false;
           questionShownAt.current = Date.now();
         } else {
           submit(answersRef.current, currentQuizId);
@@ -317,7 +333,7 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
   );
 
   const onPick = (choice: number) => {
-    if (answered || quizId === null) return;
+    if (answeredRef.current || answered || quizId === null) return;
     SoundEffects.playTap();
     advance(choice);
   };
@@ -523,12 +539,41 @@ function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: R
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t, lang } = useI18n();
-  const [showVictoryModal, setShowVictoryModal] = useState(result.score > 0);
-  const correctMap = new Map(result.correct.map((c) => [c.questionId, c.correctIndex]));
-  const answerMap = new Map(answers.map((a) => [a.questionId, a.choice]));
+
+  const correctMap = useMemo(
+    () => new Map(result.correct.map((c) => [Number(c.questionId), c.correctIndex])),
+    [result.correct]
+  );
+  const answerMap = useMemo(
+    () => new Map(answers.map((a) => [Number(a.questionId), a.choice])),
+    [answers]
+  );
+
+  // Compute verified correct count based directly on the questions review items
+  const actualCorrectCount = useMemo(() => {
+    let count = 0;
+    questions.forEach((q) => {
+      const correctIndex = correctMap.get(Number(q.id));
+      const myChoice = answerMap.get(Number(q.id));
+      if (
+        correctIndex !== undefined &&
+        myChoice !== null &&
+        myChoice !== undefined &&
+        myChoice === correctIndex
+      ) {
+        count++;
+      }
+    });
+    return count;
+  }, [questions, correctMap, answerMap]);
+
+  const finalScore = Math.max(result.score, actualCorrectCount);
+  const totalCount = questions.length || result.total || 8;
+  const isPerfect = totalCount > 0 && finalScore === totalCount;
+  const [showVictoryModal, setShowVictoryModal] = useState(finalScore > 0);
 
   useEffect(() => {
-    if (result.score > 0) {
+    if (finalScore > 0) {
       SoundEffects.playVictory();
     }
     if (result.streak && result.streak >= 3) {
@@ -536,9 +581,7 @@ function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: R
         SoundEffects.playCombo();
       }, 700);
     }
-  }, []);
-
-  const isPerfect = result.score === result.total;
+  }, [finalScore, result.streak]);
 
   return (
     <Atmosphere>
@@ -572,7 +615,7 @@ function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: R
               : t("revengeResultsTitle")}
           </Text>
 
-          <ScoreRing score={result.score} total={result.total} />
+          <ScoreRing score={finalScore} total={totalCount} />
 
           <View style={styles.statsRow}>
             <View
@@ -693,9 +736,13 @@ function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: R
           </Text>
           <View style={styles.reviewList}>
             {questions.map((q) => {
-              const correctIndex = correctMap.get(q.id);
-              const myChoice = answerMap.get(q.id);
-              const gotIt = correctIndex !== undefined && myChoice === correctIndex;
+              const correctIndex = correctMap.get(Number(q.id));
+              const myChoice = answerMap.get(Number(q.id));
+              const gotIt =
+                correctIndex !== undefined &&
+                myChoice !== null &&
+                myChoice !== undefined &&
+                myChoice === correctIndex;
               return (
                 <Card
                   key={q.id}
@@ -773,8 +820,8 @@ function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: R
         </ScrollView>
 
         {/* Celebratory Victory Overlay Animations */}
-        {result.score > 0 && <ConfettiEffect count={50} />}
-        {result.score > 0 && <EmojiBurst />}
+        {finalScore > 0 && <ConfettiEffect count={50} />}
+        {finalScore > 0 && <EmojiBurst />}
         <VictoryAnimation
           visible={showVictoryModal}
           onAnimationComplete={() => setShowVictoryModal(false)}
@@ -782,7 +829,7 @@ function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: R
           subMessage={
             isPerfect
               ? "Flawless knowledge quest!"
-              : `${result.score}/${result.total} correct • Great quest!`
+              : `${finalScore}/${totalCount} correct • Great quest!`
           }
         />
       </SafeAreaView>
