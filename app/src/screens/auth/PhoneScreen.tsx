@@ -1,5 +1,6 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +17,8 @@ import Svg, { Path } from "react-native-svg";
 import { ApiError, loginWithEmail, verifyFirebase } from "../../api/client";
 import { IconQuestPin } from "../../components/QuestIcons";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { LanguageSelectorModal } from "../../components/LanguageSelectorModal";
+import { SUPPORTED_LANGUAGES } from "../../i18n";
 import { AuthStackParamList } from "../../navigation/types";
 import { useI18n } from "../../state/LanguageContext";
 import { useTheme } from "../../state/ThemeContext";
@@ -97,9 +100,9 @@ function formatAuthError(err: any): string {
 }
 
 export function PhoneScreen({ navigation }: Props) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { colors, paletteId } = useTheme();
-  const isDark = paletteId !== "dawn";
+  const isDark = paletteId !== "dawn" && !colors.isLight;
   const { signIn } = useAuth();
 
   const [isSignUp, setIsSignUp] = useState(false);
@@ -109,6 +112,17 @@ export function PhoneScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [langModalVisible, setLangModalVisible] = useState(false);
+
+  // Auto-prompt language selector on first launch so international users immediately see their language
+  useEffect(() => {
+    AsyncStorage.getItem("@quizquest_lang_chosen").then((chosen) => {
+      if (!chosen) {
+        setLangModalVisible(true);
+        void AsyncStorage.setItem("@quizquest_lang_chosen", "true");
+      }
+    });
+  }, []);
 
   const valid = email.trim().length >= 5 && password.trim().length >= 6;
 
@@ -192,23 +206,6 @@ export function PhoneScreen({ navigation }: Props) {
     }
   };
 
-  const onQuickTestLogin = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await loginWithEmail({
-        email: "test2@quizquest.com",
-        password: "password123",
-        isSignUp: false,
-      });
-      await signIn(res.token, res.user);
-      logLoginEvent("reviewer_quick");
-    } catch (err: any) {
-      setError(formatAuthError(err));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
@@ -258,6 +255,23 @@ export function PhoneScreen({ navigation }: Props) {
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
           >
+            {/* Top Language Switcher Bar */}
+            <View style={{ width: "100%", flexDirection: "row", justifyContent: "flex-end", marginBottom: spacing.sm }}>
+              <TouchableOpacity
+                style={[
+                  styles.langSwitchBtn,
+                  { backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : colors.card, borderColor: colors.border },
+                ]}
+                onPress={() => setLangModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.langSwitchText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
+                  {SUPPORTED_LANGUAGES.find((l) => l.code === lang)?.flag || "🌐"}{" "}
+                  {SUPPORTED_LANGUAGES.find((l) => l.code === lang)?.nativeLabel || "Language"} ▾
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Sleek Compact Brand Header */}
             <View style={styles.brandHeader}>
               <View
@@ -558,30 +572,15 @@ export function PhoneScreen({ navigation }: Props) {
                 </Text>
               </TouchableOpacity>
 
-              {/* Quick Tester Access Button */}
-              <TouchableOpacity
-                style={[
-                  styles.quickTestBtn,
-                  { backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F8FAFC", borderColor: colors.border },
-                ]}
-                onPress={onQuickTestLogin}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.quickTestIcon}>⚡</Text>
-                <Text
-                  style={[
-                    styles.quickTestText,
-                    { color: colors.accent, fontFamily: fonts.bodyBold },
-                  ]}
-                >
-                  Quick Test Login (Demo / Reviewer)
-                </Text>
-              </TouchableOpacity>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <LanguageSelectorModal
+        visible={langModalVisible}
+        onClose={() => setLangModalVisible(false)}
+      />
     </View>
   );
 }
@@ -590,6 +589,18 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     overflow: "hidden",
+  },
+  langSwitchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    alignSelf: "flex-end",
+  },
+  langSwitchText: {
+    fontSize: 13,
   },
   safe: {
     flex: 1,
@@ -805,24 +816,6 @@ const styles = StyleSheet.create({
   },
   switchModeText: {
     fontSize: 13,
-  },
-  quickTestBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.chip,
-    borderWidth: 1,
-    gap: 8,
-    marginTop: spacing.xs,
-  },
-  quickTestIcon: {
-    fontSize: 16,
-  },
-  quickTestText: {
-    fontSize: 13,
-    letterSpacing: 0.3,
   },
 });
 

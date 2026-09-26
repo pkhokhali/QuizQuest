@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS questions (
   country TEXT NOT NULL,
   subject TEXT NOT NULL,
   grade_band TEXT NOT NULL,
+  grade INTEGER,
   difficulty INTEGER NOT NULL DEFAULT 2,
   topic TEXT DEFAULT '',
   source TEXT DEFAULT '',
@@ -280,6 +281,18 @@ try {
 } catch {}
 try {
   db.exec("ALTER TABLE digests ADD COLUMN last_pushed_by TEXT");
+} catch {}
+try {
+  db.exec("ALTER TABLE questions ADD COLUMN grade INTEGER");
+} catch {}
+try {
+  db.exec("CREATE INDEX IF NOT EXISTS idx_q_pick_fast ON questions (status, country, grade, subject, difficulty, id)");
+} catch {}
+try {
+  db.exec("CREATE INDEX IF NOT EXISTS idx_q_grade_country ON questions (status, country, grade, subject)");
+} catch {}
+try {
+  db.exec("CREATE INDEX IF NOT EXISTS idx_q_grade_band_country ON questions (status, country, grade_band, subject)");
 } catch {}
 
 // Ensure Play Console test account (test2@quizquest.com / password123) is always ready

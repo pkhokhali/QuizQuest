@@ -1,6 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HomeData, StudentQuestion, Subject } from "../api/types";
 import { getBaseUrl } from "../api/config";
+import { getOfflineSeedQuestions } from "../constants/offlineSeedQuestions";
+export { getOfflineMemoryPack } from "../constants/offlineMemoryPacks";
+export { getOfflineRiddle } from "../constants/offlineRiddles";
 
 export const CACHED_QUESTIONS_KEY = "qq_cached_questions";
 export const CACHED_HOME_KEY = "qq_cached_home";
@@ -13,7 +16,7 @@ export interface OfflineQuestion extends StudentQuestion {
 
 export interface OfflineSubmission {
   id: string;
-  type: "quiz" | "zip" | "wordsearch";
+  type: "quiz" | "zip" | "wordsearch" | "memory" | "riddle";
   endpoint: string;
   payload: unknown;
   timestamp: number;
@@ -249,7 +252,19 @@ export async function getCachedQuestions(options?: {
     results = [];
   }
 
-  // If cached pool is insufficient, seamlessly generate fresh procedural questions for this EXACT grade band!
+  // If cached pool is insufficient, pull curated multi-subject starter questions
+  if (results.length < targetCount) {
+    const needed = targetCount - results.length;
+    const seedQs = getOfflineSeedQuestions({
+      gradeBand,
+      subject: options?.subject,
+      lang,
+      count: needed,
+    });
+    results = [...results, ...seedQs];
+  }
+
+  // If still insufficient (e.g. infinite practice play offline), generate fresh procedural questions!
   if (results.length < targetCount) {
     const needed = targetCount - results.length;
     const generated = generateProceduralMathQuestions(needed, gradeBand, lang);
@@ -264,7 +279,7 @@ export async function getCachedQuestions(options?: {
 // ---------------------------------------------------------------------------
 
 export async function queueOfflineSubmission(
-  type: "quiz" | "zip" | "wordsearch",
+  type: "quiz" | "zip" | "wordsearch" | "memory" | "riddle",
   endpoint: string,
   payload: unknown
 ): Promise<void> {

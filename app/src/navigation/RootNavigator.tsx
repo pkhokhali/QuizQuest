@@ -9,13 +9,14 @@ import React, { useEffect, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  IconAwards,
+  IconArcade,
   IconBattle,
   IconHome,
   IconProfile,
   IconRanks,
 } from "../components/QuestIcons";
 import { LoadingView } from "../components/LoadingView";
+import { ArcadeScreen } from "../screens/ArcadeScreen";
 import { AwardsScreen } from "../screens/AwardsScreen";
 import { BattleLiveScreen } from "../screens/BattleLiveScreen";
 import { BattleScreen } from "../screens/BattleScreen";
@@ -35,6 +36,7 @@ import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { fonts, radius } from "../theme";
+import { Haptics } from "../utils/haptics";
 import {
   AuthStackParamList,
   MainTabParamList,
@@ -47,6 +49,8 @@ export function navigateFromNotification(screen: string, _params?: Record<string
   if (navigationRef.isReady()) {
     if (screen === "Battle") {
       navigationRef.navigate("Tabs", { screen: "Battle" });
+    } else if (screen === "Arcade") {
+      navigationRef.navigate("Tabs", { screen: "Arcade" });
     } else if (screen === "ZipPlay") {
       navigationRef.navigate("ZipPlay");
     } else if (screen === "DailyQuiz") {
@@ -68,9 +72,9 @@ const TAB_ICONS: Record<
   React.ComponentType<{ size?: number; color?: string }>
 > = {
   Home: IconHome,
+  Arcade: IconArcade,
   Battle: IconBattle,
   Ranks: IconRanks,
-  Awards: IconAwards,
   Profile: IconProfile,
 };
 
@@ -81,6 +85,9 @@ function Tabs() {
   const tabBarPaddingBottom = Math.max(insets.bottom, 8);
   return (
     <Tab.Navigator
+      screenListeners={{
+        tabPress: () => Haptics.tap(),
+      }}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
@@ -112,7 +119,16 @@ function Tabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: t("tabHome") }} />
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ title: t("tabQuests") }}
+      />
+      <Tab.Screen
+        name="Arcade"
+        component={ArcadeScreen}
+        options={{ title: t("tabArcade") }}
+      />
       <Tab.Screen
         name="Battle"
         component={BattleScreen}
@@ -122,11 +138,6 @@ function Tabs() {
         name="Ranks"
         component={RanksScreen}
         options={{ title: t("tabRanks") }}
-      />
-      <Tab.Screen
-        name="Awards"
-        component={AwardsScreen}
-        options={{ title: t("tabAwards") }}
       />
       <Tab.Screen
         name="Profile"
@@ -187,46 +198,15 @@ export function RootNavigator() {
       ) : (
         <RootStack.Navigator screenOptions={{ headerShown: false }}>
           <RootStack.Screen name="Tabs" component={Tabs} />
-          <RootStack.Screen
-            name="DailyQuiz"
-            component={DailyQuizRoute}
-            options={{ animation: "slide_from_bottom", gestureEnabled: false }}
-          />
-          <RootStack.Screen
-            name="RevengeRound"
-            component={RevengeRoundRoute}
-            options={{ animation: "slide_from_bottom", gestureEnabled: false }}
-          />
-          <RootStack.Screen
-            name="BattleLive"
-            component={BattleLiveScreen}
-            options={{ animation: "fade", gestureEnabled: false }}
-          />
-          <RootStack.Screen
-            name="MemoryPlay"
-            component={MemoryPlayScreen}
-            options={{ animation: "slide_from_bottom" }}
-          />
-          <RootStack.Screen
-            name="ZipPlay"
-            component={ZipPlayScreen}
-            options={{ animation: "slide_from_bottom" }}
-          />
-          <RootStack.Screen
-            name="RiddlePlay"
-            component={RiddlePlayScreen}
-            options={{ animation: "slide_from_bottom" }}
-          />
-          <RootStack.Screen
-            name="WordSearchPlay"
-            component={WordSearchPlayScreen}
-            options={{ animation: "slide_from_bottom" }}
-          />
-          <RootStack.Screen
-            name="GameInsights"
-            component={GameInsightsScreen}
-            options={{ animation: "slide_from_bottom" }}
-          />
+          <RootStack.Screen name="DailyQuiz" component={DailyQuizRoute} />
+          <RootStack.Screen name="RevengeRound" component={RevengeRoundRoute} />
+          <RootStack.Screen name="BattleLive" component={BattleLiveScreen} />
+          <RootStack.Screen name="MemoryPlay" component={MemoryPlayScreen} />
+          <RootStack.Screen name="ZipPlay" component={ZipPlayScreen} />
+          <RootStack.Screen name="RiddlePlay" component={RiddlePlayScreen} />
+          <RootStack.Screen name="WordSearchPlay" component={WordSearchPlayScreen} />
+          <RootStack.Screen name="GameInsights" component={GameInsightsScreen} />
+          <RootStack.Screen name="Awards" component={AwardsScreen} />
         </RootStack.Navigator>
       )}
     </NavigationContainer>
@@ -235,19 +215,18 @@ export function RootNavigator() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    borderTopWidth: 1,
-    elevation: 12,
     paddingTop: 6,
-  },
-  tabIconBox: {
-    width: 44,
-    height: 32,
-    borderRadius: radius.chip,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 8,
   },
   tabLabel: {
     fontSize: 11,
     marginTop: 2,
+  },
+  tabIconBox: {
+    width: 38,
+    height: 28,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

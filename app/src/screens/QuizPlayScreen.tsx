@@ -35,6 +35,7 @@ import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
 import { EmojiBurst } from "../components/EmojiBurst";
 import { ErrorCard } from "../components/ErrorCard";
+import { GameRulesModal } from "../components/GameRulesModal";
 import { LoadingView } from "../components/LoadingView";
 import { OptionButton } from "../components/OptionButton";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -80,6 +81,7 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
   const [result, setResult] = useState<SubmitQuizResponse | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [showRules, setShowRules] = useState(false);
 
   const answersRef = useRef<AnswerInput[]>([]);
   const questionShownAt = useRef(Date.now());
@@ -403,6 +405,7 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
         result={result}
         questions={questions}
         answers={answersRef.current}
+        isOfflineMode={isOfflineMode}
         onDone={() => navigation.goBack()}
         onPlayNext={() => {
           setCurrentMode("practice");
@@ -437,6 +440,20 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
             )}
           </View>
           <View style={styles.headerRightControls}>
+            <TouchableOpacity
+              onPress={() => setShowRules(true)}
+              style={[
+                styles.soundToggleBtn,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 16 }}>❓</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={toggleSound}
               style={[
@@ -519,6 +536,12 @@ export function QuizPlayScreen({ mode: initialMode, initialSubject }: QuizPlaySc
             ))}
           </View>
         </ScrollView>
+
+        <GameRulesModal
+          visible={showRules}
+          gameId="quiz"
+          onClose={() => setShowRules(false)}
+        />
       </SafeAreaView>
     </Atmosphere>
   );
@@ -531,11 +554,20 @@ interface ResultsViewProps {
   result: SubmitQuizResponse;
   questions: StudentQuestion[];
   answers: AnswerInput[];
+  isOfflineMode?: boolean;
   onDone: () => void;
   onPlayNext: () => void;
 }
 
-function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: ResultsViewProps) {
+function ResultsView({
+  mode,
+  result,
+  questions,
+  answers,
+  isOfflineMode,
+  onDone,
+  onPlayNext,
+}: ResultsViewProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t, lang } = useI18n();
@@ -616,6 +648,25 @@ function ResultsView({ mode, result, questions, answers, onDone, onPlayNext }: R
           </Text>
 
           <ScoreRing score={finalScore} total={totalCount} />
+
+          {isOfflineMode && (
+            <View
+              style={[
+                styles.offlineNoticeBox,
+                {
+                  backgroundColor: colors.amberSoft,
+                  borderColor: colors.amber,
+                },
+              ]}
+            >
+              <Text style={styles.offlineNoticeIcon}>📡</Text>
+              <Text style={[styles.offlineNoticeText, { color: colors.amber, fontFamily: fonts.bodyBold }]}>
+                {lang === "ne"
+                  ? "अफलाइन सम्पन्न: स्कोर सुरक्षित गरियो र इन्टरनेट जोडिएपछि स्वतः सिङ्क हुनेछ!"
+                  : "Completed Offline: Score saved locally and will sync when reconnected!"}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.statsRow}>
             <View
@@ -1055,6 +1106,25 @@ function createStyles(colors: ColorTokens) {
     },
     reviewMissed: {
       fontSize: 13,
+    },
+    offlineNoticeBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm + 2,
+      borderRadius: radius.card,
+      borderWidth: 1,
+      width: "100%",
+      marginTop: spacing.sm,
+    },
+    offlineNoticeIcon: {
+      fontSize: 18,
+    },
+    offlineNoticeText: {
+      flex: 1,
+      fontSize: 13,
+      lineHeight: 18,
     },
   });
 }

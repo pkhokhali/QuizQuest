@@ -8,9 +8,9 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   Home: undefined;
+  Arcade: undefined;
   Battle: undefined;
   Ranks: undefined;
-  Awards: undefined;
   Profile: undefined;
 };
 
@@ -24,6 +24,7 @@ export type RootStackParamList = {
   RiddlePlay: { initialMode?: "daily" | "practice" } | undefined;
   WordSearchPlay: undefined;
   GameInsights: undefined;
+  Awards: undefined;
 };
 
 declare global {

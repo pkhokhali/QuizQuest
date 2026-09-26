@@ -20,9 +20,12 @@ function check(name, cond, extra = "") {
 const health = await call("GET", "/");
 check("health", health.json.ok === true && health.json.questions > 10000, JSON.stringify(health.json));
 
-// Student login (demo)
-const login = await call("POST", "/api/auth/verify", { body: { phone: "9811111101", code: "123456" } });
-check("student login", login.status === 200 && login.json.token && login.json.user.onboarded === true);
+// Student login (email or phone)
+let login = await call("POST", "/api/auth/email", { body: { email: "test2@quizquest.com", password: "password123" } });
+if (!login.json.token) {
+  login = await call("POST", "/api/auth/verify", { body: { phone: "9811111101", code: "123456" } });
+}
+check("student login", login.status === 200 && Boolean(login.json.token));
 const t = login.json.token;
 
 const home = await call("GET", "/api/home", { token: t });

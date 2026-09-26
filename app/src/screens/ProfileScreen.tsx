@@ -804,6 +804,12 @@ export function ProfileScreen() {
                   onPress={() => setGrade(g)}
                 />
               ))}
+              <Chip
+                key="lifelong"
+                label={t("badgeLifelong")}
+                selected={grade === 13}
+                onPress={() => setGrade(13)}
+              />
             </View>
           </Card>
 

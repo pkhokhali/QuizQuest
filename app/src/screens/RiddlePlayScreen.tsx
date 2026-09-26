@@ -17,11 +17,13 @@ import { RiddleData } from "../api/types";
 import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
 import { ConfettiEffect } from "../components/ConfettiEffect";
+import { GameRulesModal } from "../components/GameRulesModal";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { fonts, radius, shadow, spacing } from "../theme";
 import { SoundEffects, useSoundEnabled } from "../utils/audio";
+import { getOfflineRiddle, queueOfflineSubmission } from "../utils/offlineStore";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -40,6 +42,7 @@ export function RiddlePlayScreen() {
   const [loading, setLoading] = useState(true);
   const [currentRiddle, setCurrentRiddle] = useState<RiddleData | null>(null);
   const [sessionSolvedCount, setSessionSolvedCount] = useState(0);
+  const [showRules, setShowRules] = useState(false);
 
   // Reveal Answer state
   const [isRevealed, setIsRevealed] = useState(false);
@@ -94,9 +97,12 @@ export function RiddlePlayScreen() {
           setHasRated(true);
           flipAnim.setValue(1);
         }
+      } else {
+        setCurrentRiddle(getOfflineRiddle());
       }
-    } catch (e) {
-      console.warn("Failed to load daily riddle", e);
+    } catch {
+      // Offline fallback: Use bundled offline riddle!
+      setCurrentRiddle(getOfflineRiddle());
     } finally {
       setLoading(false);
     }
@@ -113,9 +119,12 @@ export function RiddlePlayScreen() {
       const res = await getRandomRiddle();
       if (res.riddle) {
         setCurrentRiddle(res.riddle);
+      } else {
+        setCurrentRiddle(getOfflineRiddle());
       }
-    } catch (e) {
-      console.warn("Failed to load random riddle", e);
+    } catch {
+      // Offline fallback: Use bundled offline riddle!
+      setCurrentRiddle(getOfflineRiddle());
     } finally {
       setLoading(false);
     }
@@ -160,8 +169,13 @@ export function RiddlePlayScreen() {
       }
       setSessionSolvedCount((prev) => prev + 1);
       setHasRated(true);
-    } catch (err) {
-      console.warn("Could not solve riddle:", err);
+    } catch {
+      // Queue offline riddle solve for sync when reconnected!
+      if (gameMode === "daily") {
+        queueOfflineSubmission("riddle", "/api/riddle/solve", { riddleId: currentRiddle.id });
+      }
+      setAwardedXp(15);
+      setSessionSolvedCount((prev) => prev + 1);
       setHasRated(true);
     } finally {
       setSubmitting(false);
@@ -215,13 +229,23 @@ export function RiddlePlayScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={toggleSound}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.headerBtnText}>{isSoundEnabled ? "🔊" : "🔇"}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => setShowRules(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 16 }}>❓</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={toggleSound}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.headerBtnText}>{isSoundEnabled ? "🔊" : "🔇"}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -416,6 +440,12 @@ export function RiddlePlayScreen() {
             </View>
           )}
         </ScrollView>
+
+        <GameRulesModal
+          visible={showRules}
+          gameId="riddle"
+          onClose={() => setShowRules(false)}
+        />
       </SafeAreaView>
     </View>
   );

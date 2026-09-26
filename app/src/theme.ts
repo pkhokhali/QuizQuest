@@ -1,9 +1,19 @@
-// QuizQuest visual identity — structure tokens + named color palettes.
-// Active palette is chosen by the student (ThemeContext).
+// QuizQuest visual identity — structure tokens + international themes.
+// Active theme is chosen by the user (ThemeContext).
 
-export type PaletteId = "simrik" | "himalaya" | "violet" | "dawn" | "forest";
+export type PaletteId =
+  | "light"
+  | "solar"
+  | "midnight"
+  | "cyber"
+  | "simrik"
+  | "himalaya"
+  | "violet"
+  | "dawn"
+  | "forest";
 
 export type ColorTokens = {
+  isLight: boolean;
   primary: string;
   primaryDark: string;
   primarySoft: string;
@@ -34,202 +44,227 @@ export type ColorTokens = {
 
 export type PaletteMeta = {
   id: PaletteId;
-  nameKey: "themeSimrik" | "themeViolet" | "themeHimalaya" | "themeDawn" | "themeForest";
+  nameKey:
+    | "themeLight"
+    | "themeSolar"
+    | "themeMidnight"
+    | "themeCyber"
+    | "themeSimrik"
+    | "themeViolet"
+    | "themeHimalaya"
+    | "themeDawn"
+    | "themeForest";
   swatch: [string, string, string];
   colors: ColorTokens;
 };
 
-/** Simrik & Himal — Authentic Nepali royal crimson, Sayapatri marigold gold, and Himalayan mountain night. */
-const simrik: ColorTokens = {
-  primary: "#DC2626", // Simrik crimson red (National flag red)
-  primaryDark: "#B91C1C",
-  primarySoft: "#FEE2E2",
-  accent: "#F59E0B", // Sayapatri golden marigold
+/** International Modern Light — High-contrast, clean WCAG AAA crisp daylight theme. */
+const light: ColorTokens = {
+  isLight: true,
+  primary: "#2563EB", // Royal Sapphire Blue
+  primaryDark: "#1D4ED8",
+  primarySoft: "#EFF6FF",
+  accent: "#F59E0B", // Radiant Amber Gold
   accentSoft: "#FEF3C7",
-  bg: "#0B1120", // Deep Himalayan starry mountain night
+  bg: "#F8FAFC", // Clean cloud daylight
+  bgMid: "#FFFFFF",
+  bgDeep: "#F1F5F9",
+  card: "#FFFFFF",
+  surface: "#FFFFFF",
+  surfaceElevated: "#F8FAFC",
+  cream: "#F8FAFC",
+  text: "#0F172A", // Deep Obsidian Slate (14:1 contrast ratio)
+  textMuted: "#64748B",
+  textOnPrimary: "#FFFFFF",
+  green: "#10B981",
+  greenSoft: "#D1FAE5",
+  amber: "#F59E0B",
+  amberSoft: "#FEF3C7",
+  border: "#E2E8F0",
+  gold: "#F59E0B",
+  goldSoft: "rgba(245, 158, 11, 0.15)",
+  silver: "#64748B",
+  bronze: "#D97706",
+  danger: "#EF4444",
+  dangerSoft: "#FEE2E2",
+};
+
+/** Solar Warm Paper — Gentle natural parchment and fresh botanical emerald green. */
+const solar: ColorTokens = {
+  isLight: true,
+  primary: "#059669", // Fresh botanical emerald
+  primaryDark: "#047857",
+  primarySoft: "#ECFDF5",
+  accent: "#D97706",
+  accentSoft: "#FEF3C7",
+  bg: "#FDFBF7", // Warm natural paper
+  bgMid: "#F5F2EA",
+  bgDeep: "#EDE8DC",
+  card: "#FFFFFF",
+  surface: "#FFFFFF",
+  surfaceElevated: "#F5F2EA",
+  cream: "#FFFBEB",
+  text: "#1C1917", // Deep warm charcoal
+  textMuted: "#78716C",
+  textOnPrimary: "#FFFFFF",
+  green: "#059669",
+  greenSoft: "#D1FAE5",
+  amber: "#D97706",
+  amberSoft: "#FEF3C7",
+  border: "#E7E2D5",
+  gold: "#D97706",
+  goldSoft: "rgba(217, 119, 6, 0.12)",
+  silver: "#78716C",
+  bronze: "#B45309",
+  danger: "#DC2626",
+  dangerSoft: "#FEE2E2",
+};
+
+/** Midnight Pro — Deep cosmic void with vibrant electric cyan & gold. */
+const midnight: ColorTokens = {
+  isLight: false,
+  primary: "#00D2FF", // Electric cyan
+  primaryDark: "#0077B6",
+  primarySoft: "#142C44",
+  accent: "#FFB703",
+  accentSoft: "#332A15",
+  bg: "#0A0E27", // Cosmic night
+  bgMid: "#12183D",
+  bgDeep: "#1B2252",
+  card: "#141C44",
+  surface: "#141C44",
+  surfaceElevated: "#1C265C",
+  cream: "#E8F4F8",
+  text: "#F8FAFC",
+  textMuted: "#94A3B8",
+  textOnPrimary: "#0A0E27",
+  green: "#10B981",
+  greenSoft: "#13382C",
+  amber: "#FBBF24",
+  amberSoft: "#362A14",
+  border: "rgba(255, 255, 255, 0.12)",
+  gold: "#FBBF24",
+  goldSoft: "rgba(251, 191, 36, 0.2)",
+  silver: "#E2E8F0",
+  bronze: "#FB923C",
+  danger: "#F43F5E",
+  dangerSoft: "#38151D",
+};
+
+/** Cyber Neon Arena — High-octane arcade purple with cyber cyan glow. */
+const cyber: ColorTokens = {
+  isLight: false,
+  primary: "#A855F7", // Electric violet
+  primaryDark: "#7E22CE",
+  primarySoft: "#2D164D",
+  accent: "#06B6D4", // Cyber cyan
+  accentSoft: "#113340",
+  bg: "#090D16", // Cyber void
+  bgMid: "#111827",
+  bgDeep: "#1F2937",
+  card: "#131C2E",
+  surface: "#131C2E",
+  surfaceElevated: "#1E2B45",
+  cream: "#F3E8FF",
+  text: "#F8FAFC",
+  textMuted: "#94A3B8",
+  textOnPrimary: "#FFFFFF",
+  green: "#10B981",
+  greenSoft: "#13382C",
+  amber: "#F59E0B",
+  amberSoft: "#362A14",
+  border: "rgba(168, 85, 247, 0.28)",
+  gold: "#F59E0B",
+  goldSoft: "rgba(245, 158, 11, 0.2)",
+  silver: "#E2E8F0",
+  bronze: "#FB923C",
+  danger: "#EF4444",
+  dangerSoft: "#3B181E",
+};
+
+/** Simrik & Himal — Authentic Nepali royal crimson, Sayapatri marigold gold. */
+const simrik: ColorTokens = {
+  isLight: false,
+  primary: "#DC2626", // Simrik crimson
+  primaryDark: "#B91C1C",
+  primarySoft: "#3B1414",
+  accent: "#F59E0B", // Sayapatri gold
+  accentSoft: "#382711",
+  bg: "#0B1120",
   bgMid: "#111827",
   bgDeep: "#1E293B",
-  card: "#162038", // Slate-Himal card surface
+  card: "#162038",
   surface: "#162038",
   surfaceElevated: "#1E294B",
   cream: "#FFFBEB",
   text: "#F8FAFC",
   textMuted: "#94A3B8",
   textOnPrimary: "#FFFFFF",
-  green: "#059669", // Rhododendron pine trek green
-  greenSoft: "#D1FAE5",
+  green: "#059669",
+  greenSoft: "#13382C",
   amber: "#F59E0B",
-  amberSoft: "#FEF3C7",
-  border: "rgba(245, 158, 11, 0.22)", // Subtle Sayapatri gold rim
+  amberSoft: "#382711",
+  border: "rgba(245, 158, 11, 0.22)",
   gold: "#F59E0B",
   goldSoft: "rgba(245, 158, 11, 0.15)",
   silver: "#E2E8F0",
   bronze: "#F97316",
   danger: "#EF4444",
-  dangerSoft: "#FEE2E2",
-};
-
-/** Himalayan Midnight — sleek cosmic night, radiant electric cyan, and warm gold. */
-const himalaya: ColorTokens = {
-  primary: "#00D2FF", // Electric neon cyan
-  primaryDark: "#0077B6",
-  primarySoft: "#E0F7FA",
-  accent: "#FFB703", // Vivid warm gold
-  accentSoft: "#FFEAA7",
-  bg: "#0A0E27", // Ultra-clean deep midnight void
-  bgMid: "#12183D",
-  bgDeep: "#1B2252",
-  card: "#141C44", // Refined slate-navy card
-  surface: "#141C44",
-  surfaceElevated: "#1C265C",
-  cream: "#E8F4F8",
-  text: "#F8FAFC",
-  textMuted: "#94A3B8", // High-legibility slate
-  textOnPrimary: "#0A0E27",
-  green: "#10B981",
-  greenSoft: "#D1FAE5",
-  amber: "#FBBF24",
-  amberSoft: "#FEF3C7",
-  border: "rgba(255, 255, 255, 0.1)",
-  gold: "#FBBF24",
-  goldSoft: "rgba(251, 191, 36, 0.15)",
-  silver: "#E2E8F0",
-  bronze: "#FB923C",
-  danger: "#F43F5E",
-  dangerSoft: "#FFE4E6",
-};
-
-/** Cinematic Violet quest — deep cosmic space with vivid neon glow. */
-const violet: ColorTokens = {
-  primary: "#A855F7", // Electric purple
-  primaryDark: "#7E22CE",
-  primarySoft: "#F3E8FF",
-  accent: "#FB923C", // Vivid warm orange
-  accentSoft: "#FFEDD5",
-  bg: "#0F0728", // Deep cosmic void
-  bgMid: "#1B0F40",
-  bgDeep: "#28165E",
-  card: "#1E1248",
-  surface: "#1E1248",
-  surfaceElevated: "#281861",
-  cream: "#FAF5FF",
-  text: "#F8FAFC",
-  textMuted: "#C4B5FD",
-  textOnPrimary: "#FFFFFF",
-  green: "#10B981",
-  greenSoft: "#D1FAE5",
-  amber: "#FBBF24",
-  amberSoft: "#FEF3C7",
-  border: "rgba(255, 255, 255, 0.12)",
-  gold: "#FBBF24",
-  goldSoft: "rgba(251, 191, 36, 0.15)",
-  silver: "#E2E8F0",
-  bronze: "#FB923C",
-  danger: "#F43F5E",
-  dangerSoft: "#FFE4E6",
-};
-
-/** Dawn trail — crisp editorial ivory, vivid rose, and soft slate. */
-const dawn: ColorTokens = {
-  primary: "#E11D48", // Vivid rose
-  primaryDark: "#BE123C",
-  primarySoft: "#FFE4E6",
-  accent: "#0284C7", // Sky blue
-  accentSoft: "#E0F2FE",
-  bg: "#F8FAFC", // Clean light canvas
-  bgMid: "#F1F5F9",
-  bgDeep: "#E2E8F0",
-  card: "#FFFFFF",
-  surface: "#FFFFFF",
-  surfaceElevated: "#F8FAFC",
-  cream: "#FFF1F2",
-  text: "#0F172A",
-  textMuted: "#64748B",
-  textOnPrimary: "#FFFFFF",
-  green: "#059669",
-  greenSoft: "#D1FAE5",
-  amber: "#D97706",
-  amberSoft: "#FEF3C7",
-  border: "#E2E8F0",
-  gold: "#D97706",
-  goldSoft: "rgba(217, 119, 6, 0.12)",
-  silver: "#94A3B8",
-  bronze: "#C2410C",
-  danger: "#DC2626",
-  dangerSoft: "#FEE2E2",
-};
-
-/** Forest climb — deep pine canopy, emerald green, and lantern gold. */
-const forest: ColorTokens = {
-  primary: "#059669", // Rich emerald
-  primaryDark: "#047857",
-  primarySoft: "#D1FAE5",
-  accent: "#D97706",
-  accentSoft: "#FEF3C7",
-  bg: "#F4F7F5",
-  bgMid: "#E6EFEA",
-  bgDeep: "#D1E3D8",
-  card: "#FFFFFF",
-  surface: "#FFFFFF",
-  surfaceElevated: "#F4F7F5",
-  cream: "#ECFDF5",
-  text: "#064E3B",
-  textMuted: "#4B6358",
-  textOnPrimary: "#FFFFFF",
-  green: "#059669",
-  greenSoft: "#D1FAE5",
-  amber: "#D97706",
-  amberSoft: "#FEF3C7",
-  border: "#D1E3D8",
-  gold: "#D97706",
-  goldSoft: "rgba(217, 119, 6, 0.12)",
-  silver: "#94A3B8",
-  bronze: "#C2410C",
-  danger: "#DC2626",
-  dangerSoft: "#FEE2E2",
+  dangerSoft: "#3B1414",
 };
 
 export const PALETTES: PaletteMeta[] = [
+  {
+    id: "light",
+    nameKey: "themeLight",
+    swatch: [light.primary, light.accent, light.bgDeep],
+    colors: light,
+  },
+  {
+    id: "solar",
+    nameKey: "themeSolar",
+    swatch: [solar.primary, solar.accent, solar.bgDeep],
+    colors: solar,
+  },
+  {
+    id: "midnight",
+    nameKey: "themeMidnight",
+    swatch: [midnight.primary, midnight.accent, midnight.bgDeep],
+    colors: midnight,
+  },
+  {
+    id: "cyber",
+    nameKey: "themeCyber",
+    swatch: [cyber.primary, cyber.accent, cyber.bgDeep],
+    colors: cyber,
+  },
   {
     id: "simrik",
     nameKey: "themeSimrik",
     swatch: [simrik.primary, simrik.accent, simrik.bgDeep],
     colors: simrik,
   },
-  {
-    id: "himalaya",
-    nameKey: "themeHimalaya",
-    swatch: [himalaya.primary, himalaya.accent, himalaya.bgDeep],
-    colors: himalaya,
-  },
-  {
-    id: "violet",
-    nameKey: "themeViolet",
-    swatch: [violet.primary, violet.accent, violet.bgDeep],
-    colors: violet,
-  },
-  {
-    id: "dawn",
-    nameKey: "themeDawn",
-    swatch: [dawn.primary, dawn.accent, dawn.bgDeep],
-    colors: dawn,
-  },
-  {
-    id: "forest",
-    nameKey: "themeForest",
-    swatch: [forest.primary, forest.accent, forest.bgDeep],
-    colors: forest,
-  },
 ];
 
-export const DEFAULT_PALETTE_ID: PaletteId = "simrik";
+export const DEFAULT_PALETTE_ID: PaletteId = "light";
 
 export function getPalette(id: PaletteId): PaletteMeta {
-  return PALETTES.find((p) => p.id === id) ?? PALETTES[0];
+  return (
+    PALETTES.find((p) => p.id === id) ??
+    (id === "himalaya"
+      ? PALETTES[2]
+      : id === "violet"
+      ? PALETTES[3]
+      : id === "dawn"
+      ? PALETTES[1]
+      : id === "forest"
+      ? PALETTES[1]
+      : PALETTES[0])
+  );
 }
 
 /** Default export for rare static fallbacks (prefer useTheme). */
-export const colors: ColorTokens = simrik;
+export const colors: ColorTokens = light;
 
 export const radius = {
   card: 20,
@@ -271,37 +306,37 @@ export const fonts = {
 export const shadow = {
   sm: {
     shadowColor: "#000000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
     elevation: 2,
   },
   md: {
     shadowColor: "#000000",
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
   card: {
     shadowColor: "#000000",
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   nepalButton: {
     shadowColor: "#000000",
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   goldGlow: {
     shadowColor: "#F59E0B",
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 6,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
   },
 };

@@ -68,6 +68,28 @@ export function IconAwards({ size = 22, color = "#1E3A5F" }: IconProps) {
   );
 }
 
+export function IconArcade({ size = 22, color = "#1E3A5F" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect
+        x={2}
+        y={6}
+        width={20}
+        height={12}
+        rx={5}
+        stroke={color}
+        strokeWidth={2}
+      />
+      <Path
+        d="M6 12h4M8 10v4M15 11h.01M18 13h.01"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
 export function IconProfile({ size = 22, color = "#1E3A5F" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">

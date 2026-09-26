@@ -31,6 +31,7 @@ import { AvatarCircle } from "../components/AvatarCircle";
 import { Card } from "../components/Card";
 import { ConfettiEffect } from "../components/ConfettiEffect";
 import { EmojiBurst } from "../components/EmojiBurst";
+import { GameRulesModal } from "../components/GameRulesModal";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
@@ -796,6 +797,17 @@ export function ZipPlayScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              onPress={() => setShowHowToPlay(true)}
+              style={[
+                styles.iconBtn,
+                { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 16 }}>❓</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               onPress={handleOpenStandings}
               style={[
                 styles.iconBtn,
@@ -1062,33 +1074,42 @@ export function ZipPlayScreen() {
                 </Text>
               </View>
 
-              <View
-                style={[
-                  styles.targetBadge,
-                  {
-                    backgroundColor: colors.surfaceElevated,
-                    borderColor: nextExpectedCheckpoint <= puzzle.maxCheckpoint ? colors.accent : colors.green,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.targetBadgeText,
-                    {
-                      color: nextExpectedCheckpoint <= puzzle.maxCheckpoint ? colors.accent : colors.green,
-                      fontFamily: fonts.bodyBold,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {nextExpectedCheckpoint <= puzzle.maxCheckpoint
-                    ? `🎯 Target #${nextExpectedCheckpoint}`
-                    : "🏁 Fill Board!"}
-                </Text>
-                <Text style={[styles.targetProgressText, { color: colors.textMuted, fontFamily: fonts.body }]}>
-                  {`(${Math.min(nextExpectedCheckpoint - 1, puzzle.maxCheckpoint)}/${puzzle.maxCheckpoint})`}
-                </Text>
-              </View>
+              {/* HUD Badge: Only show explicit Target # in Easy practice mode. In Med/Hard/Daily, show solve path status */}
+              {(() => {
+                const isEasyMode = gameMode === "practice" && practiceDifficulty === "easy";
+                const isDone = nextExpectedCheckpoint > puzzle.maxCheckpoint;
+                return (
+                  <View
+                    style={[
+                      styles.targetBadge,
+                      {
+                        backgroundColor: colors.surfaceElevated,
+                        borderColor: isDone ? colors.green : isEasyMode ? colors.accent : colors.primary,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.targetBadgeText,
+                        {
+                          color: isDone ? colors.green : isEasyMode ? colors.accent : colors.primary,
+                          fontFamily: fonts.bodyBold,
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {isDone
+                        ? "🏁 Fill Board!"
+                        : isEasyMode
+                        ? `🎯 Target #${nextExpectedCheckpoint}`
+                        : "🧩 Solve Path"}
+                    </Text>
+                    <Text style={[styles.targetProgressText, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                      {`(${Math.min(nextExpectedCheckpoint - 1, puzzle.maxCheckpoint)}/${puzzle.maxCheckpoint})`}
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
 
             <View style={styles.hudRight}>
@@ -1292,6 +1313,9 @@ export function ZipPlayScreen() {
                 const pos = parseKey(key);
                 const isNext = num === nextExpectedCheckpoint;
                 const isPassed = num < nextExpectedCheckpoint;
+                // Only highlight the upcoming checkpoint number on Easy practice mode
+                const isEasyMode = gameMode === "practice" && practiceDifficulty === "easy";
+                const highlightUpcoming = isEasyMode && isNext;
                 const badgeSize = Math.min(cellSize * 0.72, 42);
                 return (
                   <View
@@ -1306,8 +1330,8 @@ export function ZipPlayScreen() {
                         height: badgeSize,
                         borderRadius: badgeSize / 2,
                         backgroundColor: "#111318",
-                        borderWidth: isNext ? 2.5 : 1.5,
-                        borderColor: isNext
+                        borderWidth: highlightUpcoming ? 2.5 : 1.5,
+                        borderColor: highlightUpcoming
                           ? "#FFFFFF"
                           : isPassed
                           ? "rgba(255, 255, 255, 0.85)"
@@ -1745,6 +1769,13 @@ export function ZipPlayScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* How to Play Rules Modal */}
+        <GameRulesModal
+          visible={showHowToPlay}
+          gameId="zip"
+          onClose={() => setShowHowToPlay(false)}
+        />
       </SafeAreaView>
     </Atmosphere>
   );

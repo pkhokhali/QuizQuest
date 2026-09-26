@@ -24,6 +24,7 @@ import { DailyWordSearchResponse } from "../api/types";
 import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
 import { ConfettiEffect } from "../components/ConfettiEffect";
+import { GameRulesModal } from "../components/GameRulesModal";
 import { PrimaryButton } from "../components/PrimaryButton";
 import {
   getAllWordSearchCategories,
@@ -142,6 +143,7 @@ export function WordSearchPlayScreen() {
   const [stars, setStars] = useState<number>(3);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [revealedMystery, setRevealedMystery] = useState<PlacedWord | null>(null);
+  const [showRules, setShowRules] = useState<boolean>(false);
 
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -741,6 +743,13 @@ export function WordSearchPlayScreen() {
 
         <View style={styles.headerActions}>
           <TouchableOpacity
+            onPress={() => setShowRules(true)}
+            style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border, marginRight: 8 }]}
+          >
+            <Text style={styles.actionIcon}>❓</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={toggleSound}
             style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border, marginRight: 8 }]}
           >
@@ -1296,6 +1305,12 @@ export function WordSearchPlayScreen() {
           </View>
         </View>
       </Modal>
+
+      <GameRulesModal
+        visible={showRules}
+        gameId="wordSearch"
+        onClose={() => setShowRules(false)}
+      />
     </SafeAreaView>
   </Atmosphere>
   );

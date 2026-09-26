@@ -18,6 +18,7 @@ import { Card } from "../components/Card";
 import { ConfettiEffect } from "../components/ConfettiEffect";
 import { EmojiBurst } from "../components/EmojiBurst";
 import { ErrorCard } from "../components/ErrorCard";
+import { GameRulesModal } from "../components/GameRulesModal";
 import { LoadingView } from "../components/LoadingView";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useAuth } from "../state/AuthContext";
@@ -26,6 +27,7 @@ import { useTheme } from "../state/ThemeContext";
 import { fonts, radius, shadow, spacing } from "../theme";
 import { SoundEffects, useSoundEnabled } from "../utils/audio";
 import { VictoryAnimation } from "../components/VictoryAnimation";
+import { getOfflineMemoryPack, queueOfflineSubmission } from "../utils/offlineStore";
 
 interface CardItem {
   uid: string;
@@ -182,6 +184,7 @@ export function MemoryPlayScreen() {
   const [gameEnded, setGameEnded] = useState(false);
   const [earnedStars, setEarnedStars] = useState(1);
   const [earnedXp, setEarnedXp] = useState(0);
+  const [showRules, setShowRules] = useState(false);
 
   const startTimeRef = useRef(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -197,9 +200,13 @@ export function MemoryPlayScreen() {
         // Pick a random pack instead of always index 0
         const rnd = res.packs[Math.floor(Math.random() * res.packs.length)];
         setupGame(rnd);
+      } else {
+        setupGame(getOfflineMemoryPack());
       }
     } catch {
-      // Handled in view
+      // Offline fallback: Use bundled offline memory pack!
+      const offlinePack = getOfflineMemoryPack();
+      setupGame(offlinePack);
     } finally {
       setLoading(false);
     }
@@ -316,8 +323,15 @@ export function MemoryPlayScreen() {
         setEarnedXp(res.xpEarned);
         refreshUser();
       } catch {
-        setEarnedStars(2);
-        setEarnedXp(40);
+        const calculatedStars = accurateMoves <= 10 ? 3 : accurateMoves <= 14 ? 2 : 1;
+        const xpEarned = 30 + calculatedStars * 10;
+        setEarnedStars(calculatedStars);
+        setEarnedXp(xpEarned);
+        queueOfflineSubmission("memory", "/api/memory/submit", {
+          packId: currentPack.id,
+          moves: accurateMoves,
+          timeMs: timeSpent,
+        });
       }
     }
   };
@@ -335,14 +349,18 @@ export function MemoryPlayScreen() {
         const pool = otherPacks.length > 0 ? otherPacks : packs;
         const rnd = pool[Math.floor(Math.random() * pool.length)];
         setupGame(rnd);
+        return;
       }
+      setupGame(getOfflineMemoryPack());
     } catch {
-      // Fallback to local pool if random endpoint fails
+      // Fallback to local pool or bundled offline pack if random endpoint fails
       if (packs.length > 0) {
         const otherPacks = packs.filter((p) => p.id !== currentPack?.id);
         const pool = otherPacks.length > 0 ? otherPacks : packs;
         const rnd = pool[Math.floor(Math.random() * pool.length)];
         setupGame(rnd);
+      } else {
+        setupGame(getOfflineMemoryPack());
       }
     } finally {
       setLoading(false);
@@ -384,6 +402,20 @@ export function MemoryPlayScreen() {
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => setShowRules(true)}
+              style={[
+                styles.soundToggleBtn,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 16 }}>❓</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={toggleSound}
               style={[
@@ -635,6 +667,12 @@ export function MemoryPlayScreen() {
             </Card>
           </View>
         )}
+
+        <GameRulesModal
+          visible={showRules}
+          gameId="memory"
+          onClose={() => setShowRules(false)}
+        />
       </SafeAreaView>
     </Atmosphere>
   );

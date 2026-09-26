@@ -1082,6 +1082,52 @@ router.get("/quiz/revenge", (req, res) => {
 function submitQuiz(req, res, kind) {
   const user = req.user;
   const { quizId, answers } = req.body || {};
+
+  // Offline quest sync support: Handle client-evaluated offline quests with anti-cheat caps
+  const isOfflineSubmission = quizId === 999999 || req.body?.offlineTimestamp != null || req.body?.offlineScore != null;
+  if (isOfflineSubmission) {
+    const rawScore = Number(req.body?.offlineScore);
+    const offlineScore = Math.max(0, Math.min(10, isNaN(rawScore) ? (Array.isArray(answers) ? answers.length : 0) : rawScore));
+    const total = 10;
+    const xpPerQ = kind === "daily" ? 10 : 8;
+    const xpEarned = Math.min(150, offlineScore * xpPerQ);
+
+    let streak = user.streak;
+    let comeback = false;
+    if (kind === "daily") {
+      const last = user.last_quiz_date;
+      if (last === daysAgo(1)) streak = user.streak + 1;
+      else if (last !== today()) {
+        if (last && last < daysAgo(3)) comeback = true;
+        streak = 1;
+      }
+      db.prepare("UPDATE users SET streak = ?, best_streak = MAX(best_streak, ?), last_quiz_date = ? WHERE id = ?")
+        .run(streak, streak, today(), user.id);
+    }
+
+    if (xpEarned > 0) {
+      db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").run(xpEarned, user.id);
+      const xpReason = kind === "daily" ? "offline_daily_quest" : "offline_practice_round";
+      db.prepare("INSERT INTO xp_events (user_id, amount, reason, date) VALUES (?, ?, ?, ?)")
+        .run(user.id, xpEarned, xpReason, today());
+    }
+
+    const fresh = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
+    const newAwards = checkAwards(user.id, { comeback }).map(({ earned, ...a }) => a);
+
+    return res.json({
+      score: offlineScore,
+      total,
+      xpEarned,
+      xp: fresh.xp,
+      level: levelForXp(fresh.xp),
+      streak: fresh.streak,
+      newAwards,
+      correct: [],
+      syncedOffline: true,
+    });
+  }
+
   const quiz = db.prepare("SELECT * FROM quizzes WHERE id = ? AND user_id = ? AND kind = ?").get(quizId, user.id, kind);
   if (!quiz) return res.status(404).json({ error: "Quiz not found" });
   if (quiz.completed) return res.status(400).json({ error: "Already completed" });

@@ -185,6 +185,38 @@ export function OnboardingScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Lifelong Learner / Brain Fitness Option */}
+            <TouchableOpacity
+              style={[
+                styles.lifelongCard,
+                grade === 13 && styles.lifelongCardSelected,
+              ]}
+              onPress={() => setGrade(13)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.lifelongLeft}>
+                <Text style={styles.lifelongEmoji}>🧠</Text>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.lifelongTitle,
+                      grade === 13 && { color: colors.primary },
+                    ]}
+                  >
+                    {t("obGradeLifelong")}
+                  </Text>
+                  <Text style={styles.lifelongDesc}>
+                    {t("obGradeLifelongDesc")}
+                  </Text>
+                </View>
+              </View>
+              {grade === 13 && (
+                <View style={[styles.lifelongCheck, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.lifelongCheckText}>✓</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         )}
 
@@ -542,6 +574,54 @@ function createStyles(colors: ColorTokens) {
   footer: {
     padding: spacing.xl,
     paddingTop: spacing.sm,
+  },
+  lifelongCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  lifelongCardSelected: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  lifelongLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+  },
+  lifelongEmoji: {
+    fontSize: 28,
+  },
+  lifelongTitle: {
+    fontSize: 15,
+    fontFamily: fonts.bodyBold,
+    color: colors.text,
+  },
+  lifelongDesc: {
+    fontSize: 12,
+    fontFamily: fonts.body,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  lifelongCheck: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: spacing.sm,
+  },
+  lifelongCheckText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
   },
 });
 }

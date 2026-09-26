@@ -25,6 +25,7 @@ import {
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Atmosphere } from "../components/Atmosphere";
 import { Card } from "../components/Card";
+import { GameRulesModal } from "../components/GameRulesModal";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { IconShield } from "../components/QuestIcons";
 import {
@@ -60,6 +61,7 @@ export function BattleScreen() {
   const [challengedIds, setChallengedIds] = useState<number[]>([]);
   const [schoolMembers, setSchoolMembers] = useState<SchoolClanMember[] | null>(null);
   const [schoolName, setSchoolName] = useState<string | null>(null);
+  const [showRules, setShowRules] = useState(false);
 
   const spin = useRef(new Animated.Value(0)).current;
 
@@ -255,8 +257,18 @@ export function BattleScreen() {
       <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabPadding }]}>
         <View style={styles.titleRow}>
-          <IconShield size={32} color={colors.primary} secondary={colors.accent} />
-          <Text style={[styles.title, { fontFamily: fonts.display }]}>{t("battleTitle")}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1 }}>
+            <IconShield size={32} color={colors.primary} secondary={colors.accent} />
+            <Text style={[styles.title, { fontFamily: fonts.display }]}>{t("battleTitle")}</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.ruleHelpBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+            onPress={() => setShowRules(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="How to Play"
+          >
+            <Text style={{ fontSize: 16 }}>❓</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Incoming challenge banner */}
@@ -522,6 +534,11 @@ export function BattleScreen() {
           </View>
         )}
       </ScrollView>
+      <GameRulesModal
+        visible={showRules}
+        gameId="battle"
+        onClose={() => setShowRules(false)}
+      />
     </SafeAreaView>
     </Atmosphere>
   );
@@ -546,6 +563,14 @@ function createStyles(colors: ColorTokens) {
     fontSize: 26,
     fontWeight: "800",
     color: colors.text,
+  },
+  ruleHelpBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
   incomingCard: {
     gap: spacing.md,

@@ -27,19 +27,22 @@ import { NotificationCenterModal } from "../components/NotificationCenterModal";
 import { IconFlame, IconMap } from "../components/QuestIcons";
 import { StreakFlame } from "../components/StreakFlame";
 import { StreakCelebrationModal } from "../components/StreakCelebrationModal";
+import { LanguageSelectorModal } from "../components/LanguageSelectorModal";
 import { XpBar } from "../components/XpBar";
 import { ALL_COUNTRIES, countryFlag, countrySyllabus, xpForLevel } from "../constants";
+import { SUPPORTED_LANGUAGES } from "../i18n";
 import { detectUserCountry } from "../utils/countryDetector";
 import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
 import { useTheme } from "../state/ThemeContext";
 import { fonts, radius, spacing } from "../theme";
+import { Haptics } from "../utils/haptics";
 
 export function HomeScreen() {
   const { t, lang } = useI18n();
   const { user, setUser, token } = useAuth();
-  const { colors } = useTheme();
+  const { colors, toggleLightDark } = useTheme();
   const navigation = useNavigation();
   const pulse = useRef(new Animated.Value(1)).current;
   const tabPadding = useTabScreenPadding();
@@ -51,6 +54,7 @@ export function HomeScreen() {
   const [isOffline, setIsOffline] = useState(false);
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [showCountryModal, setShowCountryModal] = useState(false);
+  const [showLangModal, setShowLangModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [factSeed, setFactSeed] = useState(() => Math.floor(Math.random() * 50));
   const [showTutorial, setShowTutorial] = useState(false);
@@ -268,6 +272,54 @@ export function HomeScreen() {
                   </Text>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                  {/* Language Quick Switcher */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.countryPill,
+                      {
+                        backgroundColor: colors.surfaceElevated,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      Haptics.tap();
+                      setShowLangModal(true);
+                    }}
+                  >
+                    <Text style={{ fontSize: 13 }}>
+                      {SUPPORTED_LANGUAGES.find((l) => l.code === lang)?.flag || "🌐"}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.countryPillText,
+                        { color: colors.text, fontFamily: fonts.bodyBold },
+                      ]}
+                    >
+                      {SUPPORTED_LANGUAGES.find((l) => l.code === lang)?.label.slice(0, 3).toUpperCase() || "LAN"}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 8 }}>▼</Text>
+                  </TouchableOpacity>
+
+                  {/* Quick Light / Dark Mode Toggle */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.countryPill,
+                      {
+                        backgroundColor: colors.surfaceElevated,
+                        borderColor: colors.border,
+                        paddingHorizontal: 10,
+                      },
+                    ]}
+                    onPress={() => {
+                      Haptics.tap();
+                      toggleLightDark();
+                    }}
+                  >
+                    <Text style={{ fontSize: 13 }}>{colors.isLight ? "🌙" : "☀️"}</Text>
+                  </TouchableOpacity>
+
                   <View ref={countryPillRef} collapsable={false}>
                     <TouchableOpacity
                       activeOpacity={0.8}
@@ -614,293 +666,82 @@ export function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Game Arena & Arcade Header */}
-          <View style={styles.arcadeHeaderRow}>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 18 }}>🎮</Text>
-                <Text
-                  style={[
-                    styles.arcadeSectionTitle,
-                    { color: colors.text, fontFamily: fonts.display },
-                  ]}
-                >
-                  {t("homeArcadeHeader")}
-                </Text>
-              </View>
-              <Text
-                style={[
-                  styles.arcadeSectionSub,
-                  { color: colors.textMuted, fontFamily: fonts.body },
-                ]}
-              >
-                {t("homeArcadeSub")}
-              </Text>
-            </View>
-          </View>
-
-          {/* 2-Column Arcade Grid */}
+          {/* Game Arena & Brain Gym Teaser Card (Directs to Dedicated Arcade Tab) */}
           <View ref={arcadeGridRef} collapsable={false}>
-            <View style={styles.arcadeGrid}>
-            {/* Tile 1: Zip Path Puzzle */}
             <TouchableOpacity
               activeOpacity={0.88}
-              style={styles.arcadeGridItem}
-              onPress={() => (navigation as any).navigate("ZipPlay")}
+              onPress={() => {
+                Haptics.tap();
+                (navigation as any).navigate("Tabs", { screen: "Arcade" });
+              }}
             >
               <Card
                 style={StyleSheet.flatten([
-                  styles.arcadeCard,
+                  styles.arcadeTeaserCard,
                   { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
                 ])}
               >
-                <View style={styles.arcadeCardTop}>
-                  <View
-                    style={[
-                      styles.arcadeIconBox,
-                      { backgroundColor: "rgba(124, 58, 237, 0.15)", borderColor: "#8B5CF6" },
-                    ]}
-                  >
-                    <Text style={styles.arcadeIconText}>⚡</Text>
-                  </View>
-                  <View style={[styles.arcadeBadge, { backgroundColor: "#8B5CF6" }]}>
-                    <Text style={styles.arcadeBadgeText}>DAILY</Text>
-                  </View>
-                </View>
-                <Text
-                  style={[
-                    styles.arcadeItemTitle,
-                    { color: colors.text, fontFamily: fonts.display },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {t("homeZipTitle")}
-                </Text>
-                <Text
-                  style={[
-                    styles.arcadeItemSub,
-                    { color: colors.textMuted, fontFamily: fonts.body },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {t("homeZipSub")}
-                </Text>
-                <View style={[styles.arcadeItemCta, { backgroundColor: "#7C3AED" }]}>
-                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
-                    {lang === "ne" ? "खेल्नुहोस्" : "PLAY"} →
-                  </Text>
-                </View>
-              </Card>
-            </TouchableOpacity>
-
-            {/* Tile 2: Word Search (शब्द खोज) - NEW */}
-            <TouchableOpacity
-              activeOpacity={0.88}
-              style={styles.arcadeGridItem}
-              onPress={() => (navigation as any).navigate("WordSearchPlay")}
-            >
-              <Card
-                style={StyleSheet.flatten([
-                  styles.arcadeCard,
-                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                ])}
-              >
-                <View style={styles.arcadeCardTop}>
-                  <View
-                    style={[
-                      styles.arcadeIconBox,
-                      { backgroundColor: "rgba(236, 72, 153, 0.15)", borderColor: "#EC4899" },
-                    ]}
-                  >
-                    <Text style={styles.arcadeIconText}>🔤</Text>
-                  </View>
-                  <View style={[styles.arcadeBadge, { backgroundColor: "#EC4899" }]}>
-                    <Text style={styles.arcadeBadgeText}>NEW</Text>
-                  </View>
-                </View>
-                <Text
-                  style={[
-                    styles.arcadeItemTitle,
-                    { color: colors.text, fontFamily: fonts.display },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {t("homeWordSearchTitle")}
-                </Text>
-                <Text
-                  style={[
-                    styles.arcadeItemSub,
-                    { color: colors.textMuted, fontFamily: fonts.body },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {t("homeWordSearchSub")}
-                </Text>
-                <View style={[styles.arcadeItemCta, { backgroundColor: "#DB2777" }]}>
-                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
-                    {lang === "ne" ? "खेल्नुहोस्" : "PLAY"} →
-                  </Text>
-                </View>
-              </Card>
-            </TouchableOpacity>
-
-
-            {/* Tile 4: Memory Blocks */}
-            <TouchableOpacity
-              activeOpacity={0.88}
-              style={styles.arcadeGridItem}
-              onPress={() => (navigation as any).navigate("MemoryPlay")}
-            >
-              <Card
-                style={StyleSheet.flatten([
-                  styles.arcadeCard,
-                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                ])}
-              >
-                <View style={styles.arcadeCardTop}>
-                  <View
-                    style={[
-                      styles.arcadeIconBox,
-                      { backgroundColor: "rgba(251, 146, 60, 0.15)", borderColor: "#FB923C" },
-                    ]}
-                  >
-                    <Text style={styles.arcadeIconText}>🧠</Text>
-                  </View>
-                  <View style={[styles.arcadeBadge, { backgroundColor: "#FB923C" }]}>
-                    <Text style={styles.arcadeBadgeText}>CARDS</Text>
-                  </View>
-                </View>
-                <Text
-                  style={[
-                    styles.arcadeItemTitle,
-                    { color: colors.text, fontFamily: fonts.display },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {lang === "ne" ? "स्मरण ब्लकहरू" : "Memory Blocks"}
-                </Text>
-                <Text
-                  style={[
-                    styles.arcadeItemSub,
-                    { color: colors.textMuted, fontFamily: fonts.body },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {lang === "ne" ? "पाठ्यक्रम जोडा मिलाउने खेल" : "Match pairs & test quick recall"}
-                </Text>
-                <View style={[styles.arcadeItemCta, { backgroundColor: "#EA580C" }]}>
-                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
-                    {lang === "ne" ? "खेल्नुहोस्" : "PLAY"} →
-                  </Text>
-                </View>
-              </Card>
-            </TouchableOpacity>
-
-            {/* Tile 5: 1v1 Battle Arena */}
-            <View ref={battleCardRef} collapsable={false} style={styles.arcadeGridItem}>
-              <TouchableOpacity
-                activeOpacity={0.88}
-                style={{ flex: 1 }}
-                onPress={() => (navigation as any).navigate("Battle")}
-              >
-                <Card
-                  style={StyleSheet.flatten([
-                    styles.arcadeCard,
-                    { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                  ])}
-                >
-                  <View style={styles.arcadeCardTop}>
-                    <View
-                      style={[
-                        styles.arcadeIconBox,
-                        { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "#EF4444" },
-                      ]}
-                    >
-                      <Text style={styles.arcadeIconText}>⚔️</Text>
+                <View style={styles.arcadeTeaserTop}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                    <View style={[styles.arcadeIconBox, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+                      <Text style={{ fontSize: 24 }}>🎮</Text>
                     </View>
-                    <View style={[styles.arcadeBadge, { backgroundColor: "#EF4444" }]}>
-                      <Text style={styles.arcadeBadgeText}>LIVE 1v1</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={[styles.arcadeTeaserTitle, { color: colors.text, fontFamily: fonts.display }]}>
+                          {t("homeArcadeHeader")}
+                        </Text>
+                        <View style={[styles.arcadeBadge, { backgroundColor: colors.accent }]}>
+                          <Text style={styles.arcadeBadgeText}>5 GAMES</Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.arcadeTeaserSub, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                        {t("homeArcadeSub")}
+                      </Text>
                     </View>
                   </View>
-                  <Text
-                    style={[
-                      styles.arcadeItemTitle,
-                      { color: colors.text, fontFamily: fonts.display },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {lang === "ne" ? "क्विज भिडन्त" : "Friend Battles"}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.arcadeItemSub,
-                      { color: colors.textMuted, fontFamily: fonts.body },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {lang === "ne" ? "साथीहरूसँग प्रत्यक्ष प्रतिस्पर्धा" : "Real-time head-to-head battle"}
-                  </Text>
-                  <View style={[styles.arcadeItemCta, { backgroundColor: "#DC2626" }]}>
-                    <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
-                      {lang === "ne" ? "भिडन्त" : "BATTLE"} ⚔️
-                    </Text>
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            </View>
-
-            {/* Tile 6: Student Insights & Analytics - NEW */}
-            <TouchableOpacity
-              activeOpacity={0.88}
-              style={styles.arcadeGridItem}
-              onPress={() => (navigation as any).navigate("GameInsights")}
-            >
-              <Card
-                style={StyleSheet.flatten([
-                  styles.arcadeCard,
-                  { backgroundColor: colors.surfaceElevated, borderColor: colors.primary, borderWidth: 1.5 },
-                ])}
-              >
-                <View style={styles.arcadeCardTop}>
-                  <View
-                    style={[
-                      styles.arcadeIconBox,
-                      { backgroundColor: "rgba(59, 130, 246, 0.15)", borderColor: colors.primary },
-                    ]}
-                  >
-                    <Text style={styles.arcadeIconText}>📊</Text>
-                  </View>
-                  <View style={[styles.arcadeBadge, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.arcadeBadgeText}>MASTERY</Text>
-                  </View>
                 </View>
-                <Text
-                  style={[
-                    styles.arcadeItemTitle,
-                    { color: colors.text, fontFamily: fonts.display },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {t("homeInsightsTitle")}
-                </Text>
-                <Text
-                  style={[
-                    styles.arcadeItemSub,
-                    { color: colors.textMuted, fontFamily: fonts.body },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {t("homeInsightsSub")}
-                </Text>
-                <View style={[styles.arcadeItemCta, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
-                    {lang === "ne" ? "हेर्नुहोस्" : "VIEW"} 📈
+
+                {/* Quick game shortcuts */}
+                <View style={styles.arcadeQuickPillsRow}>
+                  <TouchableOpacity
+                    style={[styles.quickGamePill, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => (navigation as any).navigate("ZipPlay")}
+                  >
+                    <Text style={[styles.quickGamePillText, { color: colors.text }]}>⚡ Zip Path</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.quickGamePill, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => (navigation as any).navigate("WordSearchPlay")}
+                  >
+                    <Text style={[styles.quickGamePillText, { color: colors.text }]}>🔍 Word Search</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.quickGamePill, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => (navigation as any).navigate("MemoryPlay")}
+                  >
+                    <Text style={[styles.quickGamePillText, { color: colors.text }]}>🧠 Memory</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.quickGamePill, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => (navigation as any).navigate("RiddlePlay")}
+                  >
+                    <Text style={[styles.quickGamePillText, { color: colors.text }]}>💡 Riddles</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Direct CTA */}
+                <View style={[styles.arcadeTeaserCta, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.arcadeTeaserCtaText, { fontFamily: fonts.bodyBold }]}>
+                    {lang === "ne" ? "आर्केड एरीना खोल्नुहोस् ➔" : "Enter Arcade Arena (Tab 2) ➔"}
                   </Text>
                 </View>
               </Card>
             </TouchableOpacity>
           </View>
-        </View>
 
           {/* Revenge Round Card */}
           {data.revengeAvailable && (
@@ -1127,6 +968,12 @@ export function HomeScreen() {
         visible={showTutorial}
         steps={tourSteps}
         onClose={() => setShowTutorial(false)}
+      />
+
+      {/* Language Selector Modal */}
+      <LanguageSelectorModal
+        visible={showLangModal}
+        onClose={() => setShowLangModal(false)}
       />
     </Atmosphere>
   );
@@ -1551,6 +1398,51 @@ const styles = StyleSheet.create({
   },
   digestShuffleText: {
     fontSize: 11,
+  },
+  arcadeTeaserCard: {
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1.5,
+    marginVertical: spacing.xs,
+  },
+  arcadeTeaserTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  arcadeTeaserTitle: {
+    fontSize: 18,
+  },
+  arcadeTeaserSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  arcadeQuickPillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginVertical: spacing.sm,
+  },
+  quickGamePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+  },
+  quickGamePillText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  arcadeTeaserCta: {
+    height: 42,
+    borderRadius: radius.button,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.xs,
+  },
+  arcadeTeaserCtaText: {
+    color: "#FFFFFF",
+    fontSize: 14,
   },
   arcadeHeaderRow: {
     marginTop: spacing.lg,
