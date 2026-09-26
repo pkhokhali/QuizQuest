@@ -2,7 +2,7 @@
   "expo": {
     "name": "QuizQuest",
     "slug": "quizquest",
-    "version": "1.3.9",
+    "version": "1.4.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.pkhokhali.quizquest",
-      "versionCode": 37,
+      "versionCode": 38,
       "blockedPermissions": ["android.permission.CAMERA"],
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
