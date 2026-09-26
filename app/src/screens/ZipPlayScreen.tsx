@@ -994,10 +994,10 @@ export function ZipPlayScreen() {
                       d === "easy"
                         ? "#10B981"
                         : d === "medium"
-                        ? "#F59E0B"
-                        : d === "hard"
-                        ? "#EF4444"
-                        : "#A855F7";
+                          ? "#F59E0B"
+                          : d === "hard"
+                            ? "#EF4444"
+                            : "#A855F7";
                     return (
                       <TouchableOpacity
                         key={`diff-${d}`}
@@ -1025,10 +1025,10 @@ export function ZipPlayScreen() {
                           {d === "easy"
                             ? "🟢 Easy"
                             : d === "medium"
-                            ? "🟡 Med"
-                            : d === "hard"
-                            ? "🔴 Hard"
-                            : "💀 Impossible"}
+                              ? "🟡 Med"
+                              : d === "hard"
+                                ? "🔴 Hard"
+                                : "💀 Impossible"}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -1101,8 +1101,8 @@ export function ZipPlayScreen() {
                       {isDone
                         ? "🏁 Fill Board!"
                         : isEasyMode
-                        ? `🎯 Target #${nextExpectedCheckpoint}`
-                        : "🧩 Solve Path"}
+                          ? `🎯 Target #${nextExpectedCheckpoint}`
+                          : "🧩 Solve Path"}
                     </Text>
                     <Text style={[styles.targetProgressText, { color: colors.textMuted, fontFamily: fonts.body }]}>
                       {`(${Math.min(nextExpectedCheckpoint - 1, puzzle.maxCheckpoint)}/${puzzle.maxCheckpoint})`}
@@ -1334,8 +1334,8 @@ export function ZipPlayScreen() {
                         borderColor: highlightUpcoming
                           ? "#FFFFFF"
                           : isPassed
-                          ? "rgba(255, 255, 255, 0.85)"
-                          : "rgba(255, 255, 255, 0.25)",
+                            ? "rgba(255, 255, 255, 0.85)"
+                            : "rgba(255, 255, 255, 0.25)",
                       },
                     ]}
                   >
@@ -1350,13 +1350,13 @@ export function ZipPlayScreen() {
                               ? puzzle.size.cols >= 9
                                 ? 9.5
                                 : puzzle.size.cols >= 8
-                                ? 11
-                                : 13
+                                  ? 11
+                                  : 13
                               : puzzle.size.cols >= 9
-                              ? 11.5
-                              : puzzle.size.cols >= 8
-                              ? 13.5
-                              : 17,
+                                ? 11.5
+                                : puzzle.size.cols >= 8
+                                  ? 13.5
+                                  : 17,
                           fontWeight: "900",
                         },
                       ]}
@@ -1651,8 +1651,8 @@ export function ZipPlayScreen() {
                       standingsTab === "friends"
                         ? standingsData?.friends || []
                         : standingsTab === "school"
-                        ? standingsData?.school || []
-                        : standingsData?.global || [];
+                          ? standingsData?.school || []
+                          : standingsData?.global || [];
 
                     if (list.length === 0) {
                       return (

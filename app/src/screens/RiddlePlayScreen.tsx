@@ -199,8 +199,7 @@ export function RiddlePlayScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <Atmosphere />
+    <Atmosphere style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         {awardedXp > 0 && <ConfettiEffect count={40} />}
 
@@ -447,7 +446,7 @@ export function RiddlePlayScreen() {
           onClose={() => setShowRules(false)}
         />
       </SafeAreaView>
-    </View>
+    </Atmosphere>
   );
 }
 

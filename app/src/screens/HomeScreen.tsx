@@ -205,6 +205,11 @@ export function HomeScreen() {
   const quizDone = data.dailyQuiz.status === "completed";
   const digest = data.digest;
 
+  // Dynamic notification badge: count genuinely pending daily activities
+  const pendingQuiz = !quizDone ? 1 : 0;
+  const pendingRiddle = data.riddle && !data.riddle.solved ? 1 : 0;
+  const notifBadgeCount = pendingQuiz + pendingRiddle;
+
   return (
     <Atmosphere>
       <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -244,147 +249,151 @@ export function HomeScreen() {
             </View>
           )}
 
-          {/* Student Profile & Greeting HUD */}
-          <View style={styles.greetingRow}>
-            <View style={styles.greetingText}>
-              <View style={styles.brandBadgeRow}>
+          {/* Top Header Bar: 2-Row Layout */}
+          <View style={styles.topHeaderBar}>
+            {/* ROW 1: Brand/Level on left | Notification + Avatar on right */}
+            <View style={styles.headerRow1}>
+              <View style={styles.brandContainer}>
                 <Text
                   style={[
-                    styles.brandHint,
-                    { color: colors.primary, fontFamily: fonts.bodyBold },
+                    styles.brandTitle,
+                    { color: colors.primary, fontFamily: fonts.display },
                   ]}
                 >
                   {t("appName")}
                 </Text>
                 <View
                   style={[
-                    styles.levelPill,
+                    styles.levelBadge,
                     { backgroundColor: colors.primary, borderColor: colors.primaryDark },
                   ]}
                 >
                   <Text
                     style={[
-                      styles.levelPillText,
+                      styles.levelBadgeText,
                       { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
                     ]}
                   >
                     Lv. {data.user.level}
                   </Text>
                 </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                  {/* Language Quick Switcher */}
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={[
-                      styles.countryPill,
-                      {
-                        backgroundColor: colors.surfaceElevated,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      Haptics.tap();
-                      setShowLangModal(true);
-                    }}
-                  >
-                    <Text style={{ fontSize: 13 }}>
-                      {SUPPORTED_LANGUAGES.find((l) => l.code === lang)?.flag || "🌐"}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.countryPillText,
-                        { color: colors.text, fontFamily: fonts.bodyBold },
-                      ]}
-                    >
-                      {SUPPORTED_LANGUAGES.find((l) => l.code === lang)?.label.slice(0, 3).toUpperCase() || "LAN"}
-                    </Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 8 }}>▼</Text>
-                  </TouchableOpacity>
-
-                  {/* Quick Light / Dark Mode Toggle */}
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={[
-                      styles.countryPill,
-                      {
-                        backgroundColor: colors.surfaceElevated,
-                        borderColor: colors.border,
-                        paddingHorizontal: 10,
-                      },
-                    ]}
-                    onPress={() => {
-                      Haptics.tap();
-                      toggleLightDark();
-                    }}
-                  >
-                    <Text style={{ fontSize: 13 }}>{colors.isLight ? "🌙" : "☀️"}</Text>
-                  </TouchableOpacity>
-
-                  <View ref={countryPillRef} collapsable={false}>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={[
-                        styles.countryPill,
-                        {
-                          backgroundColor: colors.surfaceElevated,
-                          borderColor: colors.border,
-                        },
-                      ]}
-                      onPress={() => setShowCountryModal(true)}
-                    >
-                      <Text style={{ fontSize: 13 }}>
-                        {countryFlag(data.user.homeCountry || "nepal")}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.countryPillText,
-                          { color: colors.text, fontFamily: fonts.bodyBold },
-                        ]}
-                      >
-                        {t(
-                          (ALL_COUNTRIES.find(
-                            (c) => c.code === (data.user.homeCountry || "nepal")
-                          )?.labelKey as any) || "countryNepal"
-                        )}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.countrySyllabusTag,
-                          { color: colors.accent, fontFamily: fonts.body },
-                        ]}
-                      >
-                        • {countrySyllabus(data.user.homeCountry || "nepal", lang).split(" ")[0]}
-                      </Text>
-                      <Text style={{ color: colors.textMuted, fontSize: 8 }}>▼</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View ref={clanPillRef} collapsable={false}>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={[
-                        styles.clanPill,
-                        {
-                          backgroundColor: colors.primarySoft,
-                          borderColor: colors.primary,
-                        },
-                      ]}
-                      onPress={() => (navigation as any).navigate("SchoolHub")}
-                    >
-                      <Text
-                        style={[
-                          styles.clanPillText,
-                          { color: colors.primary, fontFamily: fonts.bodyBold },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        🏫 {data.user.schoolName ? data.user.schoolName : "School Clan"}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
               </View>
 
+              <View style={styles.headerRow1Right}>
+                {/* Notification Bell */}
+                <TouchableOpacity
+                  style={[
+                    styles.headerIconButton,
+                    { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                  ]}
+                  onPress={() => setShowNotificationModal(true)}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel="Notifications"
+                >
+                  <Text style={styles.notificationBellIcon}>🔔</Text>
+                  {notifBadgeCount > 0 && (
+                    <View style={[styles.notificationBellBadge, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.notificationBellBadgeText}>{notifBadgeCount}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Avatar → taps to Profile tab */}
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    Haptics.tap();
+                    (navigation as any).navigate("Tabs", { screen: "Profile" });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="My Profile"
+                  style={styles.avatarBtn}
+                >
+                  <AvatarCircle avatar={data.user.avatar} size={36} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* ROW 2: Country + Language + Theme toggle */}
+            <View style={styles.headerRow2}>
+              {/* Country Syllabus Selector */}
+              <View ref={countryPillRef} collapsable={false}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={[
+                    styles.headerActionChip,
+                    { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                  ]}
+                  onPress={() => setShowCountryModal(true)}
+                >
+                  <Text style={{ fontSize: 13 }}>
+                    {countryFlag(data.user.homeCountry || "nepal")}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.headerActionChipText,
+                      { color: colors.text, fontFamily: fonts.bodyBold },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {t(
+                      (ALL_COUNTRIES.find(
+                        (c) => c.code === (data.user.homeCountry || "nepal")
+                      )?.labelKey as any) || "countryNepal"
+                    )}
+                  </Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 8 }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Language Switcher */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={[
+                  styles.headerActionChip,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ]}
+                onPress={() => {
+                  Haptics.tap();
+                  setShowLangModal(true);
+                }}
+              >
+                <Text style={{ fontSize: 13 }}>
+                  {SUPPORTED_LANGUAGES.find((l) => l.code === lang)?.flag || "🌐"}
+                </Text>
+                <Text
+                  style={[
+                    styles.headerActionChipText,
+                    { color: colors.text, fontFamily: fonts.bodyBold },
+                  ]}
+                >
+                  {SUPPORTED_LANGUAGES.find((l) => l.code === lang)?.label.slice(0, 3).toUpperCase() || "LAN"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Theme Toggle (Light / Dark) */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={[
+                  styles.headerIconButton,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ]}
+                onPress={() => {
+                  Haptics.tap();
+                  toggleLightDark();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle Theme"
+              >
+                <Text style={{ fontSize: 13 }}>{colors.isLight ? "🌙" : "☀️"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Hero Greeting & Quick Access Chips */}
+          <View style={styles.greetingContainer}>
+            <View style={styles.greetingHeader}>
               <Text
                 style={[styles.greeting, { color: colors.text, fontFamily: fonts.display }]}
               >
@@ -400,11 +409,35 @@ export function HomeScreen() {
               </Text>
             </View>
 
-            {/* Notification Bell & Profile Avatar */}
-            <View style={styles.headerRightActions}>
+            {/* Clean secondary action chips below greeting */}
+            <View style={styles.secondaryActionsRow}>
+              <View ref={clanPillRef} collapsable={false}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={[
+                    styles.secondaryActionChip,
+                    {
+                      backgroundColor: colors.primarySoft,
+                      borderColor: colors.primary,
+                    },
+                  ]}
+                  onPress={() => (navigation as any).navigate("SchoolHub")}
+                >
+                  <Text
+                    style={[
+                      styles.secondaryActionChipText,
+                      { color: colors.primary, fontFamily: fonts.bodyBold },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    🏫 {data.user.schoolName ? data.user.schoolName : "School Clan"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
                 style={[
-                  styles.tourGuideBtn,
+                  styles.secondaryActionChip,
                   { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
                 ]}
                 onPress={() => {
@@ -416,27 +449,10 @@ export function HomeScreen() {
                 accessibilityLabel={t("tourHowToPlay")}
               >
                 <Text style={styles.tourGuideIcon}>🎓</Text>
-                <Text style={[styles.tourGuideText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                <Text style={[styles.secondaryActionChipText, { color: colors.text, fontFamily: fonts.bodyBold }]}>
                   {t("tourHowToPlay")}
                 </Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.notificationBellBtn,
-                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                ]}
-                onPress={() => setShowNotificationModal(true)}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel="Notifications"
-              >
-                <Text style={styles.notificationBellIcon}>🔔</Text>
-                <View style={[styles.notificationBellBadge, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.notificationBellBadgeText}>3</Text>
-                </View>
-              </TouchableOpacity>
-              <AvatarCircle avatar={data.user.avatar} size={48} />
             </View>
           </View>
 
@@ -984,6 +1000,98 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     gap: spacing.lg,
+  },
+  topHeaderBar: {
+    flexDirection: "column",
+    marginBottom: spacing.xs,
+    paddingTop: spacing.xs,
+    gap: 6,
+  },
+  headerRow1: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerRow1Right: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerRow2: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  avatarBtn: {
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  brandContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  brandTitle: {
+    fontSize: 20,
+    letterSpacing: -0.3,
+  },
+  levelBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  levelBadgeText: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  headerActionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  headerActionChipText: {
+    fontSize: 11,
+    letterSpacing: 0.2,
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  greetingContainer: {
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  greetingHeader: {
+    gap: 2,
+  },
+  secondaryActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 2,
+  },
+  secondaryActionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  secondaryActionChipText: {
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
   greetingRow: {
     flexDirection: "row",
