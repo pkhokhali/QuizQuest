@@ -19,7 +19,11 @@ import { Card } from "../components/Card";
 import { Chip } from "../components/Chip";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { IconLogout } from "../components/QuestIcons";
+import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ALL_COUNTRIES, AVATAR_BGS, AVATAR_EMOJIS, EXTRA_COUNTRIES, SUBJECTS, countrySyllabus } from "../constants";
+import { SUPPORTED_LANGUAGES } from "../i18n";
+import { TUTORIAL_STORAGE_KEY } from "../components/FeatureTourSpotlightModal";
 import { useTabScreenPadding } from "../navigation/useTabScreenPadding";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
@@ -34,6 +38,7 @@ export function ProfileScreen() {
   const { colors, paletteId, setPaletteId } = useTheme();
   const tabPadding = useTabScreenPadding();
   const { isSoundEnabled, toggleSound } = useSoundEnabled();
+  const navigation = useNavigation();
 
   const [name, setName] = useState(user?.name ?? "");
   const [grade, setGrade] = useState<number | null>(user?.grade ?? null);
@@ -872,22 +877,80 @@ export function ProfileScreen() {
             </View>
           </Card>
 
+          {/* Global Language Selector */}
           <Card style={styles.section}>
             <Text
               style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold }]}
             >
-              {t("profileLanguage")}
+              🌐 {t("profileLanguage")}
             </Text>
-            <View style={styles.langRow}>
-              {(["en", "ne"] as Language[]).map((l) => (
-                <Chip
-                  key={l}
-                  label={l === "en" ? "English" : "नेपाली"}
-                  selected={lang === l}
-                  onPress={() => changeLanguage(l)}
-                  style={styles.langChip}
-                />
-              ))}
+            <View style={styles.langGrid}>
+              {SUPPORTED_LANGUAGES.map((l) => {
+                const isSelected = lang === l.code;
+                return (
+                  <TouchableOpacity
+                    key={l.code}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.langBtn,
+                      {
+                        backgroundColor: isSelected ? colors.primarySoft : colors.surfaceElevated,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                      },
+                    ]}
+                    onPress={() => changeLanguage(l.code)}
+                  >
+                    <Text style={styles.langFlag}>{l.flag}</Text>
+                    <Text
+                      style={[
+                        styles.langText,
+                        {
+                          color: isSelected ? colors.primary : colors.text,
+                          fontFamily: isSelected ? fonts.bodyBold : fonts.body,
+                        },
+                      ]}
+                    >
+                      {l.nativeLabel}
+                    </Text>
+                    {isSelected && <Text style={{ color: colors.primary, fontSize: 13, marginLeft: "auto" }}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Card>
+
+          {/* Interactive Feature Tour Replay Card */}
+          <Card style={styles.section}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: fonts.bodyBold, marginBottom: 4 }]}>
+                  🎓 {t("tourHowToPlay")}
+                </Text>
+                <Text style={[styles.note, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                  {t("tourTakeTour")}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={async () => {
+                  SoundEffects.playTap();
+                  await AsyncStorage.removeItem(TUTORIAL_STORAGE_KEY);
+                  (navigation as any).navigate("Home");
+                }}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: radius.chip,
+                  backgroundColor: colors.primary,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={{ color: colors.textOnPrimary, fontFamily: fonts.bodyBold, fontSize: 13 }}>
+                  {t("tourHowToPlay")} →
+                </Text>
+              </TouchableOpacity>
             </View>
           </Card>
 
@@ -1227,5 +1290,28 @@ const styles = StyleSheet.create({
   },
   createSchoolForm: {
     gap: spacing.sm,
+  },
+  langGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: spacing.sm,
+  },
+  langBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.chip,
+    borderWidth: 1.5,
+    minWidth: "47%",
+    flexGrow: 1,
+  },
+  langFlag: {
+    fontSize: 18,
+  },
+  langText: {
+    fontSize: 14,
   },
 });

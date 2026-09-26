@@ -1,6 +1,6 @@
 // Types matching docs/API.md (QuizQuest API Contract v1)
 
-export type Language = "en" | "ne";
+export type Language = "en" | "ne" | "hi" | "es" | "fr" | "de" | "ja" | "zh";
 
 export type Subject =
   | "math"

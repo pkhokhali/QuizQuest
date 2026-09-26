@@ -29,7 +29,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(LANG_KEY).then((stored) => {
-      if (stored === "en" || stored === "ne") setLangState(stored);
+      if (stored && ["en", "ne", "hi", "es", "fr", "de", "ja", "zh"].includes(stored)) {
+        setLangState(stored as Language);
+      }
     });
   }, []);
 

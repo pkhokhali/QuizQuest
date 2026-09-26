@@ -74,7 +74,7 @@ router.put("/me", (req, res) => {
   const params = [];
   if (typeof b.name === "string") { sets.push("name = ?"); params.push(b.name.slice(0, 60)); }
   if (Number.isInteger(b.grade) && b.grade >= 1 && b.grade <= 12) { sets.push("grade = ?"); params.push(b.grade); }
-  if (b.language === "en" || b.language === "ne") { sets.push("language = ?"); params.push(b.language); }
+  if (["en", "ne", "hi", "es", "fr", "de", "ja", "zh"].includes(b.language)) { sets.push("language = ?"); params.push(b.language); }
   if (COUNTRIES.includes(b.homeCountry)) { sets.push("home_country = ?"); params.push(b.homeCountry); }
   if (Array.isArray(b.extraCountries)) {
     const extras = b.extraCountries.filter((c) => COUNTRIES.includes(c)).slice(0, 2);

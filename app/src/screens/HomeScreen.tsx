@@ -15,11 +15,13 @@ import { getHome, updateMe } from "../api/client";
 import { SoundEffects } from "../utils/audio";
 import { HomeData } from "../api/types";
 import { getCachedHome, saveCachedHome, syncOfflineQueue } from "../utils/offlineStore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
 import { Card } from "../components/Card";
 import { CountrySelectorModal } from "../components/CountrySelectorModal";
 import { ErrorCard } from "../components/ErrorCard";
+import { FeatureTourSpotlightModal, TourStepItem, TUTORIAL_STORAGE_KEY } from "../components/FeatureTourSpotlightModal";
 import { LoadingView } from "../components/LoadingView";
 import { NotificationCenterModal } from "../components/NotificationCenterModal";
 import { IconFlame, IconMap } from "../components/QuestIcons";
@@ -51,6 +53,78 @@ export function HomeScreen() {
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [factSeed, setFactSeed] = useState(() => Math.floor(Math.random() * 50));
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const countryPillRef = useRef<View>(null);
+  const questCardRef = useRef<View>(null);
+  const battleCardRef = useRef<View>(null);
+  const arcadeGridRef = useRef<View>(null);
+  const digestCardRef = useRef<View>(null);
+  const clanPillRef = useRef<View>(null);
+
+  // Auto-launch Feature Tour for new players
+  useEffect(() => {
+    if (data && !loading) {
+      AsyncStorage.getItem(TUTORIAL_STORAGE_KEY).then((seen) => {
+        if (!seen) {
+          const timer = setTimeout(() => setShowTutorial(true), 750);
+          return () => clearTimeout(timer);
+        }
+      });
+    }
+  }, [data, loading]);
+
+  const tourSteps: TourStepItem[] = [
+    {
+      id: "country",
+      titleKey: "tourStep1Title",
+      descKey: "tourStep1Desc",
+      icon: "🇳🇵",
+      getRef: () => countryPillRef.current,
+      scrollTo: () => scrollViewRef.current?.scrollTo({ y: 0, animated: true }),
+    },
+    {
+      id: "quest",
+      titleKey: "tourStep2Title",
+      descKey: "tourStep2Desc",
+      icon: "🗺️",
+      getRef: () => questCardRef.current,
+      scrollTo: () => scrollViewRef.current?.scrollTo({ y: 190, animated: true }),
+    },
+    {
+      id: "battle",
+      titleKey: "tourStep3Title",
+      descKey: "tourStep3Desc",
+      icon: "⚔️",
+      getRef: () => battleCardRef.current,
+      scrollTo: () => scrollViewRef.current?.scrollTo({ y: 620, animated: true }),
+    },
+    {
+      id: "arcade",
+      titleKey: "tourStep4Title",
+      descKey: "tourStep4Desc",
+      icon: "🎮",
+      getRef: () => arcadeGridRef.current,
+      scrollTo: () => scrollViewRef.current?.scrollTo({ y: 440, animated: true }),
+    },
+    {
+      id: "digest",
+      titleKey: "tourStep5Title",
+      descKey: "tourStep5Desc",
+      icon: "📰",
+      getRef: () => digestCardRef.current,
+      scrollTo: () => scrollViewRef.current?.scrollTo({ y: 840, animated: true }),
+    },
+    {
+      id: "clan",
+      titleKey: "tourStep6Title",
+      descKey: "tourStep6Desc",
+      icon: "🏫",
+      getRef: () => clanPillRef.current,
+      scrollTo: () => scrollViewRef.current?.scrollTo({ y: 0, animated: true }),
+    },
+  ];
 
   // Auto-detect user country if not set yet
   useEffect(() => {
@@ -131,6 +205,7 @@ export function HomeScreen() {
     <Atmosphere>
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={[styles.content, { paddingBottom: tabPadding }]}
           refreshControl={
             <RefreshControl
@@ -193,64 +268,68 @@ export function HomeScreen() {
                   </Text>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={[
-                      styles.countryPill,
-                      {
-                        backgroundColor: colors.surfaceElevated,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => setShowCountryModal(true)}
-                  >
-                    <Text style={{ fontSize: 13 }}>
-                      {countryFlag(data.user.homeCountry || "nepal")}
-                    </Text>
-                    <Text
+                  <View ref={countryPillRef} collapsable={false}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
                       style={[
-                        styles.countryPillText,
-                        { color: colors.text, fontFamily: fonts.bodyBold },
+                        styles.countryPill,
+                        {
+                          backgroundColor: colors.surfaceElevated,
+                          borderColor: colors.border,
+                        },
                       ]}
+                      onPress={() => setShowCountryModal(true)}
                     >
-                      {t(
-                        (ALL_COUNTRIES.find(
-                          (c) => c.code === (data.user.homeCountry || "nepal")
-                        )?.labelKey as any) || "countryNepal"
-                      )}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.countrySyllabusTag,
-                        { color: colors.accent, fontFamily: fonts.body },
-                      ]}
-                    >
-                      • {countrySyllabus(data.user.homeCountry || "nepal", lang).split(" ")[0]}
-                    </Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 8 }}>▼</Text>
-                  </TouchableOpacity>
+                      <Text style={{ fontSize: 13 }}>
+                        {countryFlag(data.user.homeCountry || "nepal")}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.countryPillText,
+                          { color: colors.text, fontFamily: fonts.bodyBold },
+                        ]}
+                      >
+                        {t(
+                          (ALL_COUNTRIES.find(
+                            (c) => c.code === (data.user.homeCountry || "nepal")
+                          )?.labelKey as any) || "countryNepal"
+                        )}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.countrySyllabusTag,
+                          { color: colors.accent, fontFamily: fonts.body },
+                        ]}
+                      >
+                        • {countrySyllabus(data.user.homeCountry || "nepal", lang).split(" ")[0]}
+                      </Text>
+                      <Text style={{ color: colors.textMuted, fontSize: 8 }}>▼</Text>
+                    </TouchableOpacity>
+                  </View>
 
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={[
-                      styles.clanPill,
-                      {
-                        backgroundColor: colors.primarySoft,
-                        borderColor: colors.primary,
-                      },
-                    ]}
-                    onPress={() => (navigation as any).navigate("SchoolHub")}
-                  >
-                    <Text
+                  <View ref={clanPillRef} collapsable={false}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
                       style={[
-                        styles.clanPillText,
-                        { color: colors.primary, fontFamily: fonts.bodyBold },
+                        styles.clanPill,
+                        {
+                          backgroundColor: colors.primarySoft,
+                          borderColor: colors.primary,
+                        },
                       ]}
-                      numberOfLines={1}
+                      onPress={() => (navigation as any).navigate("SchoolHub")}
                     >
-                      🏫 {data.user.schoolName ? data.user.schoolName : "School Clan"}
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        style={[
+                          styles.clanPillText,
+                          { color: colors.primary, fontFamily: fonts.bodyBold },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        🏫 {data.user.schoolName ? data.user.schoolName : "School Clan"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
 
@@ -271,6 +350,25 @@ export function HomeScreen() {
 
             {/* Notification Bell & Profile Avatar */}
             <View style={styles.headerRightActions}>
+              <TouchableOpacity
+                style={[
+                  styles.tourGuideBtn,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                ]}
+                onPress={() => {
+                  SoundEffects.playTap();
+                  setShowTutorial(true);
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={t("tourHowToPlay")}
+              >
+                <Text style={styles.tourGuideIcon}>🎓</Text>
+                <Text style={[styles.tourGuideText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                  {t("tourHowToPlay")}
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={[
                   styles.notificationBellBtn,
@@ -394,100 +492,113 @@ export function HomeScreen() {
           </Card>
 
           {/* Hero Daily Quest Card */}
-          <TouchableOpacity
-            activeOpacity={0.88}
-            onPress={() => {
-              if (quizDone) {
-                navigation.navigate("DailyQuiz", { mode: "practice" });
-              } else {
-                navigation.navigate("DailyQuiz", { mode: "daily" });
-              }
-            }}
-          >
-            <Card
-              style={StyleSheet.flatten([
-                styles.questCard,
-                { borderColor: colors.primary, borderWidth: 1.5 },
-              ])}
+          <View ref={questCardRef} collapsable={false}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => {
+                if (quizDone) {
+                  navigation.navigate("DailyQuiz", { mode: "practice" });
+                } else {
+                  navigation.navigate("DailyQuiz", { mode: "daily" });
+                }
+              }}
             >
-              <View style={styles.questHeaderRow}>
-                <View
-                  style={[
-                    styles.questBountyBadge,
-                    {
-                      backgroundColor: quizDone
-                        ? "rgba(16, 185, 129, 0.18)"
-                        : "rgba(0, 210, 255, 0.16)",
-                      borderColor: quizDone ? colors.green : colors.primary,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.questBountyText,
-                      {
-                        color: quizDone ? colors.green : colors.primary,
-                        fontFamily: fonts.bodyBold,
-                      },
-                    ]}
-                  >
-                    {quizDone ? "✓ COMPLETED · UNLIMITED MODE ON" : "DAILY QUEST · +50 XP"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.questMainContent}>
-                <View
-                  style={[
-                    styles.questIconBox,
-                    { backgroundColor: colors.bgMid, borderColor: colors.border },
-                  ]}
-                >
-                  <IconMap size={44} color={colors.primary} secondary={colors.accent} />
-                </View>
-
-                <View style={styles.questBody}>
-                  <Text
-                    style={[
-                      styles.questTitle,
-                      { color: colors.text, fontFamily: fonts.display },
-                    ]}
-                  >
-                    {quizDone ? t("quizPlayMore") : t("homeTodaysQuest")}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.questMeta,
-                      { color: colors.textMuted, fontFamily: fonts.body },
-                    ]}
-                  >
-                    {quizDone
-                      ? "Play endless 5-question rounds for +XP & mastery!"
-                      : t("homeQuestMeta")}
-                  </Text>
-                </View>
-              </View>
-
-              {quizDone ? (
-                <View style={{ gap: 8 }}>
+              <Card
+                style={StyleSheet.flatten([
+                  styles.questCard,
+                  { borderColor: colors.primary, borderWidth: 1.5 },
+                ])}
+              >
+                <View style={styles.questHeaderRow}>
                   <View
                     style={[
-                      styles.questDoneBanner,
-                      { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: colors.green },
+                      styles.questBountyBadge,
+                      {
+                        backgroundColor: quizDone
+                          ? "rgba(16, 185, 129, 0.18)"
+                          : "rgba(0, 210, 255, 0.16)",
+                        borderColor: quizDone ? colors.green : colors.primary,
+                      },
                     ]}
                   >
                     <Text
                       style={[
-                        styles.questDoneText,
-                        { color: colors.green, fontFamily: fonts.bodyBold },
+                        styles.questBountyText,
+                        {
+                          color: quizDone ? colors.green : colors.primary,
+                          fontFamily: fonts.bodyBold,
+                        },
                       ]}
                     >
-                      🎉 {t("homeQuestDone", {
-                        score: data.dailyQuiz.score ?? 0,
-                        total: data.dailyQuiz.total,
-                      })}
+                      {quizDone ? "✓ COMPLETED · UNLIMITED MODE ON" : "DAILY QUEST · +50 XP"}
                     </Text>
                   </View>
+                </View>
+
+                <View style={styles.questMainContent}>
+                  <View
+                    style={[
+                      styles.questIconBox,
+                      { backgroundColor: colors.bgMid, borderColor: colors.border },
+                    ]}
+                  >
+                    <IconMap size={44} color={colors.primary} secondary={colors.accent} />
+                  </View>
+
+                  <View style={styles.questBody}>
+                    <Text
+                      style={[
+                        styles.questTitle,
+                        { color: colors.text, fontFamily: fonts.display },
+                      ]}
+                    >
+                      {quizDone ? t("quizPlayMore") : t("homeTodaysQuest")}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.questMeta,
+                        { color: colors.textMuted, fontFamily: fonts.body },
+                      ]}
+                    >
+                      {quizDone
+                        ? "Play endless 5-question rounds for +XP & mastery!"
+                        : t("homeQuestMeta")}
+                    </Text>
+                  </View>
+                </View>
+
+                {quizDone ? (
+                  <View style={{ gap: 8 }}>
+                    <View
+                      style={[
+                        styles.questDoneBanner,
+                        { backgroundColor: "rgba(16, 185, 129, 0.12)", borderColor: colors.green },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.questDoneText,
+                          { color: colors.green, fontFamily: fonts.bodyBold },
+                        ]}
+                      >
+                        🎉 {t("homeQuestDone", {
+                          score: data.dailyQuiz.score ?? 0,
+                          total: data.dailyQuiz.total,
+                        })}
+                      </Text>
+                    </View>
+                    <View style={[styles.questCta, { backgroundColor: colors.primary }]}>
+                      <Text
+                        style={[
+                          styles.questCtaText,
+                          { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
+                        ]}
+                      >
+                        🎲 {t("quizPlayMore")} →
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
                   <View style={[styles.questCta, { backgroundColor: colors.primary }]}>
                     <Text
                       style={[
@@ -495,24 +606,13 @@ export function HomeScreen() {
                         { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
                       ]}
                     >
-                      🎲 {t("quizPlayMore")} →
+                      {t("homeStartQuest")} →
                     </Text>
                   </View>
-                </View>
-              ) : (
-                <View style={[styles.questCta, { backgroundColor: colors.primary }]}>
-                  <Text
-                    style={[
-                      styles.questCtaText,
-                      { color: colors.textOnPrimary, fontFamily: fonts.bodyBold },
-                    ]}
-                  >
-                    {t("homeStartQuest")} →
-                  </Text>
-                </View>
-              )}
-            </Card>
-          </TouchableOpacity>
+                )}
+              </Card>
+            </TouchableOpacity>
+          </View>
 
           {/* Game Arena & Arcade Header */}
           <View style={styles.arcadeHeaderRow}>
@@ -540,7 +640,8 @@ export function HomeScreen() {
           </View>
 
           {/* 2-Column Arcade Grid */}
-          <View style={styles.arcadeGrid}>
+          <View ref={arcadeGridRef} collapsable={false}>
+            <View style={styles.arcadeGrid}>
             {/* Tile 1: Zip Path Puzzle */}
             <TouchableOpacity
               activeOpacity={0.88}
@@ -696,55 +797,57 @@ export function HomeScreen() {
             </TouchableOpacity>
 
             {/* Tile 5: 1v1 Battle Arena */}
-            <TouchableOpacity
-              activeOpacity={0.88}
-              style={styles.arcadeGridItem}
-              onPress={() => (navigation as any).navigate("Battle")}
-            >
-              <Card
-                style={StyleSheet.flatten([
-                  styles.arcadeCard,
-                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                ])}
+            <View ref={battleCardRef} collapsable={false} style={styles.arcadeGridItem}>
+              <TouchableOpacity
+                activeOpacity={0.88}
+                style={{ flex: 1 }}
+                onPress={() => (navigation as any).navigate("Battle")}
               >
-                <View style={styles.arcadeCardTop}>
-                  <View
+                <Card
+                  style={StyleSheet.flatten([
+                    styles.arcadeCard,
+                    { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+                  ])}
+                >
+                  <View style={styles.arcadeCardTop}>
+                    <View
+                      style={[
+                        styles.arcadeIconBox,
+                        { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "#EF4444" },
+                      ]}
+                    >
+                      <Text style={styles.arcadeIconText}>⚔️</Text>
+                    </View>
+                    <View style={[styles.arcadeBadge, { backgroundColor: "#EF4444" }]}>
+                      <Text style={styles.arcadeBadgeText}>LIVE 1v1</Text>
+                    </View>
+                  </View>
+                  <Text
                     style={[
-                      styles.arcadeIconBox,
-                      { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "#EF4444" },
+                      styles.arcadeItemTitle,
+                      { color: colors.text, fontFamily: fonts.display },
                     ]}
+                    numberOfLines={1}
                   >
-                    <Text style={styles.arcadeIconText}>⚔️</Text>
-                  </View>
-                  <View style={[styles.arcadeBadge, { backgroundColor: "#EF4444" }]}>
-                    <Text style={styles.arcadeBadgeText}>LIVE 1v1</Text>
-                  </View>
-                </View>
-                <Text
-                  style={[
-                    styles.arcadeItemTitle,
-                    { color: colors.text, fontFamily: fonts.display },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {lang === "ne" ? "क्विज भिडन्त" : "Friend Battles"}
-                </Text>
-                <Text
-                  style={[
-                    styles.arcadeItemSub,
-                    { color: colors.textMuted, fontFamily: fonts.body },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {lang === "ne" ? "साथीहरूसँग प्रत्यक्ष प्रतिस्पर्धा" : "Real-time head-to-head battle"}
-                </Text>
-                <View style={[styles.arcadeItemCta, { backgroundColor: "#DC2626" }]}>
-                  <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
-                    {lang === "ne" ? "भिडन्त" : "BATTLE"} ⚔️
+                    {lang === "ne" ? "क्विज भिडन्त" : "Friend Battles"}
                   </Text>
-                </View>
-              </Card>
-            </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.arcadeItemSub,
+                      { color: colors.textMuted, fontFamily: fonts.body },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {lang === "ne" ? "साथीहरूसँग प्रत्यक्ष प्रतिस्पर्धा" : "Real-time head-to-head battle"}
+                  </Text>
+                  <View style={[styles.arcadeItemCta, { backgroundColor: "#DC2626" }]}>
+                    <Text style={[styles.arcadeItemCtaText, { fontFamily: fonts.bodyBold }]}>
+                      {lang === "ne" ? "भिडन्त" : "BATTLE"} ⚔️
+                    </Text>
+                  </View>
+                </Card>
+              </TouchableOpacity>
+            </View>
 
             {/* Tile 6: Student Insights & Analytics - NEW */}
             <TouchableOpacity
@@ -797,6 +900,7 @@ export function HomeScreen() {
               </Card>
             </TouchableOpacity>
           </View>
+        </View>
 
           {/* Revenge Round Card */}
           {data.revengeAvailable && (
@@ -877,7 +981,8 @@ export function HomeScreen() {
 
           {/* Today's Digest Card */}
           {digest && (
-            <Card style={styles.digestCard}>
+            <View ref={digestCardRef} collapsable={false}>
+              <Card style={styles.digestCard}>
               <View style={styles.digestHeader}>
                 <View style={styles.digestBadge}>
                   <Text style={[styles.digestBadgeText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
@@ -969,7 +1074,8 @@ export function HomeScreen() {
                 </Text>
               </View>
             </Card>
-          )}
+          </View>
+        )}
 
           {/* Recent Awards Carousel */}
           {data.recentAwards.length > 0 && (
@@ -1015,6 +1121,13 @@ export function HomeScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Interactive Spotlight Feature Tour & How to Play */}
+      <FeatureTourSpotlightModal
+        visible={showTutorial}
+        steps={tourSteps}
+        onClose={() => setShowTutorial(false)}
+      />
     </Atmosphere>
   );
 }
@@ -1535,6 +1648,21 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     lineHeight: 16,
+  },
+  tourGuideBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  tourGuideIcon: {
+    fontSize: 14,
+  },
+  tourGuideText: {
+    fontSize: 12,
   },
 });
 

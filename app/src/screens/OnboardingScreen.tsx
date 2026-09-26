@@ -15,6 +15,7 @@ import { Atmosphere } from "../components/Atmosphere";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { ProgressDots } from "../components/ProgressDots";
 import { EXTRA_COUNTRIES, HOME_COUNTRY, ALL_COUNTRIES, countryFlag, countrySyllabus, SUBJECTS } from "../constants";
+import { SUPPORTED_LANGUAGES } from "../i18n";
 import { detectUserCountry } from "../utils/countryDetector";
 import { useAuth } from "../state/AuthContext";
 import { useI18n } from "../state/LanguageContext";
@@ -127,16 +128,32 @@ export function OnboardingScreen() {
               maxLength={30}
             />
             <Text style={styles.title2}>{t("obLanguageTitle")}</Text>
-            <View style={styles.row}>
-              {(["en", "ne"] as Language[]).map((l) => (
-                <Chip
-                  key={l}
-                  label={l === "en" ? "English" : "नेपाली"}
-                  selected={lang === l}
-                  onPress={() => setLang(l)}
-                  style={styles.flexChip}
-                />
-              ))}
+            <View style={styles.langGrid}>
+              {SUPPORTED_LANGUAGES.map((l) => {
+                const isSelected = lang === l.code;
+                return (
+                  <TouchableOpacity
+                    key={l.code}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.langChip,
+                      isSelected && styles.langChipSelected,
+                    ]}
+                    onPress={() => setLang(l.code)}
+                  >
+                    <Text style={{ fontSize: 16 }}>{l.flag}</Text>
+                    <Text
+                      style={[
+                        styles.langChipText,
+                        isSelected && styles.langChipTextSelected,
+                      ]}
+                    >
+                      {l.nativeLabel}
+                    </Text>
+                    {isSelected && <Text style={{ color: colors.primary, fontSize: 12 }}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         )}
@@ -492,6 +509,35 @@ function createStyles(colors: ColorTokens) {
     fontWeight: "600",
     textAlign: "center",
     marginTop: spacing.lg,
+  },
+  langGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: spacing.sm,
+  },
+  langChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.chip,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  langChipSelected: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  langChipText: {
+    fontSize: 13,
+    color: colors.text,
+  },
+  langChipTextSelected: {
+    color: colors.primary,
+    fontWeight: "700",
   },
   footer: {
     padding: spacing.xl,

@@ -1,4 +1,4 @@
-import { Subject } from "./api/types";
+import { Language, Subject } from "./api/types";
 import { TranslationKey } from "./i18n";
 
 export interface CountryOption {
@@ -75,7 +75,7 @@ export function countryFlag(code: string): string {
   return ALL_COUNTRIES.find((c) => c.code === code)?.flag ?? "🌍";
 }
 
-export function countrySyllabus(code: string, lang: "en" | "ne" = "en"): string {
+export function countrySyllabus(code: string, lang: Language = "en"): string {
   const c = ALL_COUNTRIES.find((item) => item.code === code) ?? HOME_COUNTRY;
   return lang === "ne" ? c.syllabusNe : c.syllabusEn;
 }
