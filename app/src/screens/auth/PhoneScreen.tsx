@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ApiError, loginWithEmail, verifyFirebase } from "../../api/client";
+import { User } from "../../api/types";
 import { IconQuestPin } from "../../components/QuestIcons";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { LanguageSelectorModal } from "../../components/LanguageSelectorModal";
@@ -150,6 +151,46 @@ export function PhoneScreen({ navigation }: Props) {
     } finally {
       setGoogleLoading(false);
     }
+  };
+
+  const onPlayAsGuest = async () => {
+    try {
+      setLoading(true);
+      const guestUser: User = {
+        id: 999999,
+        phone: "guest",
+        email: "guest@quizquest.app",
+        name: "Guest Explorer",
+        role: "student",
+        grade: 8,
+        language: (lang as any) || "en",
+        homeCountry: "nepal",
+        extraCountries: [],
+        subjects: ["math", "science", "social", "english", "nepali", "gk"],
+        quizTime: "morning",
+        avatar: { emoji: "🎒", bg: "#7C3AED" },
+        xp: 250,
+        level: 2,
+        streak: 1,
+        bestStreak: 1,
+        friendCode: "GUEST01",
+        schoolId: null,
+        schoolName: null,
+        onboarded: true,
+      };
+      await signIn("guest-token", guestUser);
+    } catch {
+      // Non-blocking
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fillDemoAccount = () => {
+    setIsSignUp(false);
+    setEmail("test2@quizquest.com");
+    setPassword("password123");
+    setError(null);
   };
 
   const onSubmit = async () => {
@@ -414,6 +455,27 @@ export function PhoneScreen({ navigation }: Props) {
                 )}
               </TouchableOpacity>
 
+              {/* PLAY AS GUEST BUTTON FOR IMMEDIATE EXPLORATION & PLAYSTORE REVIEW */}
+              <TouchableOpacity
+                style={[
+                  styles.guestBtn,
+                  {
+                    backgroundColor: isDark ? "rgba(124, 58, 237, 0.16)" : "#F3E8FF",
+                    borderColor: isDark ? "rgba(168, 85, 247, 0.4)" : "#D8B4FE",
+                  },
+                ]}
+                onPress={onPlayAsGuest}
+                disabled={loading}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Play as Guest"
+              >
+                <Text style={styles.guestBtnIcon}>🎮</Text>
+                <Text style={[styles.guestBtnText, { color: colors.primary, fontFamily: fonts.bodyBold }]}>
+                  Play as Guest (Skip Sign In)
+                </Text>
+              </TouchableOpacity>
+
               {/* Theme-Harmonious Divider */}
               <View style={styles.dividerRow}>
                 <View
@@ -568,6 +630,26 @@ export function PhoneScreen({ navigation }: Props) {
                   {isSignUp ? "Already have an account? " : "Don't have an account? "}
                   <Text style={{ color: colors.primary, fontFamily: fonts.bodyBold }}>
                     {isSignUp ? "Sign In" : "Create one"}
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+
+              {/* Play Store Reviewer Demo Account Helper Pill */}
+              <TouchableOpacity
+                style={[
+                  styles.demoPill,
+                  {
+                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F8FAFC",
+                    borderColor: isDark ? "rgba(255, 255, 255, 0.1)" : "#E2E8F0",
+                  },
+                ]}
+                onPress={fillDemoAccount}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.demoPillText, { color: colors.textMuted, fontFamily: fonts.body }]}>
+                  🔑 Reviewer Demo Login:{" "}
+                  <Text style={{ color: colors.primary, fontFamily: fonts.bodyBold }}>
+                    test2@quizquest.com
                   </Text>
                 </Text>
               </TouchableOpacity>
@@ -816,6 +898,35 @@ const styles = StyleSheet.create({
   },
   switchModeText: {
     fontSize: 13,
+  },
+  guestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: radius.button,
+    borderWidth: 1.2,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+  },
+  guestBtnIcon: {
+    fontSize: 18,
+  },
+  guestBtnText: {
+    fontSize: 14,
+    letterSpacing: 0.2,
+  },
+  demoPill: {
+    alignSelf: "center",
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  demoPillText: {
+    fontSize: 12,
+    textAlign: "center",
   },
 });
 

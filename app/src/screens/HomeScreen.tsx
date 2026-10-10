@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { getHome, updateMe } from "../api/client";
 import { SoundEffects } from "../utils/audio";
 import { HomeData } from "../api/types";
-import { getCachedHome, saveCachedHome, syncOfflineQueue } from "../utils/offlineStore";
+import { createOfflineHomeFallback, getCachedHome, saveCachedHome, syncOfflineQueue } from "../utils/offlineStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Atmosphere } from "../components/Atmosphere";
 import { AvatarCircle } from "../components/AvatarCircle";
@@ -175,19 +175,18 @@ export function HomeScreen() {
           syncOfflineQueue(token).catch(() => {});
         }
       } catch {
-        const cached = await getCachedHome();
-        if (cached) {
-          setData(cached);
-          setIsOffline(true);
-        } else if (!asRefresh) {
-          setFailed(true);
+        const cached = await getCachedHome(user || undefined);
+        setData(cached);
+        setIsOffline(true);
+        if (!user && cached.user) {
+          setUser(cached.user);
         }
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [setUser, token]
+    [setUser, token, user]
   );
 
   useFocusEffect(
@@ -197,8 +196,14 @@ export function HomeScreen() {
   );
 
   if (loading && !data) return <LoadingView />;
-  if (failed && !data) return <ErrorCard onRetry={() => load()} />;
-  if (!data || !user) return <LoadingView />;
+  if (!data) {
+    const fallback = createOfflineHomeFallback(user || undefined);
+    setData(fallback);
+    return <LoadingView />;
+  }
+  if (!user && data.user) {
+    setUser(data.user);
+  }
 
   const levelXpNeeded = xpForLevel(data.user.level);
   const xpIntoLevel = data.user.xp % levelXpNeeded;

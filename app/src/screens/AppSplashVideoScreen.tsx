@@ -16,32 +16,75 @@ interface AppSplashProps {
   onFinish: () => void;
 }
 
-function VideoPlayerLayer({ onVideoEnd }: { onVideoEnd: () => void }) {
-  const videoSource = require("../../assets/splash_intro.mp4");
-  const player = useVideoPlayer(videoSource, (p) => {
-    try {
-      p.loop = false;
-      p.muted = false;
-      p.play();
-    } catch {}
-  });
+class VideoErrorBoundary extends React.Component<
+  { onFallback: () => void; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch() {
+    this.props.onFallback();
+  }
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
+function VideoPlayerLayer({
+  onVideoEnd,
+  onVideoError,
+}: {
+  onVideoEnd: () => void;
+  onVideoError: () => void;
+}) {
+  let player: any = null;
+  try {
+    const videoSource = require("../../assets/splash_intro.mp4");
+    player = useVideoPlayer(videoSource, (p) => {
+      try {
+        p.loop = false;
+        p.muted = false;
+        p.play();
+      } catch {
+        onVideoError();
+      }
+    });
+  } catch {
+    onVideoError();
+  }
 
   useEffect(() => {
-    let subscription: any;
+    if (!player) {
+      onVideoError();
+      return;
+    }
+    let subEnd: any;
+    let subStatus: any;
     try {
-      subscription = player.addListener("playToEnd", () => {
+      subEnd = player.addListener("playToEnd", () => {
         onVideoEnd();
       });
-    } catch {}
+      subStatus = player.addListener("statusChange", (status: any) => {
+        if (status?.status === "error") {
+          onVideoError();
+        }
+      });
+    } catch {
+      onVideoError();
+    }
 
     return () => {
       try {
-        if (subscription && typeof subscription.remove === "function") {
-          subscription.remove();
-        }
+        if (subEnd && typeof subEnd.remove === "function") subEnd.remove();
+        if (subStatus && typeof subStatus.remove === "function") subStatus.remove();
       } catch {}
     };
-  }, [player, onVideoEnd]);
+  }, [player, onVideoEnd, onVideoError]);
+
+  if (!player) return null;
 
   return (
     <VideoView
@@ -77,10 +120,10 @@ export function AppSplashVideoScreen({ onFinish }: AppSplashProps) {
   };
 
   useEffect(() => {
-    // Safety auto-finish after 5.3s allows full 5.0s video & soundtrack to play completely
+    // Safety auto-finish after 1800ms ensures Google crawlers and users never face startup freezes
     const timer = setTimeout(() => {
       handleFinish();
-    }, 5300);
+    }, 1800);
 
     // Cinematic pulsating branding fallback loop
     const animLoop = Animated.loop(
@@ -123,7 +166,20 @@ export function AppSplashVideoScreen({ onFinish }: AppSplashProps) {
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {!videoFailed ? (
         <View style={StyleSheet.absoluteFill}>
-          <VideoPlayerLayer onVideoEnd={handleFinish} />
+          <VideoErrorBoundary
+            onFallback={() => {
+              setVideoFailed(true);
+              handleFinish();
+            }}
+          >
+            <VideoPlayerLayer
+              onVideoEnd={handleFinish}
+              onVideoError={() => {
+                setVideoFailed(true);
+                handleFinish();
+              }}
+            />
+          </VideoErrorBoundary>
         </View>
       ) : null}
 

@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { HomeData, StudentQuestion, Subject } from "../api/types";
+import { HomeData, StudentQuestion, Subject, User } from "../api/types";
 import { getBaseUrl } from "../api/config";
 import { getOfflineSeedQuestions } from "../constants/offlineSeedQuestions";
+import { getOfflineRiddle } from "../constants/offlineRiddles";
 export { getOfflineMemoryPack } from "../constants/offlineMemoryPacks";
 export { getOfflineRiddle } from "../constants/offlineRiddles";
 
@@ -349,8 +350,72 @@ export async function syncOfflineQueue(token: string): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Home Dashboard Offline Snapshot
+// 4. Home Dashboard Offline Snapshot & Resilient Fallback
 // ---------------------------------------------------------------------------
+
+export function createOfflineHomeFallback(user?: User): HomeData {
+  const fallbackUser: User = user || {
+    id: 999999,
+    phone: "guest",
+    email: "guest@quizquest.app",
+    name: "Guest Explorer",
+    role: "student",
+    grade: 8,
+    language: "en",
+    homeCountry: "nepal",
+    extraCountries: [],
+    subjects: ["math", "science", "social", "english", "nepali", "gk"],
+    quizTime: "morning",
+    avatar: { emoji: "🎒", bg: "#7C3AED" },
+    xp: 250,
+    level: 2,
+    streak: 1,
+    bestStreak: 1,
+    friendCode: "GUEST01",
+    schoolId: null,
+    schoolName: null,
+    onboarded: true,
+  };
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const riddle = getOfflineRiddle();
+
+  return {
+    user: fallbackUser,
+    dailyQuiz: {
+      status: "not_started",
+      score: null,
+      total: 10,
+    },
+    digest: {
+      id: 9901,
+      date: todayStr,
+      gradeBand: "6-8",
+      headlineEn: "Welcome to QuizQuest Daily Quests!",
+      headlineNe: "क्विजक्वेस्ट दैनिक ज्ञान यात्रामा स्वागत छ!",
+      gkFactEn: "Mount Everest rises 8,848.86 meters above sea level and grows by ~4mm every year.",
+      gkFactNe: "सगरमाथाको उचाइ ८,८४८.८६ मिटर छ र यो हरेक वर्ष करिब ४ मिमी बढ्छ।",
+      nepalFactEn: "Nepal is home to 8 of the world's 14 highest mountain peaks above 8,000 meters.",
+      nepalFactNe: "विश्वका ८,००० मिटरभन्दा अग्ला १४ हिमालहरूमध्ये ८ वटा नेपालमै छन्।",
+      bsDate: "२०८१",
+    },
+    riddle: riddle || null,
+    revengeAvailable: false,
+    recentAwards: [
+      {
+        code: "FIRST_QUEST",
+        nameEn: "Explorer",
+        nameNe: "अन्वेषक",
+        descEn: "Began the quest for wisdom",
+        descNe: "ज्ञान यात्रा सुरु गरियो",
+        icon: "🧭",
+        earned: true,
+        earnedAt: todayStr,
+      },
+    ],
+    weeklyXp: 120,
+  };
+}
 
 export async function saveCachedHome(data: HomeData): Promise<void> {
   try {
@@ -360,11 +425,14 @@ export async function saveCachedHome(data: HomeData): Promise<void> {
   }
 }
 
-export async function getCachedHome(): Promise<HomeData | null> {
+export async function getCachedHome(user?: User): Promise<HomeData> {
   try {
     const raw = await AsyncStorage.getItem(CACHED_HOME_KEY);
-    return raw ? (JSON.parse(raw) as HomeData) : null;
+    if (raw) {
+      return JSON.parse(raw) as HomeData;
+    }
   } catch {
-    return null;
+    // Fall back to procedurally generated home data
   }
+  return createOfflineHomeFallback(user);
 }
